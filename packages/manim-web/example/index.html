@@ -38,8 +38,14 @@
     </main>
 
     <script type="module">
-      // In an installed app, use: import { ... } from "realtime-manim";
-      import { Arrow, Circle, Create, MoveTo, Rotate, Scene, Square, Text, createManimPlayer } from "../src/index.js";
+      // GitHub Pages proves the published CDN package; repository-local serving
+      // keeps this example useful while developing the next release.
+      const moduleUrl = location.hostname.endsWith("github.io")
+        ? "https://cdn.jsdelivr.net/npm/realtime-manim@0.3.0/src/index.js"
+        : "../src/index.js";
+      const {
+        Arrow, Circle, Create, MoveTo, Rotate, Scene, Square, Text, createManimPlayer,
+      } = await import(moduleUrl);
 
       const duration = 4;
       const circle = new Circle({ id: "circle", radius: 1.05 })
