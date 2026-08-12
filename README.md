@@ -2,6 +2,17 @@
 
 A high-performance, real-time mathematical animation runtime in Rust.
 
+[![npm](https://img.shields.io/npm/v/realtime-manim)](https://www.npmjs.com/package/realtime-manim)
+[![CI](https://github.com/adamholter/realtime-manim-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/adamholter/realtime-manim-rs/actions/workflows/ci.yml)
+
+```sh
+npm install realtime-manim
+```
+
+The published browser package is dependency-free ESM with bundled Rust/Wasm and
+typed JavaScript authoring APIs. See [`packages/manim-web`](./packages/manim-web)
+for a copy-paste example.
+
 ## Current state
 
 The repository now contains:
