@@ -49,7 +49,7 @@ For a plain HTML file, import the module from a CDN. Pin the version in producti
 <script type="module">
   import {
     Circle, Create, Scene, createManimPlayer,
-  } from "https://cdn.jsdelivr.net/npm/realtime-manim@0.5.0/src/index.js";
+  } from "https://cdn.jsdelivr.net/npm/realtime-manim@0.6.0/src/index.js";
 
   const circle = new Circle().fill("#58c4ddcc");
   const scene = new Scene().add(circle).play(Create(circle));
@@ -81,6 +81,25 @@ const scene = new Scene()
   .add(diagram)
   .play(Create(diagram), MoveCamera({ zoom: 1.4 }, { duration: 2 }));
 ```
+
+`MarkupText` accepts Pango markup directly. Parsing, Unicode bidi resolution,
+font selection, shaping, and vector decoration geometry stay in Rust/Wasm:
+
+```js
+const label = new MarkupText(
+  `<span foreground="cyan" background="#11223388" weight="bold"
+     rise="2pt" letter_spacing="512" underline="double">
+     سرعة &amp; speed
+   </span>`,
+);
+```
+
+Supported convenience elements are `b`, `i`, `u`, `s`, `big`, `small`, `sup`,
+and `sub`. Supported `span` attributes are `foreground`/`color`, `background`,
+`font_family`, `weight`, `style`, `size`, `rise`, `letter_spacing`, `underline`,
+`underline_color`, `strikethrough`, and `strikethrough_color`. Invalid nesting,
+unknown tags, unknown attributes, unsupported named colors, and unsupported
+Pango features throw exact load-time errors; they are never flattened.
 
 ### Spatial layout
 
@@ -309,4 +328,4 @@ left.destroy(); // right keeps rendering
 
 This is a Manim-compatible browser runtime, not a drop-in execution environment for arbitrary Python Manim code. It accepts retained scene JSON emitted by the project's compatibility compiler and includes the lightweight JavaScript builder shown above. Playback, seeking, signals, text, SVG, raster media, 3D scene data, custom shaders, masks, patterns, audio metadata, and deterministic evaluation stay in the Rust runtime.
 
-Version 0.5 requires a WebGPU browser and a server that serves `.wasm` as `application/wasm`. Call `destroy()` when a player is no longer needed so its animation loop and GPU resources are released deterministically. Native UAX #9 bidi layout, Arabic joining, Hebrew, and grapheme-safe registered-family fallback are deterministic. Color emoji, exhaustive complex-script golden parity, unusual SVG filters, third-party Python renderer hooks, and native SVG/custom-shader rendering are not yet equivalent to desktop Manim.
+Version 0.6 requires a WebGPU browser and a server that serves `.wasm` as `application/wasm`. Call `destroy()` when a player is no longer needed so its animation loop and GPU resources are released deterministically. Native UAX #9 bidi layout, Arabic joining, Hebrew, grapheme-safe registered-family fallback, and strict nested Pango-style markup are deterministic. Color emoji, exhaustive complex-script golden parity, unusual SVG filters, third-party Python renderer hooks, and custom-shader rendering are not yet equivalent to desktop Manim.

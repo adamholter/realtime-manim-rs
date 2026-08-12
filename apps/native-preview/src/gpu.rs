@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 
 use image::{ColorType, ImageFormat};
 use realtime_manim_scene_core::{EvaluatedFrameView, ImageResampling, NodeKind, Scene};
+use realtime_manim_svg_engine::{SvgEngine, SvgPaint, SvgPath, SvgRasterImage};
 use realtime_manim_text_engine::TextEngine;
 use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
@@ -16,12 +17,13 @@ use winit::window::{Window, WindowAttributes, WindowId};
 
 use crate::cli::Args;
 use crate::geometry::{
-    DrawCommand, Geometry, IMAGE_VERTEX_ATTRIBUTES, ImageVertex, MESH_TEXTURE_VERTEX_ATTRIBUTES,
-    MeshTextureVertex, VERTEX_ATTRIBUTES, Vertex, build_geometry,
+    DrawCommand, Geometry, GpuGradientStop, IMAGE_VERTEX_ATTRIBUTES, ImageVertex,
+    MESH_TEXTURE_VERTEX_ATTRIBUTES, MaskDrawCommand, MeshTextureVertex, VERTEX_ATTRIBUTES, Vertex,
+    build_geometry_with_svg,
 };
 
 const TARGET_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
-const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
+const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth24PlusStencil8;
 
 struct FilterPipelines {
     sample: wgpu::RenderPipeline,
@@ -51,15 +53,60 @@ fn depth_state(mode: DepthMode) -> wgpu::DepthStencilState {
     }
 }
 
+fn clipped_depth_state() -> wgpu::DepthStencilState {
+    let face = wgpu::StencilFaceState {
+        compare: wgpu::CompareFunction::Equal,
+        fail_op: wgpu::StencilOperation::Keep,
+        depth_fail_op: wgpu::StencilOperation::Keep,
+        pass_op: wgpu::StencilOperation::Keep,
+    };
+    wgpu::DepthStencilState {
+        format: DEPTH_FORMAT,
+        depth_write_enabled: Some(false),
+        depth_compare: Some(wgpu::CompareFunction::Always),
+        stencil: wgpu::StencilState {
+            front: face,
+            back: face,
+            read_mask: 0xff,
+            write_mask: 0,
+        },
+        bias: wgpu::DepthBiasState::default(),
+    }
+}
+
+fn clip_depth_state(operation: wgpu::StencilOperation) -> wgpu::DepthStencilState {
+    let face = wgpu::StencilFaceState {
+        compare: wgpu::CompareFunction::Equal,
+        fail_op: wgpu::StencilOperation::Keep,
+        depth_fail_op: wgpu::StencilOperation::Keep,
+        pass_op: operation,
+    };
+    wgpu::DepthStencilState {
+        format: DEPTH_FORMAT,
+        depth_write_enabled: Some(false),
+        depth_compare: Some(wgpu::CompareFunction::Always),
+        stencil: wgpu::StencilState {
+            front: face,
+            back: face,
+            read_mask: 0xff,
+            write_mask: 0xff,
+        },
+        bias: wgpu::DepthBiasState::default(),
+    }
+}
+
 struct FrameBuffers {
     vertex: wgpu::Buffer,
     index: wgpu::Buffer,
     image_vertex: wgpu::Buffer,
     mesh_texture_vertex: wgpu::Buffer,
+    gradient_stop: wgpu::Buffer,
+    gradient_bind_group: wgpu::BindGroup,
     vertex_capacity: usize,
     index_capacity: usize,
     image_vertex_capacity: usize,
     mesh_texture_vertex_capacity: usize,
+    gradient_stop_capacity: usize,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -105,6 +152,99 @@ fn create_pipeline(
             ..Default::default()
         },
         depth_stencil: Some(depth_state(depth_mode)),
+        multisample: wgpu::MultisampleState::default(),
+        multiview_mask: None,
+        cache: None,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn create_vector_pipeline(
+    device: &wgpu::Device,
+    shader: &wgpu::ShaderModule,
+    layout: &wgpu::PipelineLayout,
+    format: wgpu::TextureFormat,
+    label: &str,
+    fragment_entry: &str,
+    depth_stencil: wgpu::DepthStencilState,
+    write_mask: wgpu::ColorWrites,
+    blend: Option<wgpu::BlendState>,
+) -> wgpu::RenderPipeline {
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some(label),
+        layout: Some(layout),
+        vertex: wgpu::VertexState {
+            module: shader,
+            entry_point: Some("vs_main"),
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            buffers: &[Some(wgpu::VertexBufferLayout {
+                array_stride: mem::size_of::<Vertex>() as u64,
+                step_mode: wgpu::VertexStepMode::Vertex,
+                attributes: &VERTEX_ATTRIBUTES,
+            })],
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: shader,
+            entry_point: Some(fragment_entry),
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            targets: &[Some(wgpu::ColorTargetState {
+                format,
+                blend,
+                write_mask,
+            })],
+        }),
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            front_face: wgpu::FrontFace::Ccw,
+            cull_mode: None,
+            ..Default::default()
+        },
+        depth_stencil: Some(depth_stencil),
+        multisample: wgpu::MultisampleState::default(),
+        multiview_mask: None,
+        cache: None,
+    })
+}
+
+fn create_svg_image_pipeline(
+    device: &wgpu::Device,
+    shader: &wgpu::ShaderModule,
+    layout: &wgpu::PipelineLayout,
+    format: wgpu::TextureFormat,
+    label: &str,
+    fragment_entry: &str,
+    depth_stencil: wgpu::DepthStencilState,
+) -> wgpu::RenderPipeline {
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some(label),
+        layout: Some(layout),
+        vertex: wgpu::VertexState {
+            module: shader,
+            entry_point: Some("vs_image"),
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            buffers: &[Some(wgpu::VertexBufferLayout {
+                array_stride: mem::size_of::<ImageVertex>() as u64,
+                step_mode: wgpu::VertexStepMode::Vertex,
+                attributes: &IMAGE_VERTEX_ATTRIBUTES,
+            })],
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: shader,
+            entry_point: Some(fragment_entry),
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            targets: &[Some(wgpu::ColorTargetState {
+                format,
+                blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+        }),
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            front_face: wgpu::FrontFace::Ccw,
+            cull_mode: None,
+            ..Default::default()
+        },
+        depth_stencil: Some(depth_stencil),
         multisample: wgpu::MultisampleState::default(),
         multiview_mask: None,
         cache: None,
@@ -212,6 +352,24 @@ fn decode_base64(source: &str) -> Result<Vec<u8>, &'static str> {
     Ok(output)
 }
 
+fn collect_nested_svg_images<'a>(paths: &'a [SvgPath], output: &mut Vec<&'a SvgRasterImage>) {
+    for path in paths {
+        for paint in [path.fill.as_ref(), path.stroke.as_ref()]
+            .into_iter()
+            .flatten()
+        {
+            if let SvgPaint::Pattern(pattern) = paint {
+                output.extend(pattern.images.iter());
+                collect_nested_svg_images(&pattern.paths, output);
+            }
+        }
+        for mask in &path.masks {
+            output.extend(mask.images.iter());
+            collect_nested_svg_images(&mask.paths, output);
+        }
+    }
+}
+
 impl FilterPipelines {
     fn get(&self, resampling: ImageResampling) -> &wgpu::RenderPipeline {
         match resampling {
@@ -232,6 +390,19 @@ struct GpuImage {
     linear_bind_group: wgpu::BindGroup,
     reconstruction_bind_group: wgpu::BindGroup,
     opaque: bool,
+}
+
+struct GpuMaskTargets {
+    texture: wgpu::Texture,
+    _array_view: wgpu::TextureView,
+    scratch_texture: wgpu::Texture,
+    scratch_view: wgpu::TextureView,
+    _depth_texture: wgpu::Texture,
+    depth_view: wgpu::TextureView,
+    bind_group: wgpu::BindGroup,
+    width: u32,
+    height: u32,
+    layers: u32,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -300,16 +471,30 @@ struct Gpu {
     vector_pipeline: wgpu::RenderPipeline,
     vector_depth_pipeline: wgpu::RenderPipeline,
     vector_transparent_depth_pipeline: wgpu::RenderPipeline,
+    vector_clipped_pipeline: wgpu::RenderPipeline,
+    vector_masked_pipeline: wgpu::RenderPipeline,
+    vector_masked_clipped_pipeline: wgpu::RenderPipeline,
+    clip_push_pipeline: wgpu::RenderPipeline,
+    clip_pop_pipeline: wgpu::RenderPipeline,
     image_pipelines: FilterPipelines,
     mesh_texture_pipelines: FilterPipelines,
     mesh_texture_depth_pipelines: FilterPipelines,
+    image_clipped_pipeline: wgpu::RenderPipeline,
+    image_masked_pipeline: wgpu::RenderPipeline,
+    image_masked_clipped_pipeline: wgpu::RenderPipeline,
+    gradient_layout: wgpu::BindGroupLayout,
+    mask_layout: wgpu::BindGroupLayout,
     image_layout: wgpu::BindGroupLayout,
     nearest_sampler: wgpu::Sampler,
     linear_sampler: wgpu::Sampler,
     image_cache: HashMap<String, GpuImage>,
     image_uploads: usize,
+    mask_index_buffer: wgpu::Buffer,
+    mask_index_capacity: usize,
+    mask_targets: Option<GpuMaskTargets>,
     adapter_name: String,
     backend: wgpu::Backend,
+    target_format: wgpu::TextureFormat,
 }
 
 impl Gpu {
@@ -347,9 +532,52 @@ impl Gpu {
             .await
             .map_err(|error| format!("Native GPU device creation failed: {error}"))?;
         let shader = device.create_shader_module(wgpu::include_wgsl!("native.wgsl"));
+        let gradient_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("realtime-manim native gradient bind group layout"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Storage { read_only: true },
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        });
+        let mask_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("realtime-manim native SVG mask bind group layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                        view_dimension: wgpu::TextureViewDimension::D2Array,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        });
         let vector_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("realtime-manim native vector pipeline layout"),
-            bind_group_layouts: &[],
+            bind_group_layouts: &[Some(&gradient_layout)],
+            immediate_size: 0,
+        });
+        let masked_vector_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("realtime-manim native masked vector pipeline layout"),
+            bind_group_layouts: &[Some(&gradient_layout), Some(&mask_layout)],
             immediate_size: 0,
         });
         let image_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -389,6 +617,12 @@ impl Gpu {
                 bind_group_layouts: &[Some(&image_layout)],
                 immediate_size: 0,
             });
+        let masked_image_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("realtime-manim native masked image pipeline layout"),
+                bind_group_layouts: &[Some(&image_layout), Some(&mask_layout)],
+                immediate_size: 0,
+            });
         let vector_pipeline = create_pipeline(
             &device,
             &shader,
@@ -425,6 +659,61 @@ impl Gpu {
             &VERTEX_ATTRIBUTES,
             DepthMode::Transparent,
         );
+        let vector_clipped_pipeline = create_vector_pipeline(
+            &device,
+            &shader,
+            &vector_layout,
+            format,
+            "realtime-manim native SVG clipped vector pipeline",
+            "fs_main",
+            clipped_depth_state(),
+            wgpu::ColorWrites::ALL,
+            Some(wgpu::BlendState::ALPHA_BLENDING),
+        );
+        let vector_masked_pipeline = create_vector_pipeline(
+            &device,
+            &shader,
+            &masked_vector_layout,
+            format,
+            "realtime-manim native SVG masked vector pipeline",
+            "fs_masked",
+            depth_state(DepthMode::Overlay),
+            wgpu::ColorWrites::ALL,
+            Some(wgpu::BlendState::ALPHA_BLENDING),
+        );
+        let vector_masked_clipped_pipeline = create_vector_pipeline(
+            &device,
+            &shader,
+            &masked_vector_layout,
+            format,
+            "realtime-manim native SVG masked clipped vector pipeline",
+            "fs_masked",
+            clipped_depth_state(),
+            wgpu::ColorWrites::ALL,
+            Some(wgpu::BlendState::ALPHA_BLENDING),
+        );
+        let clip_push_pipeline = create_vector_pipeline(
+            &device,
+            &shader,
+            &vector_layout,
+            format,
+            "realtime-manim native SVG clip push pipeline",
+            "fs_clip",
+            clip_depth_state(wgpu::StencilOperation::IncrementClamp),
+            wgpu::ColorWrites::empty(),
+            None,
+        );
+        let clip_pop_pipeline = create_vector_pipeline(
+            &device,
+            &shader,
+            &vector_layout,
+            format,
+            "realtime-manim native SVG clip pop pipeline",
+            "fs_clip",
+            clip_depth_state(wgpu::StencilOperation::DecrementClamp),
+            wgpu::ColorWrites::empty(),
+            None,
+        );
         let image_pipelines = create_filter_pipelines(
             &device,
             &shader,
@@ -458,6 +747,33 @@ impl Gpu {
             DepthMode::Opaque,
             "depth mesh texture",
         );
+        let image_clipped_pipeline = create_svg_image_pipeline(
+            &device,
+            &shader,
+            &image_pipeline_layout,
+            format,
+            "realtime-manim native SVG clipped image pipeline",
+            "fs_image_sample",
+            clipped_depth_state(),
+        );
+        let image_masked_pipeline = create_svg_image_pipeline(
+            &device,
+            &shader,
+            &masked_image_pipeline_layout,
+            format,
+            "realtime-manim native SVG masked image pipeline",
+            "fs_image_sample_masked",
+            depth_state(DepthMode::Overlay),
+        );
+        let image_masked_clipped_pipeline = create_svg_image_pipeline(
+            &device,
+            &shader,
+            &masked_image_pipeline_layout,
+            format,
+            "realtime-manim native SVG masked clipped image pipeline",
+            "fs_image_sample_masked",
+            clipped_depth_state(),
+        );
         let nearest_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("realtime-manim native nearest sampler"),
             mag_filter: wgpu::FilterMode::Nearest,
@@ -476,22 +792,43 @@ impl Gpu {
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             ..Default::default()
         });
+        let mask_index_capacity = 1;
+        let mask_index_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("realtime-manim native SVG mask index buffer"),
+            size: mem::size_of::<u32>() as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         Ok(Self {
             device,
             queue,
             vector_pipeline,
             vector_depth_pipeline,
             vector_transparent_depth_pipeline,
+            vector_clipped_pipeline,
+            vector_masked_pipeline,
+            vector_masked_clipped_pipeline,
+            clip_push_pipeline,
+            clip_pop_pipeline,
             image_pipelines,
             mesh_texture_pipelines,
             mesh_texture_depth_pipelines,
+            image_clipped_pipeline,
+            image_masked_pipeline,
+            image_masked_clipped_pipeline,
+            gradient_layout,
+            mask_layout,
             image_layout,
             nearest_sampler,
             linear_sampler,
             image_cache: HashMap::new(),
             image_uploads: 0,
+            mask_index_buffer,
+            mask_index_capacity,
+            mask_targets: None,
             adapter_name: info.name,
             backend: info.backend,
+            target_format: format,
         })
     }
 
@@ -505,6 +842,7 @@ impl Gpu {
         index_buffer: &wgpu::Buffer,
         image_vertex_buffer: &wgpu::Buffer,
         mesh_texture_vertex_buffer: &wgpu::Buffer,
+        gradient_bind_group: &wgpu::BindGroup,
         geometry: &Geometry,
     ) -> wgpu::CommandBuffer {
         let mut encoder = self
@@ -512,6 +850,127 @@ impl Gpu {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("realtime-manim native frame encoder"),
             });
+        if let Some(mask_targets) = self.mask_targets.as_ref() {
+            for (layer_index, layer) in geometry.mask_layers.iter().enumerate() {
+                {
+                    let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: Some("realtime-manim native SVG vector mask pass"),
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                            view: &mask_targets.scratch_view,
+                            depth_slice: None,
+                            resolve_target: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                                store: wgpu::StoreOp::Store,
+                            },
+                        })],
+                        depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                            view: &mask_targets.depth_view,
+                            depth_ops: Some(wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(1.0),
+                                store: wgpu::StoreOp::Store,
+                            }),
+                            stencil_ops: Some(wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(0),
+                                store: wgpu::StoreOp::Store,
+                            }),
+                        }),
+                        ..Default::default()
+                    });
+                    pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+                    pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                    pass.set_bind_group(0, gradient_bind_group, &[]);
+                    for command in &layer.commands {
+                        match command {
+                            MaskDrawCommand::ClipPush { indices, reference } => {
+                                pass.set_pipeline(&self.clip_push_pipeline);
+                                pass.set_stencil_reference(*reference);
+                                pass.draw_indexed(indices.clone(), 0, 0..1);
+                            }
+                            MaskDrawCommand::ClipPop { indices, reference } => {
+                                pass.set_pipeline(&self.clip_pop_pipeline);
+                                pass.set_stencil_reference(*reference);
+                                pass.draw_indexed(indices.clone(), 0, 0..1);
+                            }
+                            MaskDrawCommand::Vector { indices, reference } => {
+                                pass.set_pipeline(if *reference == 0 {
+                                    &self.vector_pipeline
+                                } else {
+                                    &self.vector_clipped_pipeline
+                                });
+                                pass.set_stencil_reference(*reference);
+                                pass.draw_indexed(indices.clone(), 0, 0..1);
+                            }
+                            MaskDrawCommand::MaskedVector { indices, reference } => {
+                                pass.set_pipeline(if *reference == 0 {
+                                    &self.vector_masked_pipeline
+                                } else {
+                                    &self.vector_masked_clipped_pipeline
+                                });
+                                pass.set_bind_group(1, &mask_targets.bind_group, &[]);
+                                pass.set_stencil_reference(*reference);
+                                pass.draw_indexed(indices.clone(), 0, 0..1);
+                            }
+                            MaskDrawCommand::Image {
+                                vertices,
+                                key,
+                                resampling,
+                                reference,
+                                masked,
+                            } => {
+                                let Some(image) = self.image_cache.get(key) else {
+                                    continue;
+                                };
+                                let pipeline = if *masked {
+                                    if *reference == 0 {
+                                        &self.image_masked_pipeline
+                                    } else {
+                                        &self.image_masked_clipped_pipeline
+                                    }
+                                } else if *reference == 0 {
+                                    self.image_pipelines.get(*resampling)
+                                } else {
+                                    &self.image_clipped_pipeline
+                                };
+                                pass.set_pipeline(pipeline);
+                                pass.set_stencil_reference(*reference);
+                                pass.set_bind_group(0, image.bind_group(*resampling), &[]);
+                                if *masked {
+                                    pass.set_bind_group(1, &mask_targets.bind_group, &[]);
+                                }
+                                pass.set_vertex_buffer(0, image_vertex_buffer.slice(..));
+                                pass.draw(vertices.clone(), 0..1);
+                                pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+                                pass.set_bind_group(0, gradient_bind_group, &[]);
+                            }
+                        }
+                    }
+                }
+                encoder.copy_texture_to_texture(
+                    wgpu::TexelCopyTextureInfo {
+                        texture: &mask_targets.scratch_texture,
+                        mip_level: 0,
+                        origin: wgpu::Origin3d::ZERO,
+                        aspect: wgpu::TextureAspect::All,
+                    },
+                    wgpu::TexelCopyTextureInfo {
+                        texture: &mask_targets.texture,
+                        mip_level: 0,
+                        origin: wgpu::Origin3d {
+                            x: 0,
+                            y: 0,
+                            z: layer_index as u32,
+                        },
+                        aspect: wgpu::TextureAspect::All,
+                    },
+                    wgpu::Extent3d {
+                        width: mask_targets.width,
+                        height: mask_targets.height,
+                        depth_or_array_layers: 1,
+                    },
+                );
+            }
+        }
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("realtime-manim native vector pass"),
@@ -535,10 +994,14 @@ impl Gpu {
                         load: wgpu::LoadOp::Clear(1.0),
                         store: wgpu::StoreOp::Store,
                     }),
-                    stencil_ops: None,
+                    stencil_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(0),
+                        store: wgpu::StoreOp::Store,
+                    }),
                 }),
                 ..Default::default()
             });
+            pass.set_bind_group(0, gradient_bind_group, &[]);
             // Populate depth with every opaque 3D primitive before blending anything.
             for command in &geometry.commands {
                 match command {
@@ -551,6 +1014,7 @@ impl Gpu {
                             continue;
                         }
                         pass.set_pipeline(&self.vector_depth_pipeline);
+                        pass.set_bind_group(0, gradient_bind_group, &[]);
                         pass.set_vertex_buffer(0, vertex_buffer.slice(..));
                         pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                         pass.draw_indexed(indices.clone(), 0, 0..1);
@@ -572,7 +1036,11 @@ impl Gpu {
                         pass.set_vertex_buffer(0, mesh_texture_vertex_buffer.slice(..));
                         pass.draw(vertices.clone(), 0..1);
                     }
-                    DrawCommand::Image { .. } => {}
+                    DrawCommand::Image { .. }
+                    | DrawCommand::ClipPush { .. }
+                    | DrawCommand::ClipPop { .. }
+                    | DrawCommand::ClippedVector { .. }
+                    | DrawCommand::MaskedVector { .. } => {}
                 }
             }
 
@@ -587,6 +1055,7 @@ impl Gpu {
                             continue;
                         }
                         pass.set_pipeline(&self.vector_transparent_depth_pipeline);
+                        pass.set_bind_group(0, gradient_bind_group, &[]);
                         pass.set_vertex_buffer(0, vertex_buffer.slice(..));
                         pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                         pass.draw_indexed(primitive.range.clone(), 0, 0..1);
@@ -608,7 +1077,11 @@ impl Gpu {
                         pass.set_vertex_buffer(0, mesh_texture_vertex_buffer.slice(..));
                         pass.draw(primitive.range.clone(), 0..1);
                     }
-                    DrawCommand::Image { .. } => {}
+                    DrawCommand::Image { .. }
+                    | DrawCommand::ClipPush { .. }
+                    | DrawCommand::ClipPop { .. }
+                    | DrawCommand::ClippedVector { .. }
+                    | DrawCommand::MaskedVector { .. } => {}
                 }
             }
 
@@ -624,6 +1097,7 @@ impl Gpu {
                             continue;
                         }
                         pass.set_pipeline(&self.vector_pipeline);
+                        pass.set_bind_group(0, gradient_bind_group, &[]);
                         pass.set_vertex_buffer(0, vertex_buffer.slice(..));
                         pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
                         pass.draw_indexed(indices.clone(), 0, 0..1);
@@ -632,23 +1106,84 @@ impl Gpu {
                         vertices,
                         key,
                         resampling,
+                        reference,
+                        masked,
                     } => {
                         let Some(image) = self.image_cache.get(key) else {
                             continue;
                         };
-                        pass.set_pipeline(self.image_pipelines.get(*resampling));
+                        let pipeline = if *masked {
+                            if *reference == 0 {
+                                &self.image_masked_pipeline
+                            } else {
+                                &self.image_masked_clipped_pipeline
+                            }
+                        } else if *reference == 0 {
+                            self.image_pipelines.get(*resampling)
+                        } else {
+                            &self.image_clipped_pipeline
+                        };
+                        pass.set_pipeline(pipeline);
+                        pass.set_stencil_reference(*reference);
                         pass.set_bind_group(0, image.bind_group(*resampling), &[]);
+                        if *masked && let Some(targets) = self.mask_targets.as_ref() {
+                            pass.set_bind_group(1, &targets.bind_group, &[]);
+                        }
                         pass.set_vertex_buffer(0, image_vertex_buffer.slice(..));
                         pass.draw(vertices.clone(), 0..1);
                     }
                     DrawCommand::MeshTexture { .. } => {}
+                    DrawCommand::ClipPush { indices, reference } => {
+                        pass.set_pipeline(&self.clip_push_pipeline);
+                        pass.set_bind_group(0, gradient_bind_group, &[]);
+                        pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+                        pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                        pass.set_stencil_reference(*reference);
+                        pass.draw_indexed(indices.clone(), 0, 0..1);
+                    }
+                    DrawCommand::ClipPop { indices, reference } => {
+                        pass.set_pipeline(&self.clip_pop_pipeline);
+                        pass.set_bind_group(0, gradient_bind_group, &[]);
+                        pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+                        pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                        pass.set_stencil_reference(*reference);
+                        pass.draw_indexed(indices.clone(), 0, 0..1);
+                    }
+                    DrawCommand::ClippedVector { indices, reference } => {
+                        pass.set_pipeline(&self.vector_clipped_pipeline);
+                        pass.set_bind_group(0, gradient_bind_group, &[]);
+                        pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+                        pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                        pass.set_stencil_reference(*reference);
+                        pass.draw_indexed(indices.clone(), 0, 0..1);
+                    }
+                    DrawCommand::MaskedVector { indices, reference } => {
+                        let Some(targets) = self.mask_targets.as_ref() else {
+                            continue;
+                        };
+                        pass.set_pipeline(if *reference == 0 {
+                            &self.vector_masked_pipeline
+                        } else {
+                            &self.vector_masked_clipped_pipeline
+                        });
+                        pass.set_bind_group(0, gradient_bind_group, &[]);
+                        pass.set_bind_group(1, &targets.bind_group, &[]);
+                        pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+                        pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                        pass.set_stencil_reference(*reference);
+                        pass.draw_indexed(indices.clone(), 0, 0..1);
+                    }
                 }
             }
         }
         encoder.finish()
     }
 
-    fn prepare_images(&mut self, frame: &EvaluatedFrameView<'_>) -> Result<(), String> {
+    fn prepare_images(
+        &mut self,
+        frame: &EvaluatedFrameView<'_>,
+        svg_engine: &mut SvgEngine,
+    ) -> Result<(), String> {
         for node in &frame.nodes {
             let source = match node.kind.as_ref() {
                 NodeKind::Image {
@@ -737,7 +1272,91 @@ impl Gpu {
                 },
             );
         }
+        for node in &frame.nodes {
+            let NodeKind::Svg { svg, .. } = node.kind.as_ref() else {
+                continue;
+            };
+            let document = svg_engine
+                .document(svg)
+                .map_err(|error| format!("SVG parsing failed for {}: {error}", node.id))?;
+            let mut images = document.images.iter().collect::<Vec<_>>();
+            collect_nested_svg_images(&document.paths, &mut images);
+            for image in images {
+                let key = format!("svg-resource-{:016x}", image.key);
+                if self.image_cache.contains_key(&key) {
+                    continue;
+                }
+                self.insert_rgba_image(
+                    &key,
+                    ImageSourceSignature::new(
+                        &key,
+                        image.pixel_width,
+                        image.pixel_height,
+                        &key,
+                        image.pixel_width,
+                        image.pixel_height,
+                    ),
+                    image.pixels.as_slice(),
+                    image.pixel_width,
+                    image.pixel_height,
+                    image.pixels.as_slice(),
+                    image.pixel_width,
+                    image.pixel_height,
+                );
+            }
+        }
         Ok(())
+    }
+
+    fn prepare_mask_targets(
+        &mut self,
+        width: u32,
+        height: u32,
+        layer_count: usize,
+        mask_indices: &[u32],
+    ) -> usize {
+        if layer_count == 0 {
+            return 0;
+        }
+        let mut allocations = 0;
+        let mut buffer_changed = false;
+        if mask_indices.len().max(1) > self.mask_index_capacity {
+            self.mask_index_capacity = mask_indices.len().max(1).next_power_of_two();
+            self.mask_index_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("realtime-manim native expanded SVG mask index buffer"),
+                size: (self.mask_index_capacity * mem::size_of::<u32>()) as u64,
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            buffer_changed = true;
+            allocations += 1;
+        }
+        if !mask_indices.is_empty() {
+            self.queue.write_buffer(
+                &self.mask_index_buffer,
+                0,
+                bytemuck::cast_slice(mask_indices),
+            );
+        }
+        let layers = u32::try_from(layer_count).unwrap_or(u32::MAX).max(1);
+        let targets_changed = self.mask_targets.as_ref().is_none_or(|targets| {
+            targets.width != width.max(1)
+                || targets.height != height.max(1)
+                || targets.layers < layers
+        });
+        if buffer_changed || targets_changed {
+            self.mask_targets = Some(create_mask_targets(
+                &self.device,
+                &self.mask_layout,
+                &self.mask_index_buffer,
+                self.target_format,
+                width,
+                height,
+                layers.next_power_of_two(),
+            ));
+            allocations += 1;
+        }
+        allocations
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -844,12 +1463,90 @@ impl Gpu {
     }
 }
 
+fn create_mask_targets(
+    device: &wgpu::Device,
+    layout: &wgpu::BindGroupLayout,
+    mask_index_buffer: &wgpu::Buffer,
+    format: wgpu::TextureFormat,
+    width: u32,
+    height: u32,
+    layers: u32,
+) -> GpuMaskTargets {
+    let width = width.max(1);
+    let height = height.max(1);
+    let layers = layers.max(1);
+    let texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("realtime-manim native SVG mask texture array"),
+        size: wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: layers,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format,
+        usage: wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::TEXTURE_BINDING,
+        view_formats: &[],
+    });
+    let array_view = texture.create_view(&wgpu::TextureViewDescriptor {
+        label: Some("realtime-manim native SVG mask array view"),
+        dimension: Some(wgpu::TextureViewDimension::D2Array),
+        base_array_layer: 0,
+        array_layer_count: Some(layers),
+        ..Default::default()
+    });
+    let scratch_texture = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("realtime-manim native SVG mask scratch"),
+        size: wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+        view_formats: &[],
+    });
+    let scratch_view = scratch_texture.create_view(&wgpu::TextureViewDescriptor::default());
+    let (depth_texture, depth_view) = create_depth_target(device, width, height);
+    let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("realtime-manim native SVG mask bind group"),
+        layout,
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::TextureView(&array_view),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: mask_index_buffer.as_entire_binding(),
+            },
+        ],
+    });
+    GpuMaskTargets {
+        texture,
+        _array_view: array_view,
+        scratch_texture,
+        scratch_view,
+        _depth_texture: depth_texture,
+        depth_view,
+        bind_group,
+        width,
+        height,
+        layers,
+    }
+}
+
 impl FrameBuffers {
     fn new(gpu: &Gpu) -> Self {
         let vertex_capacity = mem::size_of::<Vertex>();
         let index_capacity = mem::size_of::<u32>();
         let image_vertex_capacity = mem::size_of::<ImageVertex>();
         let mesh_texture_vertex_capacity = mem::size_of::<MeshTextureVertex>();
+        let gradient_stop_capacity = mem::size_of::<GpuGradientStop>();
         let create = |label: &str, size: usize, usage: wgpu::BufferUsages| {
             gpu.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some(label),
@@ -858,6 +1555,19 @@ impl FrameBuffers {
                 mapped_at_creation: false,
             })
         };
+        let gradient_stop = create(
+            "realtime-manim native retained gradient stop buffer",
+            gradient_stop_capacity,
+            wgpu::BufferUsages::STORAGE,
+        );
+        let gradient_bind_group = gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("realtime-manim native gradient bind group"),
+            layout: &gpu.gradient_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: gradient_stop.as_entire_binding(),
+            }],
+        });
         Self {
             vertex: create(
                 "realtime-manim native retained vertex buffer",
@@ -879,10 +1589,13 @@ impl FrameBuffers {
                 mesh_texture_vertex_capacity,
                 wgpu::BufferUsages::VERTEX,
             ),
+            gradient_stop,
+            gradient_bind_group,
             vertex_capacity,
             index_capacity,
             image_vertex_capacity,
             mesh_texture_vertex_capacity,
+            gradient_stop_capacity,
         }
     }
 
@@ -920,6 +1633,25 @@ impl FrameBuffers {
             wgpu::BufferUsages::VERTEX,
             "realtime-manim native retained mesh texture vertex buffer",
         ));
+        let gradient_reallocated = upload_slice(
+            gpu,
+            &mut self.gradient_stop,
+            &mut self.gradient_stop_capacity,
+            &geometry.gradient_stops,
+            wgpu::BufferUsages::STORAGE,
+            "realtime-manim native retained gradient stop buffer",
+        );
+        if gradient_reallocated {
+            self.gradient_bind_group = gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("realtime-manim native gradient bind group"),
+                layout: &gpu.gradient_layout,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: self.gradient_stop.as_entire_binding(),
+                }],
+            });
+        }
+        reallocations += usize::from(gradient_reallocated);
         reallocations
     }
 }
@@ -936,15 +1668,16 @@ async fn render_headless_async(
     let (width, height) = render_dimensions(scene, args);
     let frame = scene.evaluate_view(args.time)?;
     let mut text_engine = TextEngine::new().map_err(|error| error.to_string())?;
-    let geometry = build_geometry(&frame, &mut text_engine)?;
+    let mut svg_engine = SvgEngine::new();
+    let geometry = build_geometry_with_svg(&frame, &mut text_engine, &mut svg_engine)?;
     validate_geometry(&geometry, args.strict)?;
     let background = frame.background;
 
     let instance = native_instance();
     let mut gpu = Gpu::new(&instance, None, TARGET_FORMAT).await?;
-    gpu.prepare_images(&frame)?;
+    gpu.prepare_images(&frame, &mut svg_engine)?;
     let uploads_after_cold_frame = gpu.image_uploads;
-    gpu.prepare_images(&frame)?;
+    gpu.prepare_images(&frame, &mut svg_engine)?;
     let warm_texture_uploads = gpu.image_uploads - uploads_after_cold_frame;
     if warm_texture_uploads != 0 {
         return Err(format!(
@@ -976,6 +1709,23 @@ async fn render_headless_async(
             "Warmed retained frame unexpectedly reallocated {warm_buffer_reallocations} GPU buffer(s)."
         ));
     }
+    let cold_mask_allocations = gpu.prepare_mask_targets(
+        width,
+        height,
+        geometry.mask_layers.len(),
+        &geometry.mask_indices,
+    );
+    let warm_mask_allocations = gpu.prepare_mask_targets(
+        width,
+        height,
+        geometry.mask_layers.len(),
+        &geometry.mask_indices,
+    );
+    if warm_mask_allocations != 0 {
+        return Err(format!(
+            "Warmed retained frame unexpectedly allocated {warm_mask_allocations} SVG mask GPU resource set(s)."
+        ));
+    }
     let command = gpu.encode_uploaded_frame(
         &view,
         &depth_view,
@@ -984,6 +1734,7 @@ async fn render_headless_async(
         &buffers.index,
         &buffers.image_vertex,
         &buffers.mesh_texture_vertex,
+        &buffers.gradient_bind_group,
         &geometry,
     );
 
@@ -1075,7 +1826,7 @@ async fn render_headless_async(
         );
     }
     println!(
-        "native {} ok backend={:?} adapter={:?} scene={:?} time={:.3}s size={}x{} rendered_nodes={}/{} triangles={} cached_images={} cold_buffer_reallocations={} warm_buffer_reallocations={} warm_texture_uploads={} content_pixels={} checksum={checksum:016x}{}",
+        "native {} ok backend={:?} adapter={:?} scene={:?} time={:.3}s size={}x{} rendered_nodes={}/{} triangles={} cached_images={} mask_layers={} cold_buffer_reallocations={} warm_buffer_reallocations={} cold_mask_allocations={} warm_mask_allocations={} warm_texture_uploads={} content_pixels={} checksum={checksum:016x}{}",
         if output.is_some() { "render" } else { "smoke" },
         gpu.backend,
         gpu.adapter_name,
@@ -1087,8 +1838,11 @@ async fn render_headless_async(
         geometry.visible_nodes,
         geometry.triangle_count(),
         gpu.image_cache.len(),
+        geometry.mask_layers.len(),
         cold_buffer_reallocations,
         warm_buffer_reallocations,
+        cold_mask_allocations,
+        warm_mask_allocations,
         warm_texture_uploads,
         content_pixels,
         output.map_or_else(String::new, |path| format!(" output={}", path.display())),
@@ -1292,6 +2046,7 @@ struct SurfaceRenderer {
     config: wgpu::SurfaceConfiguration,
     scene: Scene,
     text_engine: TextEngine,
+    svg_engine: SvgEngine,
     frame_buffers: FrameBuffers,
     _depth_texture: wgpu::Texture,
     depth_view: wgpu::TextureView,
@@ -1340,6 +2095,7 @@ impl SurfaceRenderer {
             config,
             scene,
             text_engine: TextEngine::new().map_err(|error| error.to_string())?,
+            svg_engine: SvgEngine::new(),
             frame_buffers,
             _depth_texture: depth_texture,
             depth_view,
@@ -1362,7 +2118,8 @@ impl SurfaceRenderer {
 
     fn render(&mut self, time: f32) -> Result<(), String> {
         let frame = self.scene.evaluate_view(time)?;
-        let geometry = build_geometry(&frame, &mut self.text_engine)?;
+        let geometry =
+            build_geometry_with_svg(&frame, &mut self.text_engine, &mut self.svg_engine)?;
         validate_geometry(&geometry, self.strict)?;
         if !self.warned_unsupported && !geometry.unsupported.is_empty() {
             eprintln!(
@@ -1373,9 +2130,15 @@ impl SurfaceRenderer {
             self.warned_unsupported = true;
         }
         let background = frame.background;
-        self.gpu.prepare_images(&frame)?;
+        self.gpu.prepare_images(&frame, &mut self.svg_engine)?;
         drop(frame);
         self.frame_buffers.upload(&self.gpu, &geometry);
+        self.gpu.prepare_mask_targets(
+            self.config.width,
+            self.config.height,
+            geometry.mask_layers.len(),
+            &geometry.mask_indices,
+        );
         let texture = match self.surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(texture)
             | wgpu::CurrentSurfaceTexture::Suboptimal(texture) => texture,
@@ -1401,6 +2164,7 @@ impl SurfaceRenderer {
             &self.frame_buffers.index,
             &self.frame_buffers.image_vertex,
             &self.frame_buffers.mesh_texture_vertex,
+            &self.frame_buffers.gradient_bind_group,
             &geometry,
         )]);
         self.gpu.queue.present(texture);
@@ -1493,6 +2257,8 @@ mod tests {
     use crate::geometry::Geometry;
     #[cfg(target_os = "macos")]
     use realtime_manim_scene_core::Scene;
+    #[cfg(target_os = "macos")]
+    use realtime_manim_svg_engine::SvgEngine;
 
     use super::{
         DepthMode, ImageSourceSignature, Playback, changed_pixel_count, decode_base64, depth_state,
@@ -1549,10 +2315,13 @@ mod tests {
         let geometry = Geometry {
             vertices: Vec::new(),
             indices: Vec::new(),
+            gradient_stops: Vec::new(),
             image_vertices: Vec::new(),
             mesh_texture_vertices: Vec::new(),
             commands: Vec::new(),
             transparent_primitives: Vec::new(),
+            mask_layers: Vec::new(),
+            mask_indices: Vec::new(),
             visible_nodes: 2,
             rendered_nodes: 1,
             unsupported: vec!["logo:svg".to_owned(), "effect:customShaderMesh".to_owned()],
@@ -1654,25 +2423,63 @@ mod tests {
             .unwrap();
             let instance = native_instance();
             let mut gpu = Gpu::new(&instance, None, TARGET_FORMAT).await.unwrap();
+            let mut svg_engine = SvgEngine::new();
 
             let red = scene.evaluate_view(0.0).unwrap();
-            gpu.prepare_images(&red).unwrap();
+            gpu.prepare_images(&red, &mut svg_engine).unwrap();
             assert_eq!(gpu.image_uploads, 1);
             assert_eq!(gpu.image_cache["same-image"].source.pixels, "/wAA/w==");
 
             let lifetime_gap = scene.evaluate_view(1.5).unwrap();
             assert!(lifetime_gap.nodes.is_empty());
-            gpu.prepare_images(&lifetime_gap).unwrap();
+            gpu.prepare_images(&lifetime_gap, &mut svg_engine).unwrap();
             assert_eq!(gpu.image_uploads, 1);
             assert_eq!(gpu.image_cache.len(), 1);
 
             let blue = replacement.evaluate_view(0.0).unwrap();
-            gpu.prepare_images(&blue).unwrap();
+            gpu.prepare_images(&blue, &mut svg_engine).unwrap();
             assert_eq!(gpu.image_uploads, 2);
             assert_eq!(gpu.image_cache["same-image"].source.pixels, "AAD//w==");
-            gpu.prepare_images(&blue).unwrap();
+            gpu.prepare_images(&blue, &mut svg_engine).unwrap();
             assert_eq!(gpu.image_uploads, 2);
         });
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn metal_svg_proof_renders_strictly_with_retained_resources() {
+        let scene = Scene::from_json(include_str!("../svg-proof.json")).unwrap();
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let output = std::env::temp_dir().join(format!(
+            "realtime-manim-svg-metal-proof-{}-{unique}.png",
+            std::process::id()
+        ));
+        let args = Args {
+            command: Command::Render,
+            scene_path: None,
+            output_path: Some(output.clone()),
+            time: 0.0,
+            width: Some(480),
+            height: Some(160),
+            paused: false,
+            strict: true,
+        };
+        render_headless(&scene, &args, Some(&output)).unwrap();
+        let pixels = image::open(&output).unwrap().into_rgba8();
+        let distinct = pixels
+            .pixels()
+            .map(|pixel| u32::from_be_bytes(pixel.0))
+            .collect::<std::collections::HashSet<_>>();
+        assert!(
+            distinct.len() > 150,
+            "SVG gradients/masks unexpectedly collapsed to {} colors",
+            distinct.len()
+        );
+        assert_eq!(pixels.get_pixel(0, 0).0, [7, 10, 18, 255]);
+        std::fs::remove_file(output).unwrap();
     }
 
     #[test]

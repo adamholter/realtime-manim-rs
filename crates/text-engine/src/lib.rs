@@ -18,6 +18,10 @@ use unicode_bidi::BidiInfo;
 use unicode_script::{Script, UnicodeScript};
 use unicode_segmentation::UnicodeSegmentation;
 
+mod pango_markup;
+
+pub use pango_markup::{MarkupSpan, MarkupStyle, PangoUnderline, parse_pango_markup};
+
 /// Horizontal alignment of a shaped line around its text-node origin.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TextAlign {
@@ -55,6 +59,21 @@ pub struct StyledTextSpan<'a> {
     pub variant: FontVariant,
 }
 
+/// A shaping span with the Pango attributes that affect glyph selection or
+/// positioning. Paint-only attributes remain outside this structure so they
+/// never split ligatures or cursive joining.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct AttributedTextSpan<'a> {
+    pub text: &'a str,
+    pub variant: FontVariant,
+    pub font_family: Option<&'a str>,
+    pub font_scale: f32,
+    /// Baseline displacement in multiples of the root font size.
+    pub rise: f32,
+    /// Additional grapheme spacing in multiples of the root font size.
+    pub letter_spacing: f32,
+}
+
 /// One glyph positioned in scene units relative to a text node.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PositionedGlyph {
@@ -63,7 +82,18 @@ pub struct PositionedGlyph {
     pub variant: FontVariant,
     pub x: f32,
     pub y: f32,
+    /// The run baseline after line placement and attributed rise.
+    pub baseline: f32,
     pub scale: f32,
+    /// Horizontal advance in scene units, including neither tracking nor the
+    /// following cluster. This remains available for whitespace glyphs.
+    pub advance: f32,
+    pub ascender: f32,
+    pub descender: f32,
+    pub underline_position: f32,
+    pub underline_thickness: f32,
+    pub strikeout_position: f32,
+    pub strikeout_thickness: f32,
     /// Byte range in the complete source string that produced this cluster.
     pub source_start: usize,
     pub source_end: usize,
@@ -84,6 +114,7 @@ struct ShapedGlyph {
     glyph_id: u16,
     x: f32,
     y: f32,
+    advance: f32,
     spacing_index: usize,
     source_start: usize,
     source_end: usize,
@@ -110,6 +141,9 @@ struct FontRun {
     end: usize,
     direction: RunDirection,
     script: Script,
+    font_scale: f32,
+    rise: f32,
+    letter_spacing: f32,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -119,6 +153,9 @@ struct GraphemeItem {
     font_id: Option<u32>,
     script: Option<Script>,
     variant: FontVariant,
+    font_scale: f32,
+    rise: f32,
+    letter_spacing: f32,
 }
 
 #[derive(Clone, Debug)]
@@ -127,6 +164,14 @@ struct PendingRun {
     variant: FontVariant,
     source_start: usize,
     scale: f32,
+    rise: f32,
+    letter_spacing: f32,
+    ascender: f32,
+    descender: f32,
+    underline_position: f32,
+    underline_thickness: f32,
+    strikeout_position: f32,
+    strikeout_thickness: f32,
     shaped: ShapedLine,
 }
 
@@ -134,14 +179,26 @@ struct PendingRun {
 struct PendingLine {
     runs: Vec<PendingRun>,
     advance: f32,
-    cluster_count: usize,
 }
 
-#[derive(Clone, Copy, Debug)]
-struct VariantRange {
+#[derive(Clone, Debug)]
+struct AttributeRange {
     start: usize,
     end: usize,
     variant: FontVariant,
+    font_family: Option<String>,
+    font_scale: f32,
+    rise: f32,
+    letter_spacing: f32,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct ResolvedAttributes<'a> {
+    variant: FontVariant,
+    font_family: Option<&'a str>,
+    font_scale: f32,
+    rise: f32,
+    letter_spacing: f32,
 }
 
 /// Error returned when the bundled font or one of its glyphs is invalid.
@@ -386,10 +443,14 @@ impl TextEngine {
         selection: FontSelection<'_>,
         fallback_families: &[&str],
     ) -> Result<TextLayout, TextError> {
-        let variants = (!text.is_empty()).then_some(VariantRange {
+        let attributes = (!text.is_empty()).then_some(AttributeRange {
             start: 0,
             end: text.len(),
             variant: selection.variant,
+            font_family: None,
+            font_scale: 1.0,
+            rise: 0.0,
+            letter_spacing: 0.0,
         });
         self.layout_resolved(
             text,
@@ -400,7 +461,7 @@ impl TextEngine {
             selection.family,
             selection.variant,
             fallback_families,
-            variants.as_slice(),
+            attributes.as_slice(),
         )
     }
 
@@ -422,25 +483,86 @@ impl TextEngine {
         family: &str,
         fallback_families: &[&str],
     ) -> Result<TextLayout, TextError> {
+        let attributed = spans
+            .iter()
+            .map(|span| AttributedTextSpan {
+                text: span.text,
+                variant: span.variant,
+                font_family: None,
+                font_scale: 1.0,
+                rise: 0.0,
+                letter_spacing: 0.0,
+            })
+            .collect::<Vec<_>>();
+        self.layout_family_chain_attributed_spans(
+            &attributed,
+            font_size,
+            align,
+            line_height,
+            letter_spacing,
+            family,
+            fallback_families,
+        )
+    }
+
+    /// Shapes fully attributed spans while resolving bidi order over their
+    /// complete concatenated paragraph.
+    ///
+    /// Paint-only boundaries with identical shaping attributes are merged.
+    /// Font family, face, size, rise, and letter spacing changes form explicit
+    /// itemization boundaries, as they do in Pango.
+    #[allow(clippy::too_many_arguments)]
+    pub fn layout_family_chain_attributed_spans(
+        &mut self,
+        spans: &[AttributedTextSpan<'_>],
+        font_size: f32,
+        align: TextAlign,
+        line_height: f32,
+        letter_spacing: f32,
+        family: &str,
+        fallback_families: &[&str],
+    ) -> Result<TextLayout, TextError> {
         let mut text = String::new();
-        let mut variants: Vec<VariantRange> = Vec::with_capacity(spans.len());
+        let mut attributes: Vec<AttributeRange> = Vec::with_capacity(spans.len());
         for span in spans {
+            if !span.font_scale.is_finite() || span.font_scale <= 0.0 {
+                return Err(TextError(
+                    "Attributed font scale must be positive and finite.".to_owned(),
+                ));
+            }
+            if !span.rise.is_finite() || !span.letter_spacing.is_finite() {
+                return Err(TextError(
+                    "Attributed rise and letter spacing must be finite.".to_owned(),
+                ));
+            }
             let start = text.len();
             text.push_str(span.text);
             let end = text.len();
             if start == end {
                 continue;
             }
-            if let Some(previous) = variants.last_mut()
+            let family = span
+                .font_family
+                .map(str::trim)
+                .filter(|family| !family.is_empty());
+            if let Some(previous) = attributes.last_mut()
                 && previous.end == start
                 && previous.variant == span.variant
+                && previous.font_family.as_deref() == family
+                && previous.font_scale == span.font_scale
+                && previous.rise == span.rise
+                && previous.letter_spacing == span.letter_spacing
             {
                 previous.end = end;
             } else {
-                variants.push(VariantRange {
+                attributes.push(AttributeRange {
                     start,
                     end,
                     variant: span.variant,
+                    font_family: family.map(str::to_owned),
+                    font_scale: span.font_scale,
+                    rise: span.rise,
+                    letter_spacing: span.letter_spacing,
                 });
             }
         }
@@ -456,7 +578,7 @@ impl TextEngine {
             family,
             default_variant,
             fallback_families,
-            &variants,
+            &attributes,
         )
     }
 
@@ -471,7 +593,7 @@ impl TextEngine {
         family: &str,
         default_variant: FontVariant,
         fallback_families: &[&str],
-        variants: &[VariantRange],
+        attributes: &[AttributeRange],
     ) -> Result<TextLayout, TextError> {
         if !font_size.is_finite() || font_size <= 0.0 {
             return Err(TextError(
@@ -498,14 +620,14 @@ impl TextEngine {
             let font_runs = self.font_runs(
                 text_line,
                 &font_chain,
-                variants,
+                attributes,
                 line_source_start,
                 default_variant,
                 family,
             )?;
             let mut pending_runs = Vec::with_capacity(font_runs.len());
             let mut advance = 0.0_f32;
-            let mut cluster_count = 0usize;
+            let mut trailing_spacing = 0.0_f32;
 
             if font_runs.is_empty() {
                 let face = self.face(primary_font_id, default_variant)?;
@@ -516,9 +638,31 @@ impl TextEngine {
 
             for font_run in font_runs {
                 let face = self.face(font_run.font_id, font_run.variant)?;
-                let scale = font_size / face.units_per_em() as f32;
-                ascender = ascender.max(face.ascender() as f32 * scale);
-                descender = descender.min(face.descender() as f32 * scale);
+                let scale = font_size * font_run.font_scale / face.units_per_em() as f32;
+                let rise = font_size * font_run.rise;
+                let run_letter_spacing = letter_spacing + font_size * font_run.letter_spacing;
+                let run_ascender = face.ascender() as f32 * scale;
+                let run_descender = face.descender() as f32 * scale;
+                let underline = face.underline_metrics();
+                let strikeout = face.strikeout_metrics();
+                let underline_position =
+                    underline.map_or(-font_size * 0.12, |metrics| metrics.position as f32 * scale);
+                let underline_thickness = underline
+                    .map_or(font_size * 0.055, |metrics| {
+                        metrics.thickness as f32 * scale
+                    })
+                    .abs()
+                    .max(0.001);
+                let strikeout_position =
+                    strikeout.map_or(font_size * 0.26, |metrics| metrics.position as f32 * scale);
+                let strikeout_thickness = strikeout
+                    .map_or(font_size * 0.055, |metrics| {
+                        metrics.thickness as f32 * scale
+                    })
+                    .abs()
+                    .max(0.001);
+                ascender = ascender.max(run_ascender + rise);
+                descender = descender.min(run_descender + rise);
                 let shaped = self
                     .shape_line(
                         &text_line[font_run.start..font_run.end],
@@ -528,20 +672,31 @@ impl TextEngine {
                         font_run.script,
                     )?
                     .clone();
-                advance += shaped.advance * scale;
-                cluster_count = cluster_count.saturating_add(shaped.cluster_count);
+                advance +=
+                    shaped.advance * scale + run_letter_spacing * shaped.cluster_count as f32;
+                if shaped.cluster_count > 0 {
+                    trailing_spacing = run_letter_spacing;
+                }
                 pending_runs.push(PendingRun {
                     font_id: font_run.font_id,
                     variant: font_run.variant,
                     source_start: line_source_start + font_run.start,
                     scale,
+                    rise,
+                    letter_spacing: run_letter_spacing,
+                    ascender: run_ascender,
+                    descender: run_descender,
+                    underline_position,
+                    underline_thickness,
+                    strikeout_position,
+                    strikeout_thickness,
                     shaped,
                 });
             }
+            advance -= trailing_spacing;
             pending_lines.push(PendingLine {
                 runs: pending_runs,
                 advance,
-                cluster_count,
             });
             line_source_start = line_source_start.saturating_add(text_line.len() + 1);
         }
@@ -558,8 +713,7 @@ impl TextEngine {
         let mut glyphs = Vec::new();
         let mut width = 0.0_f32;
         for (line_index, line) in pending_lines.into_iter().enumerate() {
-            let spacing_total = letter_spacing * line.cluster_count.saturating_sub(1) as f32;
-            let line_width = line.advance + spacing_total;
+            let line_width = line.advance;
             width = width.max(line_width);
             let start_x = match align {
                 TextAlign::Left => 0.0,
@@ -568,7 +722,6 @@ impl TextEngine {
             };
             let baseline = first_baseline - line_index as f32 * line_advance;
             let mut run_x = start_x;
-            let mut cluster_index = 0usize;
             for run in line.runs {
                 for glyph in &run.shaped.glyphs {
                     glyphs.push(PositionedGlyph {
@@ -577,15 +730,23 @@ impl TextEngine {
                         variant: run.variant,
                         x: run_x
                             + glyph.x * run.scale
-                            + (cluster_index + glyph.spacing_index) as f32 * letter_spacing,
-                        y: baseline + glyph.y * run.scale,
+                            + glyph.spacing_index as f32 * run.letter_spacing,
+                        y: baseline + run.rise + glyph.y * run.scale,
+                        baseline: baseline + run.rise,
                         scale: run.scale,
+                        advance: glyph.advance * run.scale,
+                        ascender: run.ascender,
+                        descender: run.descender,
+                        underline_position: run.underline_position,
+                        underline_thickness: run.underline_thickness,
+                        strikeout_position: run.strikeout_position,
+                        strikeout_thickness: run.strikeout_thickness,
                         source_start: run.source_start + glyph.source_start,
                         source_end: run.source_start + glyph.source_end,
                     });
                 }
-                run_x += run.shaped.advance * run.scale;
-                cluster_index = cluster_index.saturating_add(run.shaped.cluster_count);
+                run_x += run.shaped.advance * run.scale
+                    + run.letter_spacing * run.shaped.cluster_count as f32;
             }
         }
 
@@ -680,7 +841,7 @@ impl TextEngine {
         &mut self,
         text: &str,
         font_chain: &[u32],
-        variants: &[VariantRange],
+        attributes: &[AttributeRange],
         source_start: usize,
         default_variant: FontVariant,
         primary_family: &str,
@@ -706,7 +867,7 @@ impl TextEngine {
                     text,
                     level_run,
                     font_chain,
-                    variants,
+                    attributes,
                     source_start,
                     default_variant,
                     primary_family,
@@ -727,7 +888,7 @@ impl TextEngine {
         text: &str,
         range: std::ops::Range<usize>,
         font_chain: &[u32],
-        variants: &[VariantRange],
+        attributes: &[AttributeRange],
         source_start: usize,
         default_variant: FontVariant,
         primary_family: &str,
@@ -740,19 +901,28 @@ impl TextEngine {
             // A face change inside an extended grapheme cannot be represented
             // without corrupting the cluster, so the grapheme's first scalar
             // owns the face. Paint is resolved separately after shaping.
-            let variant = variant_at(variants, source_start + start, default_variant);
+            let resolved = attributes_at(attributes, source_start + start, default_variant);
+            let variant = resolved.variant;
+            let override_chain;
+            let (grapheme_chain, grapheme_family) =
+                if let Some(override_family) = resolved.font_family {
+                    override_chain = self.resolve_font_chain(override_family, &[])?;
+                    (override_chain.as_slice(), override_family)
+                } else {
+                    (font_chain, primary_family)
+                };
             let font_id = if grapheme.chars().all(is_default_ignorable) {
                 None
             } else {
                 let mut selected = None;
-                for font_id in font_chain {
+                for font_id in grapheme_chain {
                     if self.font_covers_grapheme(*font_id, variant, grapheme)? {
                         selected = Some(*font_id);
                         break;
                     }
                 }
                 Some(selected.ok_or_else(|| {
-                    self.missing_grapheme_error(grapheme, font_chain, primary_family)
+                    self.missing_grapheme_error(grapheme, grapheme_chain, grapheme_family)
                 })?)
             };
             items.push(GraphemeItem {
@@ -761,6 +931,9 @@ impl TextEngine {
                 font_id,
                 script: grapheme_script(grapheme),
                 variant,
+                font_scale: resolved.font_scale,
+                rise: resolved.rise,
+                letter_spacing: resolved.letter_spacing,
             });
         }
 
@@ -794,6 +967,9 @@ impl TextEngine {
                 && run.font_id == font_id
                 && run.script == script
                 && run.variant == item.variant
+                && run.font_scale == item.font_scale
+                && run.rise == item.rise
+                && run.letter_spacing == item.letter_spacing
             {
                 run.end = item.end;
             } else {
@@ -804,6 +980,9 @@ impl TextEngine {
                     end: item.end,
                     direction,
                     script,
+                    font_scale: item.font_scale,
+                    rise: item.rise,
+                    letter_spacing: item.letter_spacing,
                 });
             }
         }
@@ -950,6 +1129,7 @@ impl TextEngine {
                         glyph_id,
                         x: cursor_x - position.x_advance as f32 + position.x_offset as f32,
                         y: cursor_y - position.y_advance as f32 + position.y_offset as f32,
+                        advance: (position.x_advance as f32).abs(),
                         spacing_index: cluster_count.saturating_sub(1),
                         source_start: info.cluster as usize,
                         source_end: source_clusters
@@ -1023,15 +1203,30 @@ fn grapheme_script(grapheme: &str) -> Option<Script> {
         .find(|script| !matches!(script, Script::Common | Script::Inherited | Script::Unknown))
 }
 
-fn variant_at(
-    variants: &[VariantRange],
+fn attributes_at(
+    attributes: &[AttributeRange],
     source_offset: usize,
     default_variant: FontVariant,
-) -> FontVariant {
-    variants
+) -> ResolvedAttributes<'_> {
+    attributes
         .iter()
         .find(|range| range.start <= source_offset && source_offset < range.end)
-        .map_or(default_variant, |range| range.variant)
+        .map_or(
+            ResolvedAttributes {
+                variant: default_variant,
+                font_family: None,
+                font_scale: 1.0,
+                rise: 0.0,
+                letter_spacing: 0.0,
+            },
+            |range| ResolvedAttributes {
+                variant: range.variant,
+                font_family: range.font_family.as_deref(),
+                font_scale: range.font_scale,
+                rise: range.rise,
+                letter_spacing: range.letter_spacing,
+            },
+        )
 }
 
 fn is_default_ignorable(character: char) -> bool {
@@ -1149,7 +1344,9 @@ mod tests {
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
     use unicode_segmentation::UnicodeSegmentation as _;
 
-    use super::{FontSelection, FontVariant, StyledTextSpan, TextAlign, TextEngine};
+    use super::{
+        AttributedTextSpan, FontSelection, FontVariant, StyledTextSpan, TextAlign, TextEngine,
+    };
 
     // The 400-byte A-only outline font from ttf-parser's Apache-2.0/MIT test
     // corpus. Keeping the fixture inline makes fallback tests reproducible on
@@ -1530,6 +1727,145 @@ mod tests {
             .layout_family_chain_spans(&spans, 1.0, TextAlign::Center, 1.25, 0.0, "Noto Sans", &[])
             .expect("paint-only span layout");
         assert_eq!(styled, joined);
+    }
+
+    #[test]
+    fn attributed_paint_boundaries_preserve_joining_and_source_ranges() {
+        let mut engine = TextEngine::new().expect("font engine");
+        let joined = engine
+            .layout("سلام", 1.0, TextAlign::Center, 1.25, 0.0)
+            .expect("joined Arabic");
+        let spans = ["س", "لام"].map(|text| AttributedTextSpan {
+            text,
+            variant: FontVariant::Regular,
+            font_family: None,
+            font_scale: 1.0,
+            rise: 0.0,
+            letter_spacing: 0.0,
+        });
+        let attributed = engine
+            .layout_family_chain_attributed_spans(
+                &spans,
+                1.0,
+                TextAlign::Center,
+                1.25,
+                0.0,
+                "Noto Sans",
+                &[],
+            )
+            .expect("paint-only attributed Arabic");
+        assert_eq!(attributed, joined);
+        assert!(
+            attributed
+                .glyphs
+                .iter()
+                .any(|glyph| glyph.source_start < "س".len())
+        );
+        assert!(
+            attributed
+                .glyphs
+                .iter()
+                .any(|glyph| glyph.source_start >= "س".len())
+        );
+    }
+
+    #[test]
+    fn attributed_metrics_change_size_rise_tracking_and_font_family() {
+        let mut engine = TextEngine::new().expect("font engine");
+        let base = [AttributedTextSpan {
+            text: "AB",
+            variant: FontVariant::Regular,
+            font_family: None,
+            font_scale: 1.0,
+            rise: 0.0,
+            letter_spacing: 0.0,
+        }];
+        let styled = [AttributedTextSpan {
+            text: "AB",
+            variant: FontVariant::BoldItalic,
+            font_family: Some("Noto Sans"),
+            font_scale: 1.5,
+            rise: 0.25,
+            letter_spacing: 0.1,
+        }];
+        let base = engine
+            .layout_family_chain_attributed_spans(
+                &base,
+                1.0,
+                TextAlign::Left,
+                1.25,
+                0.0,
+                "Noto Sans",
+                &[],
+            )
+            .expect("base attributed layout");
+        let styled = engine
+            .layout_family_chain_attributed_spans(
+                &styled,
+                1.0,
+                TextAlign::Left,
+                1.25,
+                0.0,
+                "Noto Sans",
+                &[],
+            )
+            .expect("styled attributed layout");
+        assert!(styled.width > base.width * 1.4);
+        assert!(styled.height > base.height * 1.4);
+        assert!(
+            styled
+                .glyphs
+                .iter()
+                .all(|glyph| glyph.variant == FontVariant::BoldItalic)
+        );
+        assert!(styled.glyphs[0].underline_thickness > 0.0);
+        assert!(styled.glyphs[0].strikeout_thickness > 0.0);
+        assert!(styled.glyphs[0].advance > base.glyphs[0].advance);
+
+        // A uniform rise moves the run and its measured bounds together, so
+        // centering cancels it. A mixed run exposes the actual baseline shift.
+        let risen = [
+            AttributedTextSpan {
+                text: "A",
+                variant: FontVariant::Regular,
+                font_family: None,
+                font_scale: 1.0,
+                rise: 0.0,
+                letter_spacing: 0.0,
+            },
+            AttributedTextSpan {
+                text: "B",
+                variant: FontVariant::Regular,
+                font_family: None,
+                font_scale: 1.0,
+                rise: 0.25,
+                letter_spacing: 0.0,
+            },
+        ];
+        let risen = engine
+            .layout_family_chain_attributed_spans(
+                &risen,
+                1.0,
+                TextAlign::Left,
+                1.25,
+                0.0,
+                "Noto Sans",
+                &[],
+            )
+            .expect("mixed-rise attributed layout");
+        let normal_baseline = risen
+            .glyphs
+            .iter()
+            .find(|glyph| glyph.source_start == 0)
+            .expect("normal glyph")
+            .baseline;
+        let raised_baseline = risen
+            .glyphs
+            .iter()
+            .find(|glyph| glyph.source_start == 1)
+            .expect("raised glyph")
+            .baseline;
+        assert!((raised_baseline - normal_baseline - 0.25).abs() < 1e-6);
     }
 
     #[test]

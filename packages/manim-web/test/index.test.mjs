@@ -696,6 +696,78 @@ test("retains explicit portable font families for plain and markup text", () => 
   assert.throws(() => new Text("Bad", { unknownTextOption: true }), /Unknown Text option/);
 });
 
+test("accepts raw nested Pango markup without flattening it in JavaScript", () => {
+  const markup = new MarkupText(
+    "<span foreground='red'><b>fast &amp; <i>faithful</i></b></span>",
+    { id: "raw-pango", fontSize: 1.2 },
+  );
+  assert.equal(markup.node.markup, "<span foreground='red'><b>fast &amp; <i>faithful</i></b></span>");
+  assert.deepEqual(markup.node.spans, []);
+  assert.equal(markup.node.fontSize, 1.2);
+});
+
+test("preserves semantic correspondence receipts and accepts Manim smooth easing", () => {
+  const correspondences = [{
+    id: "match-1",
+    kind: "transformMatchingTex",
+    mode: "transform",
+    keys: ["x"],
+    targetKeys: ["x"],
+    sourceNodes: ["source-x"],
+    targetNodes: ["target-x"],
+    start: 0,
+    end: 1,
+    pathArc: 0,
+  }];
+  const circle = new Circle({ id: "manim-easing-circle" });
+  const data = new Scene({ correspondences })
+    .add(circle)
+    .track(circle, "x", [
+      { at: 0, value: 0 },
+      { at: 1, value: 1, easing: "manimSmooth" },
+    ])
+    .toJSON();
+  assert.deepEqual(data.correspondences, correspondences);
+  assert.equal(data.tracks[0].keyframes[1].easing, "manimSmooth");
+});
+
+test("retains explicit Pango span metrics, paints, and decorations", () => {
+  const markup = new MarkupText([{
+    text: "styled\ntext",
+    color: "#ff0000ff",
+    background: "#11223344",
+    weight: "bold",
+    slant: "italic",
+    fontFamily: "Noto Sans",
+    fontScale: 1.5,
+    rise: 0.25,
+    letterSpacing: 0.05,
+    underline: "double",
+    underlineColor: "#00ff00ff",
+    strikethrough: true,
+    strikethroughColor: "#0000ffff",
+  }], { id: "styled-pango" });
+  assert.deepEqual(markup.node.spans[0], {
+    text: "styled\ntext",
+    color: "#ff0000ff",
+    background: "#11223344",
+    weight: "bold",
+    slant: "italic",
+    fontFamily: "Noto Sans",
+    fontScale: 1.5,
+    rise: 0.25,
+    letterSpacing: 0.05,
+    underline: "double",
+    underlineColor: "#00ff00ff",
+    strikethrough: true,
+    strikethroughColor: "#0000ffff",
+  });
+  assert.throws(
+    () => new MarkupText([{ text: "x", gravity: "east" }]),
+    /Unknown spans\[0\] property: gravity/,
+  );
+});
+
 test("authors retained NumberLine ticks and labels with reversible coordinates", () => {
   const line = new NumberLine({
     id: "number-line",

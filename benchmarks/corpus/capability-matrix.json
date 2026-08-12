@@ -19,8 +19,8 @@
     {
       "tier": "typography",
       "status": "partial",
-      "implemented": ["OpenType-shaped Noto Sans vector text", "real regular, bold, italic, and bold-italic faces", "arbitrary registered OpenType font families", "native UAX #9 bidi visual runs and explicit script shaping", "portable joined Arabic and Hebrew vector fallbacks", "deterministic grapheme-safe native font fallback with explicit missing-vector errors", "mixed-style MarkupText spans", "server-side Tectonic MathTex to SVG", "regular Manim Text, MarkupText, Tex, MathTex, Write, and TransformMatchingTex compiled as vectors", "MSAA"],
-      "missing": ["native Pango MarkupText parser parity", "compact semantic TransformMatchingTex correspondence in Rust", "color emoji font rendering"]
+      "implemented": ["OpenType-shaped Noto Sans vector text", "real regular, bold, italic, and bold-italic faces", "arbitrary registered OpenType font families", "native UAX #9 bidi visual runs and explicit script shaping", "portable joined Arabic and Hebrew vector fallbacks", "deterministic grapheme-safe native font fallback with explicit missing-vector errors", "strict nested Pango MarkupText parsing with XML entities, paint-only shaping continuity, font family/face/size/rise/letter-spacing attributes, background paint, underlines, and strikethroughs", "server-side Tectonic MathTex to SVG", "regular Manim Text, MarkupText, Tex, MathTex, Write, and TransformMatchingTex compiled as vectors", "compact retained TransformMatchingTex token correspondence with repeated-key and key_map metadata", "MSAA"],
+      "missing": ["remaining Pango attributes including font descriptions, OpenType feature strings, font stretch/variant, alpha-only paint attributes, overline, language, gravity, fallback control, and text transforms", "Manim gradient markup", "portable built-in monospace face for the tt convenience tag", "color emoji font rendering"]
     },
     {
       "tier": "graphing",
@@ -31,7 +31,7 @@
     {
       "tier": "animation",
       "status": "partial",
-      "implemented": ["explicit-time keyframes", "seven native easing modes", "property tracks", "shared concrete keyframe timelines", "pure translated and uniform scale-plus-translation Manim paths lowered to native Rust transforms", "proven rotation/scale/translation paths lowered to one composite Rust transform2d timeline", "proven shear and non-uniform affine deformations lowered to one native 2x3 matrix timeline with world-space stroke tessellation and world-space fill/stroke gradients", "shared affine parent groups", "provable multi-subpath Create, Write, Uncreate, DrawBorderThenFill, and ShowPassingFlash traces lowered to native Rust de Casteljau draw ranges", "paired partial-path bounds lowered to one atomic drawRange timeline", "exact and translated retained path geometry references", "compatible path morphs lowered to retained topology plus flat numeric pathData tracks", "Manim Mobject transforms, AnimationGroup, LaggedStart, Succession, and indication effects sampled from Manim's own animation semantics"],
+      "implemented": ["explicit-time keyframes", "eight native easing modes including Manim's exact logistic smooth", "property tracks", "shared concrete keyframe timelines", "pure translated and uniform scale-plus-translation Manim paths lowered to native Rust transforms", "proven rotation/scale/translation paths lowered to one composite Rust transform2d timeline", "proven shear and non-uniform affine deformations lowered to one native 2x3 matrix timeline with world-space stroke tessellation and world-space fill/stroke gradients", "shared affine parent groups", "provable multi-subpath Create, Write, Uncreate, DrawBorderThenFill, and ShowPassingFlash traces lowered to native Rust de Casteljau draw ranges", "paired partial-path bounds lowered to one atomic drawRange timeline", "exact and translated retained path geometry references", "compatible path morphs lowered to retained topology plus flat numeric pathData tracks", "TransformMatchingTex and TransformMatchingShapes correspondence keys, modes, source/target node sets, and timing retained explicitly", "straight matching transforms proven over every captured frame and lowered to two-endpoint native affine or pathData tracks", "Manim Mobject transforms, AnimationGroup, LaggedStart, Succession, and indication effects sampled from Manim's own animation semantics"],
       "missing": ["native semantic nonlinear deformation operators", "compact topology-changing path-correspondence representation"]
     },
     {
@@ -67,8 +67,8 @@
     {
       "tier": "geometry",
       "status": "partial",
-      "implemented": ["arbitrary cubic paths", "cubic command interpolation tracks", "retained-topology numeric pathData morph tracks", "regular Manim VMobject Python API, boolean geometry, pointwise functions, and path correspondence executed by Manim then compiled"],
-      "missing": ["native arc-length and boolean geometry APIs", "semantic rather than sampled correspondence"]
+      "implemented": ["arbitrary cubic paths", "cubic command interpolation tracks", "retained-topology numeric pathData morph tracks", "stable SHA-256 normalized-shape keys for TransformMatchingShapes", "regular Manim VMobject Python API, boolean geometry, pointwise functions, and path correspondence executed by Manim then compiled"],
+      "missing": ["native arc-length and boolean geometry APIs", "compact semantic correspondence for nonlinear and topology-incompatible custom paths"]
     },
     {
       "tier": "3d",

@@ -13,6 +13,11 @@ The published browser package is dependency-free ESM with bundled Rust/Wasm and
 typed JavaScript authoring APIs. See [`packages/manim-web`](./packages/manim-web)
 for a copy-paste example and [`CHANGELOG.md`](./CHANGELOG.md) for releases.
 
+For coding agents, start with the repository’s machine-readable
+[`llms.txt`](./site/public/llms.txt) and concise
+[`agent guide`](./site/public/agent-guide.md). The same source powers the public
+ChatGPT Site; the GitHub release links its deployed URL.
+
 ## Current state
 
 The repository now contains:
@@ -123,7 +128,13 @@ near/far-plane crossings are clipped instead of dropping the entire triangle.
 Compatible mixed-media `MovingCameraScene` programs keep vector paths, linear
 gradient endpoints, image corners, and point positions in world space; one native camera timeline drives all
 of them, while Cairo point sprites retain their fixed screen-space radius.
-The current 20-scene corpus totals 2,717,974 bytes with zero diagnostics and renders
+`TransformMatchingTex` and `TransformMatchingShapes` retain Manim's real token or
+normalized-shape groups as inspectable source/target correspondences. Proven
+straight matching paths use two endpoint native affine or path-data keyframes
+with Manim's exact logistic smooth easing; custom path functions and arcs stay
+on the exact sampled path and report the reason in `semanticMatchingFallbacks`.
+The current 20-scene corpus totals 2,799,610 bytes with zero diagnostics, includes
+two explicit semantic matching correspondences with no fallback, and renders
 20/20 through isolated WebGPU; shared-keyframe output is pixel exact against its
 unshared baseline across the full regression sweep.
 

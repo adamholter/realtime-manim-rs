@@ -1,0 +1,45 @@
+[package]
+name = "realtime-manim-renderer-shootout"
+description = "Experimental Vello versus lyon/wgpu renderer architecture benchmark"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["native-shootout"]
+native-shootout = ["dep:vello", "dep:wgpu"]
+browser-vello = ["dep:futures-intrusive", "dep:js-sys", "dep:vello", "dep:web-sys"]
+browser-lyon = ["dep:futures-intrusive", "dep:js-sys", "dep:web-sys", "dep:wgpu"]
+
+[[bin]]
+name = "realtime-manim-renderer-shootout"
+path = "src/main.rs"
+required-features = ["native-shootout"]
+
+[dependencies]
+bytemuck.workspace = true
+image.workspace = true
+lyon = "1.0.16"
+pollster = "0.4.0"
+realtime-manim-benchmark-schema = { path = "../../crates/benchmark-schema" }
+serde.workspace = true
+serde_json.workspace = true
+vello = { version = "0.9.0", optional = true }
+wasm-bindgen.workspace = true
+wasm-bindgen-futures.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+wgpu = { workspace = true, optional = true, features = ["metal", "std", "wgsl"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+futures-intrusive = { version = "0.5.0", optional = true }
+js-sys = { workspace = true, optional = true }
+web-sys = { workspace = true, optional = true, features = ["Performance", "Window"] }
+wgpu = { workspace = true, optional = true }
+
+[lints]
+workspace = true

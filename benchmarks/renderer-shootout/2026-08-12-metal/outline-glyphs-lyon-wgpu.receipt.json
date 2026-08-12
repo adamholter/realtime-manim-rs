@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "benchmark_id": "P-10-lyon-wgpu-outline-glyphs",
+  "recorded_at_utc": "2026-08-12T19:41:25Z",
+  "environment": {
+    "os": "macOS",
+    "os_version": "15.6.1",
+    "architecture": "aarch64",
+    "processor": "Apple M4",
+    "memory_bytes": 17179869184,
+    "display": null,
+    "background_load_profile": "interactive-apps-open"
+  },
+  "workload": {
+    "name": "lyon-wgpu / outline-glyphs",
+    "scene": "tools/renderer-shootout/generated/outline-glyphs",
+    "resolution": [
+      1280,
+      720
+    ],
+    "duration_seconds": 0.020408704999999992,
+    "notes": [
+      "456 compound cubic outlines with holes; text/MathTex-like geometry",
+      "Experimental architecture evidence; not a renderer selection.",
+      "Frame samples include CPU encoding, GPU submission, and completion wait."
+    ]
+  },
+  "samples": [
+    {
+      "name": "retained_prepare_time",
+      "unit": "ms",
+      "statistic": "single",
+      "value": 1.537458
+    },
+    {
+      "name": "frame_time",
+      "unit": "ms",
+      "statistic": "p50",
+      "value": 0.33620900000000004
+    },
+    {
+      "name": "frame_time",
+      "unit": "ms",
+      "statistic": "p95",
+      "value": 0.5282079999999999
+    },
+    {
+      "name": "frame_time",
+      "unit": "ms",
+      "statistic": "p99",
+      "value": 0.725166
+    },
+    {
+      "name": "retained_geometry",
+      "unit": "bytes",
+      "statistic": "single",
+      "value": 1149696.0
+    }
+  ],
+  "provenance": {
+    "revision": "d47fd5bbf657+tree-eb0ec98aad942ad8",
+    "dirty": true,
+    "commands": [
+      "cargo run --release -p realtime-manim-renderer-shootout -- --output benchmarks/renderer-shootout/2026-08-12-metal --width 1280 --height 720 --warmup 12 --iterations 60 --background-load interactive-apps-open"
+    ],
+    "artifacts": [
+      "benchmarks/renderer-shootout/2026-08-12-metal/outline-glyphs-lyon-wgpu.png",
+      "benchmarks/renderer-shootout/2026-08-12-metal/report.json"
+    ]
+  }
+}

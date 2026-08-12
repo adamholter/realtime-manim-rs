@@ -1,0 +1,156 @@
+{
+  "schema_version": 1,
+  "experimental": true,
+  "width": 1280,
+  "height": 720,
+  "warmup_iterations": 12,
+  "measured_iterations": 60,
+  "workloads": [
+    {
+      "name": "primitive-grid",
+      "shape_count": 1248,
+      "vello": {
+        "adapter": "Apple M4",
+        "prepare_ms": 0.1865,
+        "frame_p50_ms": 1.467875,
+        "frame_p95_ms": 1.66225,
+        "frame_p99_ms": 2.761875,
+        "frame_mean_ms": 1.514331266666667,
+        "retained_bytes": 126082
+      },
+      "lyon_wgpu": {
+        "adapter": "Apple M4",
+        "prepare_ms": 1.9240410000000001,
+        "frame_p50_ms": 0.32745799999999997,
+        "frame_p95_ms": 0.35070799999999996,
+        "frame_p99_ms": 0.656584,
+        "frame_mean_ms": 0.3354381999999999,
+        "retained_bytes": 1136304
+      },
+      "comparison": {
+        "rgb_rmse": 0.025811309433645496,
+        "alpha_rmse": 0.0,
+        "changed_pixels": 60481,
+        "vello_content_pixels": 230597,
+        "lyon_content_pixels": 213872
+      }
+    },
+    {
+      "name": "bezier-strokes",
+      "shape_count": 420,
+      "vello": {
+        "adapter": "Apple M4",
+        "prepare_ms": 0.027042,
+        "frame_p50_ms": 1.443792,
+        "frame_p95_ms": 1.904584,
+        "frame_p99_ms": 2.9776249999999997,
+        "frame_mean_ms": 1.50322295,
+        "retained_bytes": 39085
+      },
+      "lyon_wgpu": {
+        "adapter": "Apple M4",
+        "prepare_ms": 1.8655410000000001,
+        "frame_p50_ms": 0.39158299999999996,
+        "frame_p95_ms": 0.5703750000000001,
+        "frame_p99_ms": 1.101208,
+        "frame_mean_ms": 0.40612078333333346,
+        "retained_bytes": 2707848
+      },
+      "comparison": {
+        "rgb_rmse": 0.03774995547784367,
+        "alpha_rmse": 0.0,
+        "changed_pixels": 129188,
+        "vello_content_pixels": 281280,
+        "lyon_content_pixels": 250244
+      }
+    },
+    {
+      "name": "dense-vector-field",
+      "shape_count": 5500,
+      "vello": {
+        "adapter": "Apple M4",
+        "prepare_ms": 0.220125,
+        "frame_p50_ms": 1.47175,
+        "frame_p95_ms": 1.685167,
+        "frame_p99_ms": 2.721209,
+        "frame_mean_ms": 1.508104116666667,
+        "retained_bytes": 236534
+      },
+      "lyon_wgpu": {
+        "adapter": "Apple M4",
+        "prepare_ms": 0.903792,
+        "frame_p50_ms": 0.27349999999999997,
+        "frame_p95_ms": 0.335209,
+        "frame_p99_ms": 0.43195799999999995,
+        "frame_mean_ms": 0.2781347333333333,
+        "retained_bytes": 660000
+      },
+      "comparison": {
+        "rgb_rmse": 0.025591080722581067,
+        "alpha_rmse": 0.0,
+        "changed_pixels": 117269,
+        "vello_content_pixels": 141150,
+        "lyon_content_pixels": 100076
+      }
+    },
+    {
+      "name": "translucent-layers",
+      "shape_count": 900,
+      "vello": {
+        "adapter": "Apple M4",
+        "prepare_ms": 0.17049999999999998,
+        "frame_p50_ms": 1.485,
+        "frame_p95_ms": 1.800667,
+        "frame_p99_ms": 2.699458,
+        "frame_mean_ms": 1.528595066666667,
+        "retained_bytes": 105334
+      },
+      "lyon_wgpu": {
+        "adapter": "Apple M4",
+        "prepare_ms": 1.8852090000000001,
+        "frame_p50_ms": 0.389333,
+        "frame_p95_ms": 0.575542,
+        "frame_p99_ms": 0.943791,
+        "frame_mean_ms": 0.4081500666666667,
+        "retained_bytes": 1503936
+      },
+      "comparison": {
+        "rgb_rmse": 0.002579812375749849,
+        "alpha_rmse": 0.0,
+        "changed_pixels": 5427,
+        "vello_content_pixels": 235465,
+        "lyon_content_pixels": 235389
+      }
+    },
+    {
+      "name": "outline-glyphs",
+      "shape_count": 456,
+      "vello": {
+        "adapter": "Apple M4",
+        "prepare_ms": 0.055125,
+        "frame_p50_ms": 1.465375,
+        "frame_p95_ms": 2.137666,
+        "frame_p99_ms": 3.6614999999999998,
+        "frame_mean_ms": 1.5618103833333328,
+        "retained_bytes": 57034
+      },
+      "lyon_wgpu": {
+        "adapter": "Apple M4",
+        "prepare_ms": 1.537458,
+        "frame_p50_ms": 0.33620900000000004,
+        "frame_p95_ms": 0.5282079999999999,
+        "frame_p99_ms": 0.725166,
+        "frame_mean_ms": 0.34014508333333315,
+        "retained_bytes": 1149696
+      },
+      "comparison": {
+        "rgb_rmse": 0.01868242345855871,
+        "alpha_rmse": 0.0,
+        "changed_pixels": 25038,
+        "vello_content_pixels": 110622,
+        "lyon_content_pixels": 108009
+      }
+    }
+  ],
+  "recommendation": "lyon + wgpu wins every native p95 workload. Retain it as the current experimental baseline, but do not freeze D-20 until browser and full-feature correctness evidence is complete."
+}

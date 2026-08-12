@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 const MAX_NODES: usize = 5_000;
 const MAX_TRACKS: usize = 20_000;
+const MAX_CORRESPONDENCES: usize = 20_000;
 const MAX_SIGNALS: usize = 1_000;
 const MAX_BINDINGS: usize = 10_000;
 const MAX_CONTROLS: usize = 64;
@@ -41,6 +42,8 @@ pub struct Scene {
     pub nodes: Vec<Node>,
     #[serde(default)]
     pub tracks: Vec<Track>,
+    #[serde(default)]
+    pub correspondences: Vec<Correspondence>,
     #[serde(default)]
     pub signals: Vec<Signal>,
     #[serde(default)]
@@ -215,7 +218,10 @@ pub enum NodeKind {
         slant: FontSlant,
     },
     MarkupText {
+        #[serde(default)]
         spans: Vec<TextSpan>,
+        #[serde(default)]
+        markup: Option<String>,
         font_size: f32,
         #[serde(default = "default_font_family")]
         font_family: String,
@@ -546,6 +552,24 @@ pub struct TextSpan {
     pub weight: FontWeight,
     #[serde(default)]
     pub slant: FontSlant,
+    #[serde(default)]
+    pub font_family: Option<String>,
+    #[serde(default = "one")]
+    pub font_scale: f32,
+    #[serde(default)]
+    pub rise: f32,
+    #[serde(default)]
+    pub letter_spacing: f32,
+    #[serde(default)]
+    pub background: Option<String>,
+    #[serde(default)]
+    pub underline: TextUnderline,
+    #[serde(default)]
+    pub underline_color: Option<String>,
+    #[serde(default)]
+    pub strikethrough: bool,
+    #[serde(default)]
+    pub strikethrough_color: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
@@ -715,6 +739,17 @@ pub enum FontSlant {
     Italic,
 }
 
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum TextUnderline {
+    #[default]
+    None,
+    Single,
+    Double,
+    Low,
+    Error,
+}
+
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ImageResampling {
@@ -736,6 +771,43 @@ pub struct Track {
     pub keyframes: Vec<Keyframe>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub keyframes_from: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Correspondence {
+    pub id: String,
+    pub kind: CorrespondenceKind,
+    pub mode: CorrespondenceMode,
+    pub keys: Vec<String>,
+    #[serde(default)]
+    pub target_keys: Vec<String>,
+    #[serde(default)]
+    pub source_nodes: Vec<String>,
+    #[serde(default)]
+    pub target_nodes: Vec<String>,
+    pub start: f32,
+    pub end: f32,
+    #[serde(default)]
+    pub path_arc: f32,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum CorrespondenceKind {
+    TransformMatchingTex,
+    TransformMatchingShapes,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum CorrespondenceMode {
+    Transform,
+    KeyMapped,
+    TransformMismatches,
+    FadeTransformMismatches,
+    FadeOut,
+    FadeIn,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -816,6 +888,7 @@ pub enum Easing {
     #[default]
     Linear,
     Smooth,
+    ManimSmooth,
     EaseIn,
     EaseOut,
     EaseInOut,
@@ -1080,6 +1153,7 @@ impl Scene {
             return Err(format!("Scene must contain 1–{MAX_NODES} nodes."));
         }
         if self.tracks.len() > MAX_TRACKS
+            || self.correspondences.len() > MAX_CORRESPONDENCES
             || self.signals.len() > MAX_SIGNALS
             || self.bindings.len() > MAX_BINDINGS
             || self.controls.len() > MAX_CONTROLS
@@ -1163,6 +1237,90 @@ impl Scene {
                         node.id
                     ));
                 }
+            }
+        }
+        let mut correspondence_ids = HashSet::new();
+        for correspondence in &self.correspondences {
+            validate_id(&correspondence.id)?;
+            if !correspondence_ids.insert(correspondence.id.as_str()) {
+                return Err(format!(
+                    "Duplicate correspondence id: {}.",
+                    correspondence.id
+                ));
+            }
+            if (correspondence.keys.is_empty() && correspondence.target_keys.is_empty())
+                || correspondence.keys.len() > 1_000
+                || correspondence.target_keys.len() > 1_000
+                || correspondence
+                    .keys
+                    .iter()
+                    .chain(&correspondence.target_keys)
+                    .any(|key| key.len() > 4_000)
+            {
+                return Err(format!(
+                    "Correspondence {} has invalid semantic keys.",
+                    correspondence.id
+                ));
+            }
+            if !correspondence.start.is_finite()
+                || !correspondence.end.is_finite()
+                || !correspondence.path_arc.is_finite()
+                || correspondence.start < 0.0
+                || correspondence.end <= correspondence.start
+                || correspondence.end > self.duration + 0.0001
+            {
+                return Err(format!(
+                    "Correspondence {} has invalid timing or path arc.",
+                    correspondence.id
+                ));
+            }
+            if correspondence.source_nodes.is_empty() && correspondence.target_nodes.is_empty() {
+                return Err(format!(
+                    "Correspondence {} must reference at least one node.",
+                    correspondence.id
+                ));
+            }
+            if correspondence.source_nodes.len() > MAX_NODES
+                || correspondence.target_nodes.len() > MAX_NODES
+                || correspondence
+                    .source_nodes
+                    .iter()
+                    .collect::<HashSet<_>>()
+                    .len()
+                    != correspondence.source_nodes.len()
+                || correspondence
+                    .target_nodes
+                    .iter()
+                    .collect::<HashSet<_>>()
+                    .len()
+                    != correspondence.target_nodes.len()
+            {
+                return Err(format!(
+                    "Correspondence {} has invalid node sets.",
+                    correspondence.id
+                ));
+            }
+            if correspondence
+                .source_nodes
+                .iter()
+                .chain(&correspondence.target_nodes)
+                .any(|node| !ids.contains(node.as_str()))
+            {
+                return Err(format!(
+                    "Correspondence {} references a missing node.",
+                    correspondence.id
+                ));
+            }
+            if matches!(
+                correspondence.mode,
+                CorrespondenceMode::Transform | CorrespondenceMode::KeyMapped
+            ) && (correspondence.source_nodes.is_empty()
+                || correspondence.target_nodes.is_empty())
+            {
+                return Err(format!(
+                    "Correspondence {} requires source and target nodes.",
+                    correspondence.id
+                ));
             }
         }
         self.validate_parent_cycles()?;
@@ -2012,29 +2170,58 @@ impl Node {
             }
             NodeKind::MarkupText {
                 spans,
+                markup,
                 font_size,
                 font_family,
                 ..
             } => {
-                if spans.is_empty() || spans.len() > 1_000 {
-                    return Err("Markup text must contain 1–1,000 spans.".to_owned());
+                if markup.is_some() != spans.is_empty() {
+                    return Err(
+                        "Markup text must provide exactly one of markup or spans.".to_owned()
+                    );
+                }
+                if spans.len() > 1_000 {
+                    return Err("Markup text may contain at most 1,000 spans.".to_owned());
+                }
+                if let Some(markup) = markup
+                    && (markup.is_empty() || markup.len() > 64 * 1024 || markup.contains('\0'))
+                {
+                    return Err(
+                        "Pango markup must contain 1 byte–64 KiB and no NUL characters.".to_owned(),
+                    );
                 }
                 positive(*font_size, "font size")?;
                 validate_font_family(font_family)?;
                 let mut text_bytes = 0;
                 for span in spans {
-                    if span.text.is_empty() || span.text.contains('\n') {
-                        return Err(
-                            "Markup text spans must be nonempty single-line text.".to_owned()
-                        );
+                    if span.text.is_empty() {
+                        return Err("Markup text spans must be nonempty.".to_owned());
                     }
                     text_bytes += span.text.len();
                     if let Some(color) = &span.color {
                         parse_color(color)?;
                     }
+                    if let Some(color) = &span.background {
+                        parse_color(color)?;
+                    }
+                    if let Some(color) = &span.underline_color {
+                        parse_color(color)?;
+                    }
+                    if let Some(color) = &span.strikethrough_color {
+                        parse_color(color)?;
+                    }
+                    if let Some(family) = &span.font_family {
+                        validate_font_family(family)?;
+                    }
+                    positive(span.font_scale, "markup span font scale")?;
+                    if !span.rise.is_finite() || !span.letter_spacing.is_finite() {
+                        return Err(
+                            "Markup span rise and letter spacing must be finite.".to_owned()
+                        );
+                    }
                 }
-                if text_bytes > 4_000 {
-                    return Err("Markup text is limited to 4,000 bytes.".to_owned());
+                if text_bytes > 64 * 1024 {
+                    return Err("Markup text is limited to 64 KiB.".to_owned());
                 }
             }
             NodeKind::Svg { svg, height, .. } => {
@@ -3316,6 +3503,11 @@ impl Easing {
         match self {
             Self::Linear => amount,
             Self::Smooth => amount * amount * (3.0 - 2.0 * amount),
+            Self::ManimSmooth => {
+                let sigmoid = |value: f32| 1.0 / (1.0 + (-value).exp());
+                let error = sigmoid(-5.0);
+                ((sigmoid(10.0 * (amount - 0.5)) - error) / (1.0 - 2.0 * error)).clamp(0.0, 1.0)
+            }
             Self::EaseIn => amount * amount,
             Self::EaseOut => 1.0 - (1.0 - amount) * (1.0 - amount),
             Self::EaseInOut => {
@@ -4808,5 +5000,89 @@ mod tests {
         assert_eq!(vertex_data.as_slice(), &[-0.5, -1.0, 1.5, -1.0, 0.5, 1.0]);
         assert_eq!(uniforms[0].values, vec![0.5]);
         assert_eq!(uniforms[1].values, vec![0.5, 1.5, 2.5, 3.5]);
+    }
+
+    #[test]
+    fn retains_matching_correspondence_and_exact_manim_smooth() {
+        let scene = Scene::from_json(
+            r##"{
+              "version": 2,
+              "title": "Semantic matching",
+              "duration": 1,
+              "nodes": [
+                {"id":"source","type":"circle","radius":0.5},
+                {"id":"target","type":"circle","radius":0.5,"appearAt":1}
+              ],
+              "tracks": [{
+                "target":"source",
+                "property":"x",
+                "keyframes":[
+                  {"at":0,"value":0},
+                  {"at":1,"value":10,"easing":"manimSmooth"}
+                ]
+              }],
+              "correspondences": [{
+                "id":"match-x",
+                "kind":"transformMatchingTex",
+                "mode":"transform",
+                "keys":["x"],
+                "targetKeys":["x"],
+                "sourceNodes":["source"],
+                "targetNodes":["target"],
+                "start":0,
+                "end":1
+              }, {
+                "id":"one-sided-new-token",
+                "kind":"transformMatchingTex",
+                "mode":"transformMismatches",
+                "keys":[],
+                "targetKeys":["new"],
+                "sourceNodes":[],
+                "targetNodes":["target"],
+                "start":0,
+                "end":1
+              }]
+            }"##,
+        )
+        .expect("semantic correspondence should validate");
+        assert_eq!(scene.correspondences.len(), 2);
+        assert_eq!(
+            scene.correspondences[0].kind,
+            CorrespondenceKind::TransformMatchingTex
+        );
+        let at_quarter = scene.evaluate(0.25).expect("scene should evaluate");
+        let source = at_quarter
+            .nodes
+            .iter()
+            .find(|node| node.id == "source")
+            .expect("source should render");
+        let expected = Easing::ManimSmooth.apply(0.25) * 10.0;
+        assert!((source.transform[4] - expected).abs() < 0.000_001);
+        assert!((Easing::ManimSmooth.apply(0.25) - 0.070_103_72).abs() < 0.000_000_1);
+        assert!((Easing::ManimSmooth.apply(0.25) - Easing::Smooth.apply(0.25)).abs() > 0.01);
+    }
+
+    #[test]
+    fn rejects_missing_matching_correspondence_nodes() {
+        let error = Scene::from_json(
+            r##"{
+              "version":2,
+              "title":"Bad correspondence",
+              "duration":1,
+              "nodes":[{"id":"source","type":"circle","radius":1}],
+              "correspondences":[{
+                "id":"bad-match",
+                "kind":"transformMatchingShapes",
+                "mode":"transform",
+                "keys":["shape:abc"],
+                "sourceNodes":["source"],
+                "targetNodes":["missing"],
+                "start":0,
+                "end":1
+              }]
+            }"##,
+        )
+        .expect_err("missing correspondence node must fail");
+        assert!(error.contains("references a missing node"));
     }
 }

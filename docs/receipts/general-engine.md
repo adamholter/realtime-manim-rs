@@ -144,4 +144,6 @@ cargo clippy -p realtime-manim-web-preview --target wasm32-unknown-unknown -- -D
   see `benchmarks/corpus/capability-matrix.json`.
 - Translucent intersecting meshes still use sorted alpha blending; order-independent
   transparency is not complete.
-- The experimental lyon + wgpu backend has not yet completed the Vello shootout.
+- The experimental lyon + wgpu and Vello renderer shootout is complete for five
+  native Metal vector workloads and one matched browser WebGPU workload; D-20
+  remains open pending full-feature and cross-browser evidence. See `P-10.md`.

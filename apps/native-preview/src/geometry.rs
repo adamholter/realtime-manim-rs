@@ -1,4 +1,4 @@
-use std::{f32::consts::TAU, ops::Range};
+use std::{collections::HashMap, f32::consts::TAU, ops::Range};
 
 use bytemuck::{Pod, Zeroable};
 use lyon::{
@@ -13,10 +13,17 @@ use lyon::{
 use realtime_manim_scene_core::{
     Camera, EvaluatedFrameView, EvaluatedLinearGradient, EvaluatedNodeView, EvaluatedStyle,
     FontSlant, FontWeight, GradientSpace, GradientSpread, ImageResampling, NodeKind, PathCommand,
-    PathCommand3d, StrokeCap, StrokeJoin, TextAlign, Transform, parse_color,
+    PathCommand3d, StrokeCap, StrokeJoin, TextAlign, TextSpan, TextUnderline, Transform,
+    parse_color,
+};
+use realtime_manim_svg_engine::{
+    SvgClip, SvgElementRef, SvgEngine, SvgFillRule, SvgGradientSpread, SvgImageResampling,
+    SvgLineCap, SvgLineJoin, SvgMask, SvgMaskType, SvgPaint, SvgPaintOrder, SvgPattern,
+    SvgRadialGradient, SvgRasterImage,
 };
 use realtime_manim_text_engine::{
-    FontSelection, FontVariant, StyledTextSpan, TextAlign as ShapedTextAlign, TextEngine,
+    AttributedTextSpan, FontSelection, FontVariant, MarkupSpan, PangoUnderline,
+    TextAlign as ShapedTextAlign, TextEngine, parse_pango_markup,
 };
 
 #[repr(C)]
@@ -24,10 +31,25 @@ use realtime_manim_text_engine::{
 pub struct Vertex {
     pub position: [f32; 3],
     pub color: [f32; 4],
+    pub gradient_position: [f32; 2],
+    pub gradient_meta: [f32; 4],
+    pub mask_meta: [f32; 2],
 }
 
-pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 2] =
-    wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x4];
+pub const VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 5] = wgpu::vertex_attr_array![
+    0 => Float32x3,
+    1 => Float32x4,
+    2 => Float32x2,
+    3 => Float32x4,
+    4 => Float32x2
+];
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Pod, Zeroable)]
+pub struct GpuGradientStop {
+    pub color: [f32; 4],
+    pub data: [f32; 4],
+}
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
@@ -35,10 +57,11 @@ pub struct ImageVertex {
     pub position: [f32; 3],
     pub uv: [f32; 2],
     pub opacity: f32,
+    pub mask_meta: [f32; 2],
 }
 
-pub const IMAGE_VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 3] =
-    wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x2, 2 => Float32];
+pub const IMAGE_VERTEX_ATTRIBUTES: [wgpu::VertexAttribute; 4] =
+    wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x2, 2 => Float32, 3 => Float32x2];
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Pod, Zeroable)]
@@ -75,10 +98,28 @@ pub enum DrawCommand {
         depth_test: bool,
         transparent_3d: bool,
     },
+    ClipPush {
+        indices: Range<u32>,
+        reference: u32,
+    },
+    ClipPop {
+        indices: Range<u32>,
+        reference: u32,
+    },
+    ClippedVector {
+        indices: Range<u32>,
+        reference: u32,
+    },
+    MaskedVector {
+        indices: Range<u32>,
+        reference: u32,
+    },
     Image {
         vertices: Range<u32>,
         key: String,
         resampling: ImageResampling,
+        reference: u32,
+        masked: bool,
     },
     MeshTexture {
         vertices: Range<u32>,
@@ -86,6 +127,116 @@ pub enum DrawCommand {
         resampling: ImageResampling,
         opaque_candidate: bool,
     },
+}
+
+#[derive(Debug)]
+pub enum MaskDrawCommand {
+    ClipPush {
+        indices: Range<u32>,
+        reference: u32,
+    },
+    ClipPop {
+        indices: Range<u32>,
+        reference: u32,
+    },
+    Vector {
+        indices: Range<u32>,
+        reference: u32,
+    },
+    MaskedVector {
+        indices: Range<u32>,
+        reference: u32,
+    },
+    Image {
+        vertices: Range<u32>,
+        key: String,
+        resampling: ImageResampling,
+        reference: u32,
+        masked: bool,
+    },
+}
+
+trait SvgCommandSink {
+    fn clip_push(&mut self, indices: Range<u32>, reference: u32);
+    fn clip_pop(&mut self, indices: Range<u32>, reference: u32);
+    fn vector(&mut self, indices: Range<u32>, reference: u32, masked: bool);
+    fn image(
+        &mut self,
+        vertices: Range<u32>,
+        key: String,
+        resampling: ImageResampling,
+        reference: u32,
+        masked: bool,
+    );
+}
+
+impl SvgCommandSink for Vec<DrawCommand> {
+    fn clip_push(&mut self, indices: Range<u32>, reference: u32) {
+        self.push(DrawCommand::ClipPush { indices, reference });
+    }
+    fn clip_pop(&mut self, indices: Range<u32>, reference: u32) {
+        self.push(DrawCommand::ClipPop { indices, reference });
+    }
+    fn vector(&mut self, indices: Range<u32>, reference: u32, masked: bool) {
+        self.push(if masked {
+            DrawCommand::MaskedVector { indices, reference }
+        } else {
+            DrawCommand::ClippedVector { indices, reference }
+        });
+    }
+    fn image(
+        &mut self,
+        vertices: Range<u32>,
+        key: String,
+        resampling: ImageResampling,
+        reference: u32,
+        masked: bool,
+    ) {
+        self.push(DrawCommand::Image {
+            vertices,
+            key,
+            resampling,
+            reference,
+            masked,
+        });
+    }
+}
+
+impl SvgCommandSink for Vec<MaskDrawCommand> {
+    fn clip_push(&mut self, indices: Range<u32>, reference: u32) {
+        self.push(MaskDrawCommand::ClipPush { indices, reference });
+    }
+    fn clip_pop(&mut self, indices: Range<u32>, reference: u32) {
+        self.push(MaskDrawCommand::ClipPop { indices, reference });
+    }
+    fn vector(&mut self, indices: Range<u32>, reference: u32, masked: bool) {
+        self.push(if masked {
+            MaskDrawCommand::MaskedVector { indices, reference }
+        } else {
+            MaskDrawCommand::Vector { indices, reference }
+        });
+    }
+    fn image(
+        &mut self,
+        vertices: Range<u32>,
+        key: String,
+        resampling: ImageResampling,
+        reference: u32,
+        masked: bool,
+    ) {
+        self.push(MaskDrawCommand::Image {
+            vertices,
+            key,
+            resampling,
+            reference,
+            masked,
+        });
+    }
+}
+
+#[derive(Debug)]
+pub struct MaskLayerGeometry {
+    pub commands: Vec<MaskDrawCommand>,
 }
 
 #[derive(Debug)]
@@ -99,10 +250,13 @@ pub struct TransparentPrimitive {
 pub struct Geometry {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
+    pub gradient_stops: Vec<GpuGradientStop>,
     pub image_vertices: Vec<ImageVertex>,
     pub mesh_texture_vertices: Vec<MeshTextureVertex>,
     pub commands: Vec<DrawCommand>,
     pub transparent_primitives: Vec<TransparentPrimitive>,
+    pub mask_layers: Vec<MaskLayerGeometry>,
+    pub mask_indices: Vec<u32>,
     pub visible_nodes: usize,
     pub rendered_nodes: usize,
     pub unsupported: Vec<String>,
@@ -116,15 +270,28 @@ impl Geometry {
     }
 }
 
+#[cfg(test)]
 pub fn build_geometry(
     frame: &EvaluatedFrameView<'_>,
     text_engine: &mut TextEngine,
 ) -> Result<Geometry, String> {
+    let mut svg_engine = SvgEngine::new();
+    build_geometry_with_svg(frame, text_engine, &mut svg_engine)
+}
+
+pub fn build_geometry_with_svg(
+    frame: &EvaluatedFrameView<'_>,
+    text_engine: &mut TextEngine,
+    svg_engine: &mut SvgEngine,
+) -> Result<Geometry, String> {
     let mut buffers = VertexBuffers::<Vertex, u32>::new();
     let mut image_vertices = Vec::new();
+    let mut gradient_stops = Vec::new();
     let mut mesh_texture_vertices = Vec::new();
     let mut commands = Vec::new();
     let mut transparent_primitives = Vec::new();
+    let mut mask_layers = Vec::new();
+    let mut mask_indices = Vec::new();
     let mut unsupported = Vec::new();
     let mut rendered_nodes = 0;
     for node in &frame.nodes {
@@ -140,7 +307,30 @@ pub fn build_geometry(
                     vertices: start..image_vertices.len() as u32,
                     key: node.id.to_owned(),
                     resampling: *resampling,
+                    reference: 0,
+                    masked: false,
                 });
+                true
+            }
+            NodeKind::Svg {
+                svg,
+                height,
+                preserve_styles,
+            } => {
+                append_svg(
+                    &mut buffers,
+                    &mut gradient_stops,
+                    &mut commands,
+                    &mut image_vertices,
+                    &mut mask_layers,
+                    &mut mask_indices,
+                    frame,
+                    node,
+                    svg,
+                    *height,
+                    *preserve_styles,
+                    svg_engine,
+                )?;
                 true
             }
             NodeKind::Mesh {
@@ -236,10 +426,13 @@ pub fn build_geometry(
     Ok(Geometry {
         vertices: buffers.vertices,
         indices: buffers.indices,
+        gradient_stops,
         image_vertices,
         mesh_texture_vertices,
         commands,
         transparent_primitives,
+        mask_layers,
+        mask_indices,
         visible_nodes: frame.nodes.len(),
         rendered_nodes,
         unsupported,
@@ -389,67 +582,21 @@ fn append_node(
         )?,
         NodeKind::MarkupText {
             spans,
+            markup,
             font_size,
             font_family,
             align,
-        } => {
-            let shaped_spans = spans
-                .iter()
-                .map(|span| StyledTextSpan {
-                    text: &span.text,
-                    variant: font_variant(span.weight, span.slant),
-                })
-                .collect::<Vec<_>>();
-            let align = match align {
-                TextAlign::Left => ShapedTextAlign::Left,
-                TextAlign::Center => ShapedTextAlign::Center,
-                TextAlign::Right => ShapedTextAlign::Right,
-            };
-            let layout = text_engine
-                .layout_family_chain_spans(
-                    &shaped_spans,
-                    *font_size,
-                    align,
-                    1.25,
-                    0.0,
-                    font_family,
-                    &[],
-                )
-                .map_err(|error| format!("Text shaping failed for {}: {error}", node.id))?;
-            let mut source_end = 0usize;
-            let mut span_ends = Vec::with_capacity(spans.len());
-            let mut span_colors = Vec::with_capacity(spans.len());
-            for span in spans {
-                source_end = source_end.saturating_add(span.text.len());
-                span_ends.push(source_end);
-                span_colors.push(span.color.as_deref().map(parse_color).transpose()?);
-            }
-            for glyph in layout.glyphs {
-                let Some(path) = text_engine
-                    .glyph_outline_for_font(glyph.font_id, glyph.glyph_id, glyph.variant)
-                    .map_err(|error| format!("Glyph outline failed for {}: {error}", node.id))?
-                else {
-                    continue;
-                };
-                let span_index = span_ends.partition_point(|end| *end <= glyph.source_start);
-                let span_color = span_colors.get(span_index).copied().flatten();
-                let mut glyph_node = node.clone();
-                glyph_node.transform =
-                    local_matrix(node.transform, glyph.x, glyph.y, glyph.scale, glyph.scale);
-                let mut style = glyph_node.style.clone();
-                style.fill = span_color
-                    .map(|mut color| {
-                        color[3] *= node.style.opacity;
-                        color
-                    })
-                    .or(style.fill)
-                    .or(style.stroke);
-                style.fill_gradient = None;
-                style.stroke = None;
-                style.stroke_gradient = None;
-                append_path(buffers, frame, &glyph_node, path, &style)?;
-            }
-        }
+        } => append_markup_text(
+            buffers,
+            frame,
+            node,
+            spans,
+            markup.as_deref(),
+            *font_size,
+            font_family,
+            *align,
+            text_engine,
+        )?,
         NodeKind::Group | NodeKind::Billboard { .. } => return Ok(true),
         NodeKind::PathRef { source } => {
             return Err(format!(
@@ -547,34 +694,1341 @@ fn append_image_vertices(
             position: position(0),
             uv: [0.0, 0.0],
             opacity,
+            mask_meta: [0.0; 2],
         },
         ImageVertex {
             position: position(2),
             uv: [0.0, 1.0],
             opacity,
+            mask_meta: [0.0; 2],
         },
         ImageVertex {
             position: position(1),
             uv: [1.0, 0.0],
             opacity,
+            mask_meta: [0.0; 2],
         },
         ImageVertex {
             position: position(1),
             uv: [1.0, 0.0],
             opacity,
+            mask_meta: [0.0; 2],
         },
         ImageVertex {
             position: position(2),
             uv: [0.0, 1.0],
             opacity,
+            mask_meta: [0.0; 2],
         },
         ImageVertex {
             position: position(3),
             uv: [1.0, 1.0],
             opacity,
+            mask_meta: [0.0; 2],
         },
     ]);
     Ok(())
+}
+
+#[derive(Clone, Copy)]
+enum SvgGeometryPaint {
+    Solid([f32; 4]),
+    Linear {
+        from: [f32; 2],
+        to: [f32; 2],
+        start: u32,
+        count: u32,
+        spread: f32,
+        world_space: bool,
+    },
+    Radial {
+        inverse_transform: [f32; 6],
+        start: u32,
+        count: u32,
+        spread: f32,
+    },
+}
+
+impl SvgGeometryPaint {
+    fn vertex_data(self, position: [f32; 2]) -> ([f32; 4], [f32; 2], [f32; 4]) {
+        match self {
+            Self::Solid(color) => (color, [0.0; 2], [0.0; 4]),
+            Self::Linear {
+                from,
+                to,
+                start,
+                count,
+                spread,
+                world_space: _,
+            } => {
+                let axis = [to[0] - from[0], to[1] - from[1]];
+                let denominator = axis[0] * axis[0] + axis[1] * axis[1];
+                let amount = if denominator <= f32::EPSILON {
+                    0.0
+                } else {
+                    ((position[0] - from[0]) * axis[0] + (position[1] - from[1]) * axis[1])
+                        / denominator
+                };
+                (
+                    [0.0; 4],
+                    [amount, 0.0],
+                    [start as f32, count as f32, spread, 0.0],
+                )
+            }
+            Self::Radial {
+                inverse_transform,
+                start,
+                count,
+                spread,
+            } => (
+                [0.0; 4],
+                apply_matrix(inverse_transform, position),
+                [start as f32, count as f32, spread, 1.0],
+            ),
+        }
+    }
+
+    fn world_space(self) -> bool {
+        matches!(
+            self,
+            Self::Linear {
+                world_space: true,
+                ..
+            }
+        )
+    }
+}
+
+struct SvgVertexConstructor<'a> {
+    frame: &'a EvaluatedFrameView<'a>,
+    matrix: [f32; 6],
+    paint: SvgGeometryPaint,
+}
+
+impl FillVertexConstructor<Vertex> for SvgVertexConstructor<'_> {
+    fn new_vertex(&mut self, vertex: FillVertex<'_>) -> Vertex {
+        self.vertex(vertex.position())
+    }
+}
+
+impl StrokeVertexConstructor<Vertex> for SvgVertexConstructor<'_> {
+    fn new_vertex(&mut self, vertex: StrokeVertex<'_, '_>) -> Vertex {
+        self.vertex(vertex.position())
+    }
+}
+
+impl SvgVertexConstructor<'_> {
+    fn vertex(&self, position: Point) -> Vertex {
+        let local = [position.x, position.y];
+        let world = apply_matrix(self.matrix, local);
+        let clip = to_clip(self.frame, world);
+        let paint_position = if self.paint.world_space() {
+            world
+        } else {
+            local
+        };
+        let (color, gradient_position, gradient_meta) = self.paint.vertex_data(paint_position);
+        Vertex {
+            position: [clip[0], clip[1], 0.0],
+            color,
+            gradient_position,
+            gradient_meta,
+            mask_meta: [0.0; 2],
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct SvgPathOptions {
+    fill_rule: lyon::tessellation::FillRule,
+    line_cap: lyon::tessellation::LineCap,
+    line_join: lyon::tessellation::LineJoin,
+}
+
+impl Default for SvgPathOptions {
+    fn default() -> Self {
+        Self {
+            fill_rule: lyon::tessellation::FillRule::NonZero,
+            line_cap: lyon::tessellation::LineCap::Butt,
+            line_join: lyon::tessellation::LineJoin::Miter,
+        }
+    }
+}
+
+fn append_svg_path_with_paints(
+    buffers: &mut VertexBuffers<Vertex, u32>,
+    frame: &EvaluatedFrameView<'_>,
+    node: &EvaluatedNodeView<'_>,
+    path: &Path,
+    options: SvgPathOptions,
+    fill: Option<SvgGeometryPaint>,
+    stroke: Option<SvgGeometryPaint>,
+) -> Result<(), String> {
+    let tolerance = curve_tolerance(frame, node.transform);
+    if let Some(paint) = fill {
+        FillTessellator::new()
+            .tessellate_path(
+                path,
+                &FillOptions::default()
+                    .with_fill_rule(options.fill_rule)
+                    .with_tolerance(tolerance),
+                &mut BuffersBuilder::new(
+                    buffers,
+                    SvgVertexConstructor {
+                        frame,
+                        matrix: node.transform,
+                        paint,
+                    },
+                ),
+            )
+            .map_err(|error| format!("SVG fill tessellation failed for {}: {error}.", node.id))?;
+    }
+    if node.style.stroke_width > 0.0
+        && let Some(paint) = stroke
+    {
+        StrokeTessellator::new()
+            .tessellate_path(
+                path,
+                &StrokeOptions::default()
+                    .with_line_width(node.style.stroke_width)
+                    .with_line_cap(options.line_cap)
+                    .with_line_join(options.line_join)
+                    .with_tolerance(tolerance),
+                &mut BuffersBuilder::new(
+                    buffers,
+                    SvgVertexConstructor {
+                        frame,
+                        matrix: node.transform,
+                        paint,
+                    },
+                ),
+            )
+            .map_err(|error| format!("SVG stroke tessellation failed for {}: {error}.", node.id))?;
+    }
+    Ok(())
+}
+
+fn svg_spread_index(spread: SvgGradientSpread) -> f32 {
+    match spread {
+        SvgGradientSpread::Pad => 0.0,
+        SvgGradientSpread::Repeat => 1.0,
+        SvgGradientSpread::Reflect => 2.0,
+    }
+}
+
+fn register_svg_paint(
+    output: &mut Vec<GpuGradientStop>,
+    paint: Option<&SvgPaint>,
+    opacity: f32,
+) -> Option<SvgGeometryPaint> {
+    match paint? {
+        SvgPaint::Solid(color) => {
+            let mut color = *color;
+            color[3] *= opacity;
+            Some(SvgGeometryPaint::Solid(color))
+        }
+        SvgPaint::LinearGradient(gradient) => {
+            let start = output.len() as u32;
+            output.extend(gradient.stops.iter().map(|stop| {
+                let mut color = stop.color;
+                color[3] *= opacity;
+                GpuGradientStop {
+                    color,
+                    data: [stop.offset, 0.0, 0.0, 0.0],
+                }
+            }));
+            Some(SvgGeometryPaint::Linear {
+                from: gradient.from,
+                to: gradient.to,
+                start,
+                count: gradient.stops.len() as u32,
+                spread: svg_spread_index(gradient.spread),
+                world_space: false,
+            })
+        }
+        SvgPaint::RadialGradient(gradient) => {
+            Some(register_svg_radial_gradient(output, gradient, opacity))
+        }
+        SvgPaint::Pattern(_) => None,
+    }
+}
+
+fn register_scene_gradient(
+    output: &mut Vec<GpuGradientStop>,
+    gradient: &EvaluatedLinearGradient,
+) -> SvgGeometryPaint {
+    let start = output.len() as u32;
+    output.extend(gradient.stops.iter().map(|stop| GpuGradientStop {
+        color: stop.color,
+        data: [stop.offset, 0.0, 0.0, 0.0],
+    }));
+    SvgGeometryPaint::Linear {
+        from: gradient.from,
+        to: gradient.to,
+        start,
+        count: gradient.stops.len() as u32,
+        spread: match gradient.spread {
+            GradientSpread::Pad => 0.0,
+            GradientSpread::Repeat => 1.0,
+            GradientSpread::Reflect => 2.0,
+        },
+        world_space: gradient.space == GradientSpace::World,
+    }
+}
+
+fn register_svg_radial_gradient(
+    output: &mut Vec<GpuGradientStop>,
+    gradient: &SvgRadialGradient,
+    opacity: f32,
+) -> SvgGeometryPaint {
+    output.push(GpuGradientStop {
+        color: [
+            gradient.focal[0],
+            gradient.focal[1],
+            gradient.center[0],
+            gradient.center[1],
+        ],
+        data: [gradient.focal_radius, gradient.radius, 0.0, 0.0],
+    });
+    let start = output.len() as u32;
+    output.extend(gradient.stops.iter().map(|stop| {
+        let mut color = stop.color;
+        color[3] *= opacity;
+        GpuGradientStop {
+            color,
+            data: [stop.offset, 0.0, 0.0, 0.0],
+        }
+    }));
+    SvgGeometryPaint::Radial {
+        inverse_transform: gradient.inverse_transform,
+        start,
+        count: gradient.stops.len() as u32,
+        spread: svg_spread_index(gradient.spread),
+    }
+}
+
+fn svg_path_options(path: &realtime_manim_svg_engine::SvgPath) -> SvgPathOptions {
+    SvgPathOptions {
+        fill_rule: match path.fill_rule {
+            SvgFillRule::NonZero => lyon::tessellation::FillRule::NonZero,
+            SvgFillRule::EvenOdd => lyon::tessellation::FillRule::EvenOdd,
+        },
+        line_cap: match path.line_cap {
+            SvgLineCap::Butt => lyon::tessellation::LineCap::Butt,
+            SvgLineCap::Round => lyon::tessellation::LineCap::Round,
+            SvgLineCap::Square => lyon::tessellation::LineCap::Square,
+        },
+        line_join: match path.line_join {
+            SvgLineJoin::Miter => lyon::tessellation::LineJoin::Miter,
+            SvgLineJoin::Round => lyon::tessellation::LineJoin::Round,
+            SvgLineJoin::Bevel => lyon::tessellation::LineJoin::Bevel,
+        },
+    }
+}
+
+fn svg_clip_options(rule: SvgFillRule) -> SvgPathOptions {
+    SvgPathOptions {
+        fill_rule: match rule {
+            SvgFillRule::NonZero => lyon::tessellation::FillRule::NonZero,
+            SvgFillRule::EvenOdd => lyon::tessellation::FillRule::EvenOdd,
+        },
+        ..SvgPathOptions::default()
+    }
+}
+
+fn svg_image_key(image: &SvgRasterImage) -> String {
+    format!("svg-resource-{:016x}", image.key)
+}
+
+#[derive(Clone, Copy)]
+enum SvgPaintPass {
+    Fill,
+    Stroke,
+}
+
+fn svg_paint_passes(order: SvgPaintOrder) -> [SvgPaintPass; 2] {
+    match order {
+        SvgPaintOrder::FillThenStroke => [SvgPaintPass::Fill, SvgPaintPass::Stroke],
+        SvgPaintOrder::StrokeThenFill => [SvgPaintPass::Stroke, SvgPaintPass::Fill],
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn append_svg(
+    buffers: &mut VertexBuffers<Vertex, u32>,
+    gradient_stops: &mut Vec<GpuGradientStop>,
+    commands: &mut Vec<DrawCommand>,
+    image_vertices: &mut Vec<ImageVertex>,
+    mask_layers: &mut Vec<MaskLayerGeometry>,
+    mask_indices: &mut Vec<u32>,
+    frame: &EvaluatedFrameView<'_>,
+    node: &EvaluatedNodeView<'_>,
+    source: &str,
+    height: f32,
+    preserve_styles: bool,
+    svg_engine: &mut SvgEngine,
+) -> Result<(), String> {
+    let document = svg_engine
+        .document(source)
+        .map_err(|error| format!("SVG parsing failed for {}: {error}", node.id))?;
+    let scale = height / document.height.max(f32::EPSILON);
+    let mut path_node = node.clone();
+    path_node.transform = local_matrix(
+        node.transform,
+        -document.width * scale * 0.5,
+        document.height * scale * 0.5,
+        scale,
+        -scale,
+    );
+    if !preserve_styles && path_node.style.fill.is_none() && path_node.style.fill_gradient.is_none()
+    {
+        path_node.style.fill = path_node.style.stroke;
+        path_node.style.fill_gradient = path_node.style.stroke_gradient.clone();
+        path_node.style.stroke = None;
+        path_node.style.stroke_gradient = None;
+    }
+    let mut mask_layer_by_key = HashMap::new();
+    for element in &document.order {
+        if let SvgElementRef::Image(index) = element {
+            append_svg_raster_image(
+                buffers,
+                gradient_stops,
+                image_vertices,
+                commands,
+                mask_layers,
+                mask_indices,
+                frame,
+                &path_node,
+                &document.images[*index],
+                0,
+                [0.0; 2],
+                false,
+            )?;
+            continue;
+        }
+        let SvgElementRef::Path(index) = element else {
+            unreachable!()
+        };
+        let svg_path = &document.paths[*index];
+        if svg_path.clips.len() > 255 {
+            return Err(format!("SVG {} exceeds 255 nested clip paths.", node.id));
+        }
+        let mut descriptors = Vec::with_capacity(svg_path.masks.len() + svg_path.clips.len());
+        for mask in &svg_path.masks {
+            let layer = ensure_svg_mask_layer(
+                buffers,
+                gradient_stops,
+                image_vertices,
+                mask_layers,
+                mask_indices,
+                &mut mask_layer_by_key,
+                frame,
+                &path_node,
+                mask,
+            )?;
+            descriptors.push(match mask.kind {
+                SvgMaskType::Alpha => layer,
+                SvgMaskType::Luminance => layer | 0x8000_0000,
+            });
+        }
+        let mut clip_ranges = Vec::with_capacity(svg_path.clips.len());
+        for clip in &svg_path.clips {
+            if svg_clip_is_complex(clip) {
+                descriptors.push(ensure_svg_clip_layer(
+                    buffers,
+                    mask_layers,
+                    mask_indices,
+                    frame,
+                    &path_node,
+                    clip,
+                )?);
+            } else {
+                clip_ranges.push(append_svg_clip_geometry(buffers, frame, &path_node, clip)?);
+            }
+        }
+        let masked = !descriptors.is_empty();
+        let mask_meta = register_mask_descriptors(mask_indices, &descriptors);
+        let mut styled_node = path_node.clone();
+        if preserve_styles {
+            styled_node.style.stroke_width = svg_path.stroke_width;
+            styled_node.style.fill = None;
+            styled_node.style.fill_gradient = None;
+            styled_node.style.stroke = None;
+            styled_node.style.stroke_gradient = None;
+            for pass in svg_paint_passes(svg_path.paint_order) {
+                let (paint, stroke) = match pass {
+                    SvgPaintPass::Fill => (svg_path.fill.as_ref(), false),
+                    SvgPaintPass::Stroke => (svg_path.stroke.as_ref(), true),
+                };
+                match paint {
+                    Some(SvgPaint::Pattern(pattern)) => append_svg_pattern_fill(
+                        buffers,
+                        gradient_stops,
+                        commands,
+                        image_vertices,
+                        mask_layers,
+                        mask_indices,
+                        frame,
+                        &styled_node,
+                        &svg_path.path,
+                        svg_path_options(svg_path),
+                        &clip_ranges,
+                        mask_meta,
+                        masked,
+                        pattern,
+                        document.width,
+                        document.height,
+                        node.style.opacity,
+                        stroke,
+                        0,
+                        0,
+                    )?,
+                    paint => append_svg_regular_paint(
+                        buffers,
+                        gradient_stops,
+                        commands,
+                        frame,
+                        &styled_node,
+                        &svg_path.path,
+                        svg_path_options(svg_path),
+                        &clip_ranges,
+                        mask_meta,
+                        masked,
+                        (!stroke).then_some(paint).flatten(),
+                        stroke.then_some(paint).flatten(),
+                        node.style.opacity,
+                    )?,
+                }
+            }
+        } else {
+            for pass in svg_paint_passes(svg_path.paint_order) {
+                let start = buffers.indices.len() as u32;
+                let vertex_start = buffers.vertices.len();
+                let (fill, stroke) = match pass {
+                    SvgPaintPass::Fill => (
+                        styled_node
+                            .style
+                            .fill_gradient
+                            .as_ref()
+                            .map(|gradient| register_scene_gradient(gradient_stops, gradient))
+                            .or(styled_node.style.fill.map(SvgGeometryPaint::Solid)),
+                        None,
+                    ),
+                    SvgPaintPass::Stroke => (
+                        None,
+                        styled_node
+                            .style
+                            .stroke_gradient
+                            .as_ref()
+                            .map(|gradient| register_scene_gradient(gradient_stops, gradient))
+                            .or(styled_node.style.stroke.map(SvgGeometryPaint::Solid)),
+                    ),
+                };
+                append_svg_path_with_paints(
+                    buffers,
+                    frame,
+                    &styled_node,
+                    &svg_path.path,
+                    svg_path_options(svg_path),
+                    fill,
+                    stroke,
+                )?;
+                set_vertex_masks(&mut buffers.vertices[vertex_start..], mask_meta);
+                emit_svg_commands(
+                    commands,
+                    start..buffers.indices.len() as u32,
+                    &clip_ranges,
+                    masked,
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+fn register_mask_descriptors(output: &mut Vec<u32>, descriptors: &[u32]) -> [f32; 2] {
+    if descriptors.is_empty() {
+        return [0.0; 2];
+    }
+    let start = output.len() as u32;
+    output.extend_from_slice(descriptors);
+    [start as f32, descriptors.len() as f32]
+}
+
+fn set_vertex_masks(vertices: &mut [Vertex], mask_meta: [f32; 2]) {
+    for vertex in vertices {
+        vertex.mask_meta = mask_meta;
+    }
+}
+
+fn emit_svg_commands(
+    commands: &mut Vec<DrawCommand>,
+    indices: Range<u32>,
+    clips: &[Range<u32>],
+    masked: bool,
+) {
+    if indices.is_empty() {
+        return;
+    }
+    if clips.is_empty() && !masked {
+        commands.push(DrawCommand::Vector {
+            indices,
+            depth_test: false,
+            transparent_3d: false,
+        });
+        return;
+    }
+    for (depth, range) in clips.iter().enumerate() {
+        commands.clip_push(range.clone(), depth as u32);
+    }
+    commands.vector(indices, clips.len() as u32, masked);
+    for (depth, range) in clips.iter().enumerate().rev() {
+        commands.clip_pop(range.clone(), depth as u32 + 1);
+    }
+}
+
+fn append_svg_clip_geometry(
+    buffers: &mut VertexBuffers<Vertex, u32>,
+    frame: &EvaluatedFrameView<'_>,
+    node: &EvaluatedNodeView<'_>,
+    clip: &SvgClip,
+) -> Result<Range<u32>, String> {
+    let start = buffers.indices.len() as u32;
+    for shape in &clip.shapes {
+        append_svg_path_with_paints(
+            buffers,
+            frame,
+            node,
+            &shape.path,
+            svg_clip_options(shape.fill_rule),
+            Some(SvgGeometryPaint::Solid([0.0; 4])),
+            None,
+        )?;
+    }
+    Ok(start..buffers.indices.len() as u32)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn append_svg_regular_paint(
+    buffers: &mut VertexBuffers<Vertex, u32>,
+    gradient_stops: &mut Vec<GpuGradientStop>,
+    commands: &mut Vec<DrawCommand>,
+    frame: &EvaluatedFrameView<'_>,
+    node: &EvaluatedNodeView<'_>,
+    path: &Path,
+    options: SvgPathOptions,
+    clips: &[Range<u32>],
+    mask_meta: [f32; 2],
+    masked: bool,
+    fill: Option<&SvgPaint>,
+    stroke: Option<&SvgPaint>,
+    opacity: f32,
+) -> Result<(), String> {
+    let start = buffers.indices.len() as u32;
+    let vertex_start = buffers.vertices.len();
+    append_svg_path_with_paints(
+        buffers,
+        frame,
+        node,
+        path,
+        options,
+        register_svg_paint(gradient_stops, fill, opacity),
+        register_svg_paint(gradient_stops, stroke, opacity),
+    )?;
+    set_vertex_masks(&mut buffers.vertices[vertex_start..], mask_meta);
+    emit_svg_commands(commands, start..buffers.indices.len() as u32, clips, masked);
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn append_svg_regular_paint_at_reference<S: SvgCommandSink>(
+    buffers: &mut VertexBuffers<Vertex, u32>,
+    gradient_stops: &mut Vec<GpuGradientStop>,
+    commands: &mut S,
+    frame: &EvaluatedFrameView<'_>,
+    node: &EvaluatedNodeView<'_>,
+    path: &Path,
+    options: SvgPathOptions,
+    mask_meta: [f32; 2],
+    masked: bool,
+    fill: Option<&SvgPaint>,
+    stroke: Option<&SvgPaint>,
+    opacity: f32,
+    reference: u32,
+) -> Result<(), String> {
+    let start = buffers.indices.len() as u32;
+    let vertex_start = buffers.vertices.len();
+    append_svg_path_with_paints(
+        buffers,
+        frame,
+        node,
+        path,
+        options,
+        register_svg_paint(gradient_stops, fill, opacity),
+        register_svg_paint(gradient_stops, stroke, opacity),
+    )?;
+    let end = buffers.indices.len() as u32;
+    set_vertex_masks(&mut buffers.vertices[vertex_start..], mask_meta);
+    if end > start {
+        commands.vector(start..end, reference, masked);
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn append_svg_raster_image<S: SvgCommandSink>(
+    buffers: &mut VertexBuffers<Vertex, u32>,
+    gradient_stops: &mut Vec<GpuGradientStop>,
+    image_vertices: &mut Vec<ImageVertex>,
+    commands: &mut S,
+    mask_layers: &mut Vec<MaskLayerGeometry>,
+    mask_indices: &mut Vec<u32>,
+    frame: &EvaluatedFrameView<'_>,
+    path_node: &EvaluatedNodeView<'_>,
+    image: &SvgRasterImage,
+    clip_reference_base: u32,
+    outer_mask_meta: [f32; 2],
+    outer_masked: bool,
+) -> Result<(), String> {
+    let mut descriptors = if outer_masked {
+        let start = outer_mask_meta[0] as usize;
+        let end = start.saturating_add(outer_mask_meta[1] as usize);
+        if end > mask_indices.len() {
+            return Err(format!(
+                "SVG {} contains invalid embedded-image mask metadata.",
+                path_node.id
+            ));
+        }
+        mask_indices[start..end].to_vec()
+    } else {
+        Vec::new()
+    };
+    let mut layer_by_key = HashMap::new();
+    for mask in &image.masks {
+        let layer = ensure_svg_mask_layer(
+            buffers,
+            gradient_stops,
+            image_vertices,
+            mask_layers,
+            mask_indices,
+            &mut layer_by_key,
+            frame,
+            path_node,
+            mask,
+        )?;
+        descriptors.push(match mask.kind {
+            SvgMaskType::Alpha => layer,
+            SvgMaskType::Luminance => layer | 0x8000_0000,
+        });
+    }
+    let mut clips = Vec::with_capacity(image.clips.len());
+    for clip in &image.clips {
+        if svg_clip_is_complex(clip) {
+            descriptors.push(ensure_svg_clip_layer(
+                buffers,
+                mask_layers,
+                mask_indices,
+                frame,
+                path_node,
+                clip,
+            )?);
+        } else {
+            clips.push(append_svg_clip_geometry(buffers, frame, path_node, clip)?);
+        }
+    }
+    let mask_meta = register_mask_descriptors(mask_indices, &descriptors);
+    let mut image_node = path_node.clone();
+    image_node.transform = compose_matrix(path_node.transform, image.transform);
+    image_node.style.opacity *= image.opacity;
+    let corners = [
+        [0.0, 0.0],
+        [image.pixel_width as f32, 0.0],
+        [0.0, image.pixel_height as f32],
+        [image.pixel_width as f32, image.pixel_height as f32],
+    ];
+    let start = image_vertices.len() as u32;
+    append_image_vertices(image_vertices, frame, &image_node, &corners)?;
+    for vertex in &mut image_vertices[start as usize..] {
+        vertex.mask_meta = mask_meta;
+    }
+    for (depth, range) in clips.iter().enumerate() {
+        commands.clip_push(range.clone(), clip_reference_base + depth as u32);
+    }
+    commands.image(
+        start..image_vertices.len() as u32,
+        svg_image_key(image),
+        match image.resampling {
+            SvgImageResampling::Nearest => ImageResampling::Nearest,
+            SvgImageResampling::Linear => ImageResampling::Bilinear,
+        },
+        clip_reference_base + clips.len() as u32,
+        !descriptors.is_empty(),
+    );
+    for (depth, range) in clips.iter().enumerate().rev() {
+        commands.clip_pop(range.clone(), clip_reference_base + depth as u32 + 1);
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn append_svg_pattern_fill<S: SvgCommandSink>(
+    buffers: &mut VertexBuffers<Vertex, u32>,
+    gradient_stops: &mut Vec<GpuGradientStop>,
+    commands: &mut S,
+    image_vertices: &mut Vec<ImageVertex>,
+    mask_layers: &mut Vec<MaskLayerGeometry>,
+    mask_indices: &mut Vec<u32>,
+    frame: &EvaluatedFrameView<'_>,
+    path_node: &EvaluatedNodeView<'_>,
+    owner_path: &Path,
+    owner_options: SvgPathOptions,
+    outer_clips: &[Range<u32>],
+    mask_meta: [f32; 2],
+    masked: bool,
+    pattern: &SvgPattern,
+    document_width: f32,
+    document_height: f32,
+    opacity: f32,
+    stroke_pattern: bool,
+    clip_reference_base: u32,
+    pattern_depth: u8,
+) -> Result<(), String> {
+    if pattern_depth >= 32 {
+        return Err(format!(
+            "SVG {} exceeds 32 recursively nested pattern paints.",
+            path_node.id
+        ));
+    }
+    let [tile_x, tile_y, tile_width, tile_height] = pattern.rect;
+    if tile_width <= f32::EPSILON || tile_height <= f32::EPSILON {
+        return Err(format!(
+            "SVG {} contains an empty pattern tile.",
+            path_node.id
+        ));
+    }
+    if clip_reference_base + outer_clips.len() as u32 + 3 >= 255 {
+        return Err(format!(
+            "SVG {} exceeds 254 nested stencil levels in a pattern.",
+            path_node.id
+        ));
+    }
+    let inverse = invert_matrix(pattern.transform).ok_or_else(|| {
+        format!(
+            "SVG {} contains a singular pattern transform.",
+            path_node.id
+        )
+    })?;
+    let coverage = path_coordinate_bounds(
+        owner_path,
+        stroke_pattern.then_some(path_node.style.stroke_width * 0.5),
+    )
+    .unwrap_or([0.0, 0.0, document_width, document_height]);
+    let corners = [
+        [coverage[0], coverage[1]],
+        [coverage[2], coverage[1]],
+        [coverage[2], coverage[3]],
+        [coverage[0], coverage[3]],
+    ];
+    let mut minimum = [f32::INFINITY; 2];
+    let mut maximum = [f32::NEG_INFINITY; 2];
+    for corner in corners {
+        let point = apply_matrix(inverse, corner);
+        minimum[0] = minimum[0].min(point[0]);
+        minimum[1] = minimum[1].min(point[1]);
+        maximum[0] = maximum[0].max(point[0]);
+        maximum[1] = maximum[1].max(point[1]);
+    }
+    let column_start = ((minimum[0] - tile_x) / tile_width).floor() as i32 - 1;
+    let column_end = ((maximum[0] - tile_x) / tile_width).ceil() as i32 + 1;
+    let row_start = ((minimum[1] - tile_y) / tile_height).floor() as i32 - 1;
+    let row_end = ((maximum[1] - tile_y) / tile_height).ceil() as i32 + 1;
+    let count =
+        i64::from(column_end - column_start + 1).saturating_mul(i64::from(row_end - row_start + 1));
+    if count <= 0 || count > 16_384 {
+        return Err(format!(
+            "SVG {} pattern would require more than 16,384 visible vector tiles.",
+            path_node.id
+        ));
+    }
+    let outer_descriptors = if masked {
+        let start = mask_meta[0] as usize;
+        let end = start.saturating_add(mask_meta[1] as usize);
+        if end > mask_indices.len() {
+            return Err(format!(
+                "SVG {} contains invalid pattern mask metadata.",
+                path_node.id
+            ));
+        }
+        mask_indices[start..end].to_vec()
+    } else {
+        Vec::new()
+    };
+
+    let owner_start = buffers.indices.len() as u32;
+    append_svg_path_with_paints(
+        buffers,
+        frame,
+        path_node,
+        owner_path,
+        owner_options,
+        (!stroke_pattern).then_some(SvgGeometryPaint::Solid([0.0; 4])),
+        stroke_pattern.then_some(SvgGeometryPaint::Solid([0.0; 4])),
+    )?;
+    let owner_range = owner_start..buffers.indices.len() as u32;
+    if owner_range.is_empty() {
+        return Ok(());
+    }
+    for (depth, range) in outer_clips.iter().enumerate() {
+        commands.clip_push(range.clone(), clip_reference_base + depth as u32);
+    }
+    commands.clip_push(
+        owner_range.clone(),
+        clip_reference_base + outer_clips.len() as u32,
+    );
+
+    let tile_path = rectangle_path(tile_x, tile_y, tile_width, tile_height);
+    for row in row_start..=row_end {
+        for column in column_start..=column_end {
+            let pattern_matrix = translate_matrix(
+                pattern.transform,
+                column as f32 * tile_width,
+                row as f32 * tile_height,
+            );
+            let mut tile_node = path_node.clone();
+            tile_node.transform = compose_matrix(path_node.transform, pattern_matrix);
+            let tile_clip_start = buffers.indices.len() as u32;
+            append_svg_path_with_paints(
+                buffers,
+                frame,
+                &tile_node,
+                &tile_path,
+                SvgPathOptions::default(),
+                Some(SvgGeometryPaint::Solid([0.0; 4])),
+                None,
+            )?;
+            let tile_range = tile_clip_start..buffers.indices.len() as u32;
+            let tile_depth = clip_reference_base + outer_clips.len() as u32 + 1;
+            commands.clip_push(tile_range.clone(), tile_depth);
+            let mut layer_by_key = HashMap::new();
+            for element in &pattern.order {
+                if let SvgElementRef::Image(index) = element {
+                    append_svg_raster_image(
+                        buffers,
+                        gradient_stops,
+                        image_vertices,
+                        commands,
+                        mask_layers,
+                        mask_indices,
+                        frame,
+                        &tile_node,
+                        &pattern.images[*index],
+                        tile_depth + 1,
+                        mask_meta,
+                        masked,
+                    )?;
+                    continue;
+                }
+                let SvgElementRef::Path(index) = element else {
+                    unreachable!()
+                };
+                let child = &pattern.paths[*index];
+                let mut descriptors = outer_descriptors.clone();
+                for mask in &child.masks {
+                    let layer = ensure_svg_mask_layer(
+                        buffers,
+                        gradient_stops,
+                        image_vertices,
+                        mask_layers,
+                        mask_indices,
+                        &mut layer_by_key,
+                        frame,
+                        &tile_node,
+                        mask,
+                    )?;
+                    descriptors.push(match mask.kind {
+                        SvgMaskType::Alpha => layer,
+                        SvgMaskType::Luminance => layer | 0x8000_0000,
+                    });
+                }
+                let mut child_clips = Vec::new();
+                for clip in &child.clips {
+                    if svg_clip_is_complex(clip) {
+                        descriptors.push(ensure_svg_clip_layer(
+                            buffers,
+                            mask_layers,
+                            mask_indices,
+                            frame,
+                            &tile_node,
+                            clip,
+                        )?);
+                    } else {
+                        child_clips
+                            .push(append_svg_clip_geometry(buffers, frame, &tile_node, clip)?);
+                    }
+                }
+                let child_masked = !descriptors.is_empty();
+                let child_mask_meta = if descriptors == outer_descriptors {
+                    mask_meta
+                } else {
+                    register_mask_descriptors(mask_indices, &descriptors)
+                };
+                let mut child_node = tile_node.clone();
+                child_node.style.opacity = 1.0;
+                child_node.style.stroke_width = child.stroke_width;
+                child_node.style.fill = None;
+                child_node.style.fill_gradient = None;
+                child_node.style.stroke = None;
+                child_node.style.stroke_gradient = None;
+                for (depth, range) in child_clips.iter().enumerate() {
+                    commands.clip_push(range.clone(), tile_depth + 1 + depth as u32);
+                }
+                let reference = tile_depth + 1 + child_clips.len() as u32;
+                for pass in svg_paint_passes(child.paint_order) {
+                    let (paint, stroke) = match pass {
+                        SvgPaintPass::Fill => (child.fill.as_ref(), false),
+                        SvgPaintPass::Stroke => (child.stroke.as_ref(), true),
+                    };
+                    match paint {
+                        Some(SvgPaint::Pattern(nested)) => append_svg_pattern_fill(
+                            buffers,
+                            gradient_stops,
+                            commands,
+                            image_vertices,
+                            mask_layers,
+                            mask_indices,
+                            frame,
+                            &child_node,
+                            &child.path,
+                            svg_path_options(child),
+                            &[],
+                            child_mask_meta,
+                            child_masked,
+                            nested,
+                            document_width,
+                            document_height,
+                            opacity,
+                            stroke,
+                            reference,
+                            pattern_depth + 1,
+                        )?,
+                        paint => append_svg_regular_paint_at_reference(
+                            buffers,
+                            gradient_stops,
+                            commands,
+                            frame,
+                            &child_node,
+                            &child.path,
+                            svg_path_options(child),
+                            child_mask_meta,
+                            child_masked,
+                            (!stroke).then_some(paint).flatten(),
+                            stroke.then_some(paint).flatten(),
+                            opacity,
+                            reference,
+                        )?,
+                    }
+                }
+                for (depth, range) in child_clips.iter().enumerate().rev() {
+                    commands.clip_pop(range.clone(), tile_depth + 2 + depth as u32);
+                }
+            }
+            commands.clip_pop(tile_range, tile_depth + 1);
+        }
+    }
+    commands.clip_pop(
+        owner_range,
+        clip_reference_base + outer_clips.len() as u32 + 1,
+    );
+    for (depth, range) in outer_clips.iter().enumerate().rev() {
+        commands.clip_pop(range.clone(), clip_reference_base + depth as u32 + 1);
+    }
+    Ok(())
+}
+
+fn rectangle_path(x: f32, y: f32, width: f32, height: f32) -> Path {
+    let mut builder = Path::builder();
+    builder.begin(point(x, y));
+    builder.line_to(point(x + width, y));
+    builder.line_to(point(x + width, y + height));
+    builder.line_to(point(x, y + height));
+    builder.close();
+    builder.build()
+}
+
+fn path_coordinate_bounds(path: &Path, expansion: Option<f32>) -> Option<[f32; 4]> {
+    let mut bounds = [
+        f32::INFINITY,
+        f32::INFINITY,
+        f32::NEG_INFINITY,
+        f32::NEG_INFINITY,
+    ];
+    let mut include = |point: Point| {
+        bounds[0] = bounds[0].min(point.x);
+        bounds[1] = bounds[1].min(point.y);
+        bounds[2] = bounds[2].max(point.x);
+        bounds[3] = bounds[3].max(point.y);
+    };
+    for event in path.iter() {
+        match event {
+            PathEvent::Begin { at } => include(at),
+            PathEvent::Line { from, to } => {
+                include(from);
+                include(to);
+            }
+            PathEvent::Quadratic { from, ctrl, to } => {
+                include(from);
+                include(ctrl);
+                include(to);
+            }
+            PathEvent::Cubic {
+                from,
+                ctrl1,
+                ctrl2,
+                to,
+            } => {
+                include(from);
+                include(ctrl1);
+                include(ctrl2);
+                include(to);
+            }
+            PathEvent::End { last, first, .. } => {
+                include(last);
+                include(first);
+            }
+        }
+    }
+    if !bounds.iter().all(|value| value.is_finite()) {
+        return None;
+    }
+    let expansion = expansion.unwrap_or(0.0).max(0.0);
+    Some([
+        bounds[0] - expansion,
+        bounds[1] - expansion,
+        bounds[2] + expansion,
+        bounds[3] + expansion,
+    ])
+}
+
+fn svg_clip_is_complex(clip: &SvgClip) -> bool {
+    // A clipPath's sibling shapes are a union. Incrementing the stencil once
+    // per shape would turn overlaps into a higher reference and cut holes, so
+    // union clips use the alpha-layer path as well as nested intersections.
+    clip.shapes.len() != 1 || clip.shapes.iter().any(|shape| !shape.clips.is_empty())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn ensure_svg_clip_layer(
+    buffers: &mut VertexBuffers<Vertex, u32>,
+    mask_layers: &mut Vec<MaskLayerGeometry>,
+    mask_indices: &mut Vec<u32>,
+    frame: &EvaluatedFrameView<'_>,
+    node: &EvaluatedNodeView<'_>,
+    clip: &SvgClip,
+) -> Result<u32, String> {
+    let mut commands = Vec::new();
+    for shape in &clip.shapes {
+        let mut nested = Vec::new();
+        for child in &shape.clips {
+            nested.push(ensure_svg_clip_layer(
+                buffers,
+                mask_layers,
+                mask_indices,
+                frame,
+                node,
+                child,
+            )?);
+        }
+        let mask_meta = register_mask_descriptors(mask_indices, &nested);
+        let start = buffers.indices.len() as u32;
+        let vertex_start = buffers.vertices.len();
+        append_svg_path_with_paints(
+            buffers,
+            frame,
+            node,
+            &shape.path,
+            svg_clip_options(shape.fill_rule),
+            Some(SvgGeometryPaint::Solid([1.0; 4])),
+            None,
+        )?;
+        let end = buffers.indices.len() as u32;
+        set_vertex_masks(&mut buffers.vertices[vertex_start..], mask_meta);
+        if end > start {
+            commands.vector(start..end, 0, !nested.is_empty());
+        }
+    }
+    push_mask_layer(mask_layers, node.id, commands)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn ensure_svg_mask_layer(
+    buffers: &mut VertexBuffers<Vertex, u32>,
+    gradient_stops: &mut Vec<GpuGradientStop>,
+    image_vertices: &mut Vec<ImageVertex>,
+    mask_layers: &mut Vec<MaskLayerGeometry>,
+    mask_indices: &mut Vec<u32>,
+    layer_by_key: &mut HashMap<u32, u32>,
+    frame: &EvaluatedFrameView<'_>,
+    node: &EvaluatedNodeView<'_>,
+    mask: &SvgMask,
+) -> Result<u32, String> {
+    if let Some(layer) = layer_by_key.get(&mask.key) {
+        return Ok(*layer);
+    }
+    let mut commands = Vec::new();
+    let region_start = buffers.indices.len() as u32;
+    append_svg_path_with_paints(
+        buffers,
+        frame,
+        node,
+        &mask.region.path,
+        svg_clip_options(mask.region.fill_rule),
+        Some(SvgGeometryPaint::Solid([1.0; 4])),
+        None,
+    )?;
+    let region = region_start..buffers.indices.len() as u32;
+    commands.clip_push(region.clone(), 0);
+    for element in &mask.order {
+        if let SvgElementRef::Image(index) = element {
+            append_svg_raster_image(
+                buffers,
+                gradient_stops,
+                image_vertices,
+                &mut commands,
+                mask_layers,
+                mask_indices,
+                frame,
+                node,
+                &mask.images[*index],
+                1,
+                [0.0; 2],
+                false,
+            )?;
+            continue;
+        }
+        let SvgElementRef::Path(index) = element else {
+            unreachable!()
+        };
+        let path = &mask.paths[*index];
+        if path.clips.len() >= 255 {
+            return Err(format!(
+                "SVG {} mask content exceeds 254 nested clip paths.",
+                node.id
+            ));
+        }
+        let mut descriptors = Vec::new();
+        for nested in &path.masks {
+            let layer = ensure_svg_mask_layer(
+                buffers,
+                gradient_stops,
+                image_vertices,
+                mask_layers,
+                mask_indices,
+                layer_by_key,
+                frame,
+                node,
+                nested,
+            )?;
+            descriptors.push(match nested.kind {
+                SvgMaskType::Alpha => layer,
+                SvgMaskType::Luminance => layer | 0x8000_0000,
+            });
+        }
+        let mut clips = Vec::new();
+        for clip in &path.clips {
+            if svg_clip_is_complex(clip) {
+                descriptors.push(ensure_svg_clip_layer(
+                    buffers,
+                    mask_layers,
+                    mask_indices,
+                    frame,
+                    node,
+                    clip,
+                )?);
+            } else {
+                clips.push(append_svg_clip_geometry(buffers, frame, node, clip)?);
+            }
+        }
+        let masked = !descriptors.is_empty();
+        let mask_meta = register_mask_descriptors(mask_indices, &descriptors);
+        let mut styled_node = node.clone();
+        styled_node.style.opacity = 1.0;
+        styled_node.style.stroke_width = path.stroke_width;
+        styled_node.style.fill = None;
+        styled_node.style.fill_gradient = None;
+        styled_node.style.stroke = None;
+        styled_node.style.stroke_gradient = None;
+        for (depth, range) in clips.iter().enumerate() {
+            commands.clip_push(range.clone(), depth as u32 + 1);
+        }
+        let reference = clips.len() as u32 + 1;
+        for pass in svg_paint_passes(path.paint_order) {
+            let (paint, stroke) = match pass {
+                SvgPaintPass::Fill => (path.fill.as_ref(), false),
+                SvgPaintPass::Stroke => (path.stroke.as_ref(), true),
+            };
+            match paint {
+                Some(SvgPaint::Pattern(pattern)) => append_svg_pattern_fill(
+                    buffers,
+                    gradient_stops,
+                    &mut commands,
+                    image_vertices,
+                    mask_layers,
+                    mask_indices,
+                    frame,
+                    &styled_node,
+                    &path.path,
+                    svg_path_options(path),
+                    &[],
+                    mask_meta,
+                    masked,
+                    pattern,
+                    1.0,
+                    1.0,
+                    1.0,
+                    stroke,
+                    reference,
+                    0,
+                )?,
+                paint => append_svg_regular_paint_at_reference(
+                    buffers,
+                    gradient_stops,
+                    &mut commands,
+                    frame,
+                    &styled_node,
+                    &path.path,
+                    svg_path_options(path),
+                    mask_meta,
+                    masked,
+                    (!stroke).then_some(paint).flatten(),
+                    stroke.then_some(paint).flatten(),
+                    1.0,
+                    reference,
+                )?,
+            }
+        }
+        for (depth, range) in clips.iter().enumerate().rev() {
+            commands.clip_pop(range.clone(), depth as u32 + 2);
+        }
+    }
+    commands.clip_pop(region, 1);
+    let layer = push_mask_layer(mask_layers, node.id, commands)?;
+    layer_by_key.insert(mask.key, layer);
+    Ok(layer)
+}
+
+fn push_mask_layer(
+    layers: &mut Vec<MaskLayerGeometry>,
+    node_id: &str,
+    commands: Vec<MaskDrawCommand>,
+) -> Result<u32, String> {
+    if layers.len() >= 256 {
+        return Err(format!(
+            "SVG {node_id} exceeds the native Metal limit of 256 active mask layers."
+        ));
+    }
+    let layer = layers.len() as u32;
+    layers.push(MaskLayerGeometry { commands });
+    Ok(layer)
 }
 
 #[derive(Clone, Copy)]
@@ -1030,12 +2484,20 @@ fn append_mesh(
     }
     for (_, positions, colors) in projected_triangles {
         let base = buffers.vertices.len() as u32;
-        buffers.vertices.extend(
-            positions
-                .into_iter()
-                .zip(colors)
-                .map(|(position, color)| Vertex { position, color }),
-        );
+        buffers
+            .vertices
+            .extend(
+                positions
+                    .into_iter()
+                    .zip(colors)
+                    .map(|(position, color)| Vertex {
+                        position,
+                        color,
+                        gradient_position: [0.0; 2],
+                        gradient_meta: [0.0; 4],
+                        mask_meta: [0.0; 2],
+                    }),
+            );
         buffers.indices.extend([base, base + 1, base + 2]);
     }
     Ok(())
@@ -1690,6 +3152,346 @@ fn append_text(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
+fn append_markup_text(
+    buffers: &mut VertexBuffers<Vertex, u32>,
+    frame: &EvaluatedFrameView<'_>,
+    node: &EvaluatedNodeView<'_>,
+    explicit_spans: &[TextSpan],
+    markup: Option<&str>,
+    font_size: f32,
+    font_family: &str,
+    align: TextAlign,
+    text_engine: &mut TextEngine,
+) -> Result<(), String> {
+    let parsed_spans;
+    let spans = if let Some(markup) = markup {
+        parsed_spans = parse_pango_markup(markup)
+            .map_err(|error| format!("Pango markup parsing failed for {}: {error}", node.id))?
+            .iter()
+            .map(scene_text_span)
+            .collect::<Vec<_>>();
+        parsed_spans.as_slice()
+    } else {
+        explicit_spans
+    };
+    let shaped_spans = spans
+        .iter()
+        .map(|span| AttributedTextSpan {
+            text: &span.text,
+            variant: font_variant(span.weight, span.slant),
+            font_family: span.font_family.as_deref(),
+            font_scale: span.font_scale,
+            rise: span.rise,
+            letter_spacing: span.letter_spacing,
+        })
+        .collect::<Vec<_>>();
+    let align = match align {
+        TextAlign::Left => ShapedTextAlign::Left,
+        TextAlign::Center => ShapedTextAlign::Center,
+        TextAlign::Right => ShapedTextAlign::Right,
+    };
+    let layout = text_engine
+        .layout_family_chain_attributed_spans(
+            &shaped_spans,
+            font_size,
+            align,
+            1.25,
+            0.0,
+            font_family,
+            &[],
+        )
+        .map_err(|error| format!("Markup shaping failed for {}: {error}", node.id))?;
+    let mut source_end = 0usize;
+    let mut span_ends = Vec::with_capacity(spans.len());
+    let mut span_paints = Vec::with_capacity(spans.len());
+    for span in spans {
+        source_end = source_end.saturating_add(span.text.len());
+        span_ends.push(source_end);
+        span_paints.push(MarkupPaint {
+            foreground: span.color.as_deref().map(parse_color).transpose()?,
+            background: span.background.as_deref().map(parse_color).transpose()?,
+            underline: span.underline,
+            underline_color: span
+                .underline_color
+                .as_deref()
+                .map(parse_color)
+                .transpose()?,
+            strikethrough: span.strikethrough,
+            strikethrough_color: span
+                .strikethrough_color
+                .as_deref()
+                .map(parse_color)
+                .transpose()?,
+        });
+    }
+
+    let mut backgrounds = Vec::new();
+    let mut decorations = Vec::new();
+    for glyph in &layout.glyphs {
+        let path = text_engine
+            .glyph_outline_for_font(glyph.font_id, glyph.glyph_id, glyph.variant)
+            .map_err(|error| format!("Markup outline failed for {}: {error}", node.id))?;
+        let span_index = span_ends.partition_point(|end| *end <= glyph.source_start);
+        let paint = span_paints.get(span_index).copied().unwrap_or_default();
+        let ink_bounds = path.and_then(|path| path_coordinate_bounds(path, None));
+        let logical_end = glyph.x + glyph.advance;
+        let min_x = ink_bounds.map_or(glyph.x.min(logical_end), |bounds| {
+            (glyph.x + bounds[0] * glyph.scale).min(glyph.x.min(logical_end))
+        });
+        let max_x = ink_bounds.map_or(glyph.x.max(logical_end), |bounds| {
+            (glyph.x + bounds[2] * glyph.scale).max(glyph.x.max(logical_end))
+        });
+        let min_y = glyph.baseline + glyph.descender;
+        let max_y = glyph.baseline + glyph.ascender;
+        if let Some(color) = paint.background {
+            push_markup_decoration(
+                &mut backgrounds,
+                MarkupDecorationKind::Background,
+                span_index,
+                min_x,
+                max_x,
+                min_y,
+                max_y,
+                color,
+            );
+        }
+        let thickness = glyph.underline_thickness.max(0.001);
+        let underline_y = match paint.underline {
+            TextUnderline::None => None,
+            TextUnderline::Low => Some(min_y - thickness * 1.5),
+            TextUnderline::Single | TextUnderline::Double | TextUnderline::Error => {
+                Some(glyph.baseline + glyph.underline_position)
+            }
+        };
+        if let Some(y) = underline_y {
+            push_markup_decoration(
+                &mut decorations,
+                MarkupDecorationKind::Underline(paint.underline),
+                span_index,
+                min_x,
+                max_x,
+                y,
+                y + thickness,
+                paint
+                    .underline_color
+                    .or(paint.foreground)
+                    .or(node.style.fill)
+                    .or(node.style.stroke)
+                    .unwrap_or([1.0; 4]),
+            );
+        }
+        if paint.strikethrough {
+            let y = glyph.baseline + glyph.strikeout_position;
+            push_markup_decoration(
+                &mut decorations,
+                MarkupDecorationKind::Strikethrough,
+                span_index,
+                min_x,
+                max_x,
+                y,
+                y + glyph.strikeout_thickness.max(0.001),
+                paint
+                    .strikethrough_color
+                    .or(paint.foreground)
+                    .or(node.style.fill)
+                    .or(node.style.stroke)
+                    .unwrap_or([1.0; 4]),
+            );
+        }
+    }
+
+    for background in backgrounds {
+        append_markup_decoration(buffers, frame, node, background, font_size)?;
+    }
+    for glyph in layout.glyphs {
+        let Some(path) = text_engine
+            .glyph_outline_for_font(glyph.font_id, glyph.glyph_id, glyph.variant)
+            .map_err(|error| format!("Markup outline failed for {}: {error}", node.id))?
+        else {
+            continue;
+        };
+        let span_index = span_ends.partition_point(|end| *end <= glyph.source_start);
+        let paint = span_paints.get(span_index).copied().unwrap_or_default();
+        let mut glyph_node = node.clone();
+        glyph_node.transform =
+            local_matrix(node.transform, glyph.x, glyph.y, glyph.scale, glyph.scale);
+        let mut style = glyph_node.style.clone();
+        style.fill = paint
+            .foreground
+            .map(|mut color| {
+                color[3] *= node.style.opacity;
+                color
+            })
+            .or(style.fill)
+            .or(style.stroke);
+        style.fill_gradient = None;
+        style.stroke = None;
+        style.stroke_gradient = None;
+        append_path(buffers, frame, &glyph_node, path, &style)?;
+    }
+    for decoration in decorations {
+        append_markup_decoration(buffers, frame, node, decoration, font_size)?;
+    }
+    Ok(())
+}
+
+#[derive(Clone, Copy, Default)]
+struct MarkupPaint {
+    foreground: Option<[f32; 4]>,
+    background: Option<[f32; 4]>,
+    underline: TextUnderline,
+    underline_color: Option<[f32; 4]>,
+    strikethrough: bool,
+    strikethrough_color: Option<[f32; 4]>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MarkupDecorationKind {
+    Background,
+    Underline(TextUnderline),
+    Strikethrough,
+}
+
+#[derive(Clone, Copy)]
+struct MarkupDecoration {
+    kind: MarkupDecorationKind,
+    span_index: usize,
+    min_x: f32,
+    max_x: f32,
+    min_y: f32,
+    max_y: f32,
+    color: [f32; 4],
+}
+
+#[allow(clippy::too_many_arguments)]
+fn push_markup_decoration(
+    decorations: &mut Vec<MarkupDecoration>,
+    kind: MarkupDecorationKind,
+    span_index: usize,
+    min_x: f32,
+    max_x: f32,
+    min_y: f32,
+    max_y: f32,
+    color: [f32; 4],
+) {
+    if let Some(previous) = decorations.iter_mut().rev().find(|previous| {
+        previous.kind == kind
+            && previous.span_index == span_index
+            && previous.color == color
+            && ((previous.max_x - min_x).abs() < 0.05 || (max_x - previous.min_x).abs() < 0.05)
+            && (previous.min_y - min_y).abs() < 0.05
+            && (previous.max_y - max_y).abs() < 0.05
+    }) {
+        previous.max_x = previous.max_x.max(max_x);
+        previous.min_x = previous.min_x.min(min_x);
+        return;
+    }
+    decorations.push(MarkupDecoration {
+        kind,
+        span_index,
+        min_x,
+        max_x,
+        min_y,
+        max_y,
+        color,
+    });
+}
+
+fn append_markup_decoration(
+    buffers: &mut VertexBuffers<Vertex, u32>,
+    frame: &EvaluatedFrameView<'_>,
+    node: &EvaluatedNodeView<'_>,
+    decoration: MarkupDecoration,
+    font_size: f32,
+) -> Result<(), String> {
+    let mut decoration_node = node.clone();
+    let mut style = node.style.clone();
+    let mut color = decoration.color;
+    color[3] *= node.style.opacity;
+    style.fill = Some(color);
+    style.fill_gradient = None;
+    style.stroke = None;
+    style.stroke_gradient = None;
+    let width = (decoration.max_x - decoration.min_x).max(0.001);
+    let height = (decoration.max_y - decoration.min_y).max(0.001);
+    let center_x = (decoration.min_x + decoration.max_x) * 0.5;
+    let center_y = (decoration.min_y + decoration.max_y) * 0.5;
+    let path = match decoration.kind {
+        MarkupDecorationKind::Underline(TextUnderline::Error) => {
+            error_underline_path(width, height, font_size)
+        }
+        _ => rect_path(width, height, 0.0),
+    };
+    decoration_node.transform = local_matrix(node.transform, center_x, center_y, 1.0, 1.0);
+    append_path(buffers, frame, &decoration_node, &path, &style)?;
+    if decoration.kind == MarkupDecorationKind::Underline(TextUnderline::Double) {
+        decoration_node.transform =
+            local_matrix(node.transform, center_x, center_y - height * 2.0, 1.0, 1.0);
+        append_path(buffers, frame, &decoration_node, &path, &style)?;
+    }
+    Ok(())
+}
+
+fn error_underline_path(width: f32, height: f32, font_size: f32) -> Path {
+    let amplitude = (height * 1.5).max(font_size * 0.035);
+    let wavelength = (font_size * 0.18).max(0.04);
+    let segments = ((width / (wavelength * 0.5)).ceil() as usize).clamp(2, 512);
+    let mut builder = Path::builder();
+    builder.begin(point(-width * 0.5, 0.0));
+    for index in 1..=segments {
+        let x = -width * 0.5 + width * index as f32 / segments as f32;
+        let y = if index % 2 == 0 {
+            -amplitude
+        } else {
+            amplitude
+        };
+        builder.line_to(point(x, y));
+    }
+    builder.line_to(point(width * 0.5, -amplitude + height));
+    for index in (0..segments).rev() {
+        let x = -width * 0.5 + width * index as f32 / segments as f32;
+        let y = if index % 2 == 0 {
+            -amplitude + height
+        } else {
+            amplitude + height
+        };
+        builder.line_to(point(x, y));
+    }
+    builder.close();
+    builder.build()
+}
+
+fn scene_text_span(span: &MarkupSpan) -> TextSpan {
+    let (weight, slant) = match span.style.variant {
+        FontVariant::Regular => (FontWeight::Normal, FontSlant::Normal),
+        FontVariant::Bold => (FontWeight::Bold, FontSlant::Normal),
+        FontVariant::Italic => (FontWeight::Normal, FontSlant::Italic),
+        FontVariant::BoldItalic => (FontWeight::Bold, FontSlant::Italic),
+    };
+    TextSpan {
+        text: span.text.clone(),
+        color: span.style.foreground.clone(),
+        weight,
+        slant,
+        font_family: span.style.font_family.clone(),
+        font_scale: span.style.font_scale,
+        rise: span.style.rise,
+        letter_spacing: span.style.letter_spacing,
+        background: span.style.background.clone(),
+        underline: match span.style.underline {
+            PangoUnderline::None => TextUnderline::None,
+            PangoUnderline::Single => TextUnderline::Single,
+            PangoUnderline::Double => TextUnderline::Double,
+            PangoUnderline::Low => TextUnderline::Low,
+            PangoUnderline::Error => TextUnderline::Error,
+        },
+        underline_color: span.style.underline_color.clone(),
+        strikethrough: span.style.strikethrough,
+        strikethrough_color: span.style.strikethrough_color.clone(),
+    }
+}
+
 fn font_variant(weight: FontWeight, slant: FontSlant) -> FontVariant {
     match (weight, slant) {
         (FontWeight::Normal, FontSlant::Normal) => FontVariant::Regular,
@@ -1959,6 +3761,9 @@ impl VertexConstructor<'_> {
         Vertex {
             position: [clip[0], clip[1], 0.0],
             color: self.paint.color(local, world),
+            gradient_position: [0.0; 2],
+            gradient_meta: [0.0; 4],
+            mask_meta: [0.0; 2],
         }
     }
 }
@@ -2147,6 +3952,37 @@ fn local_matrix(matrix: [f32; 6], x: f32, y: f32, scale_x: f32, scale_y: f32) ->
     ]
 }
 
+fn compose_matrix(outer: [f32; 6], inner: [f32; 6]) -> [f32; 6] {
+    [
+        outer[0] * inner[0] + outer[2] * inner[1],
+        outer[1] * inner[0] + outer[3] * inner[1],
+        outer[0] * inner[2] + outer[2] * inner[3],
+        outer[1] * inner[2] + outer[3] * inner[3],
+        outer[0] * inner[4] + outer[2] * inner[5] + outer[4],
+        outer[1] * inner[4] + outer[3] * inner[5] + outer[5],
+    ]
+}
+
+fn invert_matrix(matrix: [f32; 6]) -> Option<[f32; 6]> {
+    let determinant = matrix[0] * matrix[3] - matrix[1] * matrix[2];
+    if determinant.abs() <= f32::EPSILON {
+        return None;
+    }
+    let inverse = determinant.recip();
+    let a = matrix[3] * inverse;
+    let b = -matrix[1] * inverse;
+    let c = -matrix[2] * inverse;
+    let d = matrix[0] * inverse;
+    Some([
+        a,
+        b,
+        c,
+        d,
+        -(a * matrix[4] + c * matrix[5]),
+        -(b * matrix[4] + d * matrix[5]),
+    ])
+}
+
 fn apply_matrix(matrix: [f32; 6], point: [f32; 2]) -> [f32; 2] {
     [
         matrix[0] * point[0] + matrix[2] * point[1] + matrix[4],
@@ -2233,6 +4069,134 @@ mod tests {
                 .iter()
                 .all(|vertex| { vertex.position[0].is_finite() && vertex.position[1].is_finite() })
         );
+    }
+
+    fn svg_geometry(scene_json: &str) -> super::Geometry {
+        let scene = Scene::from_json(scene_json).expect("SVG scene");
+        let frame = scene.evaluate_view(0.0).expect("SVG frame");
+        let mut text = TextEngine::new().expect("text engine");
+        build_geometry(&frame, &mut text).expect("native SVG geometry")
+    }
+
+    #[test]
+    fn native_svg_retains_vector_gradients_clips_patterns_masks_and_images() {
+        let linear = svg_geometry(include_str!(
+            "../../../benchmarks/compat/svg-linear-gradient.json"
+        ));
+        assert!(linear.gradient_stops.len() >= 5);
+        assert!(linear.image_vertices.is_empty());
+        assert!(linear.unsupported.is_empty());
+
+        let radial = svg_geometry(include_str!(
+            "../../../benchmarks/compat/svg-radial-gradient.json"
+        ));
+        assert!(radial.gradient_stops.len() >= 3);
+        assert!(
+            radial
+                .vertices
+                .iter()
+                .any(|vertex| vertex.gradient_meta[3] == 1.0)
+        );
+
+        let clipped = svg_geometry(include_str!(
+            "../../../benchmarks/compat/svg-nested-clip.json"
+        ));
+        assert!(clipped.commands.iter().any(|command| matches!(
+            command,
+            DrawCommand::ClipPush { .. }
+                | DrawCommand::MaskedVector { .. }
+                | DrawCommand::ClippedVector { .. }
+        )));
+
+        let patterned = svg_geometry(include_str!(
+            "../../../benchmarks/compat/svg-pattern-mask.json"
+        ));
+        assert!(!patterned.mask_layers.is_empty());
+        assert!(!patterned.mask_indices.is_empty());
+        assert!(patterned.triangle_count() > 100);
+        assert!(patterned.unsupported.is_empty());
+
+        let raster = svg_geometry(include_str!(
+            "../../../benchmarks/compat/svg-embedded-raster.json"
+        ));
+        assert_eq!(raster.image_vertices.len(), 12);
+        assert!(
+            raster
+                .commands
+                .iter()
+                .any(|command| matches!(command, DrawCommand::Image { masked: true, .. }))
+        );
+        assert!(raster.unsupported.is_empty());
+    }
+
+    #[test]
+    fn native_svg_reports_pattern_tile_explosion_exactly() {
+        let scene = Scene::from_json(
+            r##"{
+              "version":2,"title":"singular pattern","width":4,"height":4,"duration":1,
+              "background":"#000000","nodes":[{
+                "id":"bad-pattern","type":"svg","height":2,"preserveStyles":true,
+                "svg":"<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20'><defs><pattern id='p' patternUnits='userSpaceOnUse' width='.01' height='.01'><rect width='.01' height='.01' fill='red'/></pattern></defs><rect width='20' height='20' fill='url(#p)'/></svg>",
+                "style":{"fill":null,"stroke":null}
+              }]
+            }"##,
+        )
+        .unwrap();
+        let frame = scene.evaluate_view(0.0).unwrap();
+        let mut text = TextEngine::new().unwrap();
+        assert_eq!(
+            build_geometry(&frame, &mut text).unwrap_err(),
+            "SVG bad-pattern pattern would require more than 16,384 visible vector tiles."
+        );
+    }
+
+    #[test]
+    fn native_svg_reports_residual_filters_exactly() {
+        let scene = Scene::from_json(
+            r##"{
+              "version":2,"title":"filtered SVG","width":4,"height":4,"duration":1,
+              "background":"#000000","nodes":[{
+                "id":"filtered","type":"svg","height":2,"preserveStyles":true,
+                "svg":"<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20'><defs><filter id='blur'><feGaussianBlur stdDeviation='2'/></filter></defs><g filter='url(#blur)'><rect width='20' height='20' fill='red'/></g></svg>",
+                "style":{"fill":null,"stroke":null}
+              }]
+            }"##,
+        )
+        .unwrap();
+        let frame = scene.evaluate_view(0.0).unwrap();
+        let mut text = TextEngine::new().unwrap();
+        assert_eq!(
+            build_geometry(&frame, &mut text).unwrap_err(),
+            "SVG parsing failed for filtered: SVG filter effects are not supported by the retained vector engine."
+        );
+    }
+
+    #[test]
+    fn native_svg_preserves_stroke_before_fill_order() {
+        let geometry = svg_geometry(
+            r##"{
+              "version":2,"title":"paint order","width":4,"height":4,"duration":1,
+              "background":"#000000","nodes":[{
+                "id":"ordered","type":"svg","height":2,"preserveStyles":true,
+                "svg":"<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20'><rect x='3' y='3' width='14' height='14' fill='red' stroke='blue' stroke-width='6' paint-order='stroke fill'/></svg>",
+                "style":{"fill":null,"stroke":null}
+              }]
+            }"##,
+        );
+        let ranges = geometry
+            .commands
+            .iter()
+            .filter_map(|command| match command {
+                DrawCommand::Vector { indices, .. } => Some(indices.clone()),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(ranges.len(), 2);
+        let color = |range: &std::ops::Range<u32>| {
+            geometry.vertices[geometry.indices[range.start as usize] as usize].color
+        };
+        assert_eq!(color(&ranges[0]), [0.0, 0.0, 1.0, 1.0]);
+        assert_eq!(color(&ranges[1]), [1.0, 0.0, 0.0, 1.0]);
     }
 
     fn text_geometry(scene_json: &str) -> super::Geometry {
@@ -2331,6 +4295,119 @@ mod tests {
             blue < green && green < red,
             "RTL means: {blue} {green} {red}"
         );
+    }
+
+    #[test]
+    fn raw_pango_markup_preserves_joined_arabic_geometry_and_paint() {
+        let explicit = text_geometry(
+            r##"{
+              "version":2,"title":"explicit markup","width":8,"height":4,"duration":1,
+              "background":"#070910","nodes":[
+                {"id":"markup","type":"markupText","fontSize":1.5,"spans":[
+                  {"text":"س","color":"#ff0000ff"},{"text":"لام","color":"#0000ffff"}
+                ],"style":{"fill":"#ffffffff","stroke":null}}
+              ]
+            }"##,
+        );
+        let raw = text_geometry(
+            r##"{
+              "version":2,"title":"raw markup","width":8,"height":4,"duration":1,
+              "background":"#070910","nodes":[
+                {"id":"markup","type":"markupText","fontSize":1.5,"spans":[],
+                 "markup":"<span foreground='red'>س</span><span foreground='blue'>لام</span>",
+                 "style":{"fill":"#ffffffff","stroke":null}}
+              ]
+            }"##,
+        );
+        assert_eq!(raw.indices, explicit.indices);
+        assert_eq!(position_signature(&raw), position_signature(&explicit));
+        assert_eq!(
+            raw.vertices
+                .iter()
+                .map(|vertex| vertex.color.map(f32::to_bits))
+                .collect::<Vec<_>>(),
+            explicit
+                .vertices
+                .iter()
+                .map(|vertex| vertex.color.map(f32::to_bits))
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn native_pango_background_and_decorations_add_vector_geometry_in_paint_order() {
+        let plain = text_geometry(
+            r##"{
+              "version":2,"title":"plain","width":8,"height":4,"duration":1,
+              "background":"#070910","nodes":[
+                {"id":"plain","type":"markupText","fontSize":1.5,"spans":[{"text":"A B"}],
+                 "style":{"fill":"#ffffffff","stroke":null}}
+              ]
+            }"##,
+        );
+        let decorated = text_geometry(
+            r##"{
+              "version":2,"title":"decorated","width":8,"height":4,"duration":1,
+              "background":"#070910","nodes":[
+                {"id":"decorated","type":"markupText","fontSize":1.5,"spans":[],
+                 "markup":"<span foreground='white' background='#112233' underline='double' underline_color='lime' strikethrough='true' strikethrough_color='red'>A B</span>",
+                 "style":{"fill":"#ffffffff","stroke":null}}
+              ]
+            }"##,
+        );
+        assert!(decorated.triangle_count() > plain.triangle_count() + 4);
+        let has_color = |target: [f32; 3]| {
+            decorated.vertices.iter().any(|vertex| {
+                (vertex.color[0] - target[0]).abs() < 0.01
+                    && (vertex.color[1] - target[1]).abs() < 0.01
+                    && (vertex.color[2] - target[2]).abs() < 0.01
+            })
+        };
+        assert!(has_color([17.0 / 255.0, 34.0 / 255.0, 51.0 / 255.0]));
+        assert!(has_color([0.0, 1.0, 0.0]));
+        assert!(has_color([1.0, 0.0, 0.0]));
+        assert!(has_color([1.0, 1.0, 1.0]));
+        let first_color = |target: [f32; 3]| {
+            decorated
+                .vertices
+                .iter()
+                .position(|vertex| {
+                    (vertex.color[0] - target[0]).abs() < 0.01
+                        && (vertex.color[1] - target[1]).abs() < 0.01
+                        && (vertex.color[2] - target[2]).abs() < 0.01
+                })
+                .expect("paint color")
+        };
+        let background = first_color([17.0 / 255.0, 34.0 / 255.0, 51.0 / 255.0]);
+        let glyph = first_color([1.0, 1.0, 1.0]);
+        let underline = first_color([0.0, 1.0, 0.0]);
+        let strike = first_color([1.0, 0.0, 0.0]);
+        assert!(background < glyph);
+        assert!(glyph < underline);
+        assert!(underline < strike);
+        // All vector layers deliberately stay in one retained draw command
+        // for the node; paint order is encoded by triangle order.
+        assert_eq!(decorated.commands.len(), plain.commands.len());
+    }
+
+    #[test]
+    fn native_pango_markup_rejects_invalid_and_unsupported_input() {
+        let scene = Scene::from_json(
+            r##"{
+              "version":2,"title":"bad markup","width":8,"height":4,"duration":1,
+              "background":"#070910","nodes":[
+                {"id":"bad","type":"markupText","fontSize":1.5,"spans":[],
+                 "markup":"<span gravity='east'>bad</span>"}
+              ]
+            }"##,
+        )
+        .expect("raw markup passes structural scene validation");
+        let frame = scene.evaluate_view(0.0).expect("text frame");
+        let mut text = TextEngine::new().expect("text engine");
+        let error = build_geometry(&frame, &mut text).unwrap_err();
+        assert!(error.contains("Pango markup parsing failed for bad"));
+        assert!(error.contains("unsupported Pango <span> attribute gravity"));
+        assert!(error.contains("byte 0"));
     }
 
     #[test]

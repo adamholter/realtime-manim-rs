@@ -1,0 +1,25 @@
+# realtime-manim
+
+> Typed JavaScript authoring for a Rust/Wasm/WebGPU Manim-compatible runtime, plus native Metal preview/rendering.
+
+## Canonical links
+
+- npm package: https://www.npmjs.com/package/realtime-manim
+- source: https://github.com/adamholter/realtime-manim-rs
+- package API guide: https://github.com/adamholter/realtime-manim-rs/blob/main/packages/manim-web/README.md
+- TypeScript declarations: https://github.com/adamholter/realtime-manim-rs/blob/main/packages/manim-web/src/index.d.ts
+- scene schema: https://github.com/adamholter/realtime-manim-rs/blob/main/apps/web-preview/www/scene-schema.js
+- compatibility matrix: https://github.com/adamholter/realtime-manim-rs/blob/main/benchmarks/corpus/capability-matrix.json
+- agent guide: /agent-guide.md
+
+## Install
+
+    npm install realtime-manim
+
+## Core contract
+
+Import public APIs from `realtime-manim`. Construct a retained `Scene` from Mobjects and animations. Start rendering with `createManimPlayer({ canvas, scene })`. Do not use JavaScript as a per-frame rendering hot path. Call `destroy()` on cleanup.
+
+The package exports typed vector primitives, Text, MarkupText, SVG, MathTex, Image, Mesh, Surface, graphing helpers, Groups, spatial layout, animation composition, transforms, camera animations, signals and independent per-canvas players.
+
+The project does not claim arbitrary-Python drop-in parity with all Manim extensions. Consult the capability matrix and preserve explicit diagnostics for unsupported features.

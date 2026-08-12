@@ -94,6 +94,21 @@ circle.toEdge(RIGHT, 0.5, { center: [0, 0, 0] });
 // @ts-expect-error moveTo aligned edges are two-number points
 circle.moveTo(layoutAnchor, [1, 0, 0]);
 const customText = new MarkupText([{ text: "Typed" }], { fontFamily: "Uploaded Sans" });
+const pangoText = new MarkupText(
+  "<span foreground='red'><b>Typed &amp; styled</b></span>",
+  { fontFamily: "Noto Sans" },
+);
+const decoratedText = new MarkupText([{
+  text: "decorated",
+  background: "#11223344",
+  fontScale: 1.25,
+  rise: 0.2,
+  letterSpacing: 0.03,
+  underline: "double",
+  underlineColor: "#00ff00ff",
+  strikethrough: true,
+  strikethroughColor: "#ff0000ff",
+}]);
 const signal: Expression = { op: "signal", id: "radius" };
 const scene = new Scene({ title: "Typed scene" })
   .add(circle)
@@ -122,7 +137,7 @@ new Scene()
   .add(
     group,
     path3d,
-    new MarkupText([{ text: "Rust", weight: "bold" }]),
+    new MarkupText([{ text: "Rust", weight: "bold" }]), pangoText, decoratedText,
     new DotCloud([[0, 0], { x: 1, y: 1, color: "#ffffffff" }]),
     new Billboard([0, 0, 2]),
   )

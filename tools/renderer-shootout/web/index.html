@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="data:," />
+    <title>realtime-manim renderer shootout</title>
+    <style>
+      :root { color-scheme: dark; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #12141c; color: #e8ecf5; }
+      main { width: min(760px, calc(100vw - 48px)); }
+      h1 { font: 600 22px/1.2 system-ui, sans-serif; }
+      p { color: #aeb7c8; font: 15px/1.5 system-ui, sans-serif; }
+      pre { min-height: 260px; padding: 20px; overflow: auto; border: 1px solid #30394b; border-radius: 12px; background: #0b0d13; }
+      [data-state="pass"] { border-color: #38d39f; }
+      [data-state="fail"] { border-color: #ff6685; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Vello 0.9 ↔ lyon/wgpu · browser probe</h1>
+      <p>Same WebGPU workload, GPU completion timing, and pixel readback. Experimental P-10 evidence only.</p>
+      <pre id="result" data-state="running">Running…</pre>
+    </main>
+    <script type="module">
+      import initVello, { run_vello_browser_probe } from "./pkg/vello_shootout.js";
+      import initLyon, { run_lyon_browser_probe } from "./pkg/lyon_shootout.js";
+      const result = document.querySelector("#result");
+      try {
+        await initVello();
+        const vello = JSON.parse(await run_vello_browser_probe(1280, 720, 40));
+        await initLyon();
+        const lyon = JSON.parse(await run_lyon_browser_probe(1280, 720, 40));
+        const evidence = { vello, lyon };
+        if (!(vello.content_pixels > 0) || !(vello.frame_p95_ms > 0)
+          || !(lyon.content_pixels > 0) || !(lyon.frame_p95_ms > 0)) {
+          throw new Error(`Invalid evidence: ${JSON.stringify(evidence)}`);
+        }
+        result.textContent = JSON.stringify(evidence, null, 2);
+        result.dataset.state = "pass";
+        window.__SHOOTOUT_RESULT__ = evidence;
+      } catch (error) {
+        result.textContent = String(error?.stack || error);
+        result.dataset.state = "fail";
+        window.__SHOOTOUT_ERROR__ = String(error?.stack || error);
+      }
+    </script>
+  </body>
+</html>

@@ -32,6 +32,12 @@ pub enum SvgLineJoin {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SvgPaintOrder {
+    FillThenStroke,
+    StrokeThenFill,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SvgGradientSpread {
     Pad,
     Repeat,
@@ -138,6 +144,7 @@ pub struct SvgPath {
     pub fill: Option<SvgPaint>,
     pub fill_rule: SvgFillRule,
     pub stroke: Option<SvgPaint>,
+    pub paint_order: SvgPaintOrder,
     pub stroke_width: f32,
     pub line_cap: SvgLineCap,
     pub line_join: SvgLineJoin,
@@ -263,6 +270,7 @@ fn collect_group(
     images: &mut Vec<SvgRasterImage>,
     order: &mut Vec<SvgElementRef>,
 ) -> Result<(), SvgError> {
+    validate_group_effects(group)?;
     let opacity = parent_opacity * group.opacity().get();
     let mut clips = parent_clips.to_vec();
     if let Some(clip) = group.clip_path() {
@@ -398,6 +406,7 @@ fn collect_mask_group(
     images: &mut Vec<SvgRasterImage>,
     order: &mut Vec<SvgElementRef>,
 ) -> Result<(), SvgError> {
+    validate_group_effects(group)?;
     let opacity = parent_opacity * group.opacity().get();
     let mut clips = parent_clips.to_vec();
     if let Some(clip) = group.clip_path() {
@@ -554,6 +563,7 @@ fn collect_clip_shapes(
     parent_clips: &[SvgClip],
     output: &mut Vec<SvgClipShape>,
 ) -> Result<(), SvgError> {
+    validate_group_effects(group)?;
     let mut clips = parent_clips.to_vec();
     if let Some(clip) = group.clip_path() {
         collect_clip_chain(clip, transform, &mut clips)?;
@@ -605,20 +615,28 @@ fn convert_styled_path_at(
 ) -> Result<SvgPath, SvgError> {
     let (scale_x, scale_y) = transform.get_scale();
     let stroke_scale = (scale_x.abs() * scale_y.abs()).sqrt();
-    let fill = path.fill().and_then(|fill| {
-        paint(
-            fill.paint(),
-            fill.opacity().get() * group_opacity,
-            transform,
-        )
-    });
-    let stroke = path.stroke().and_then(|stroke| {
-        paint(
-            stroke.paint(),
-            stroke.opacity().get() * group_opacity,
-            transform,
-        )
-    });
+    let fill = path
+        .fill()
+        .map(|fill| {
+            paint(
+                fill.paint(),
+                fill.opacity().get() * group_opacity,
+                transform,
+            )
+        })
+        .transpose()?
+        .flatten();
+    let stroke = path
+        .stroke()
+        .map(|stroke| {
+            paint(
+                stroke.paint(),
+                stroke.opacity().get() * group_opacity,
+                transform,
+            )
+        })
+        .transpose()?
+        .flatten();
     let fill_rule = match path.fill().map(usvg::Fill::rule) {
         Some(usvg::FillRule::EvenOdd) => SvgFillRule::EvenOdd,
         Some(usvg::FillRule::NonZero) | None => SvgFillRule::NonZero,
@@ -646,6 +664,10 @@ fn convert_styled_path_at(
         fill,
         fill_rule,
         stroke,
+        paint_order: match path.paint_order() {
+            usvg::PaintOrder::FillAndStroke => SvgPaintOrder::FillThenStroke,
+            usvg::PaintOrder::StrokeAndFill => SvgPaintOrder::StrokeThenFill,
+        },
         stroke_width,
         line_cap,
         line_join,
@@ -654,19 +676,23 @@ fn convert_styled_path_at(
     })
 }
 
-fn paint(paint: &usvg::Paint, opacity: f32, path_transform: Transform) -> Option<SvgPaint> {
+fn paint(
+    paint: &usvg::Paint,
+    opacity: f32,
+    path_transform: Transform,
+) -> Result<Option<SvgPaint>, SvgError> {
     match paint {
-        usvg::Paint::Color(color) => Some(SvgPaint::Solid([
+        usvg::Paint::Color(color) => Ok(Some(SvgPaint::Solid([
             f32::from(color.red) / 255.0,
             f32::from(color.green) / 255.0,
             f32::from(color.blue) / 255.0,
             opacity.clamp(0.0, 1.0),
-        ])),
+        ]))),
         usvg::Paint::LinearGradient(gradient) => {
             let transform = path_transform.pre_concat(gradient.transform());
             let from = transformed(Point::from_xy(gradient.x1(), gradient.y1()), transform);
             let to = transformed(Point::from_xy(gradient.x2(), gradient.y2()), transform);
-            Some(SvgPaint::LinearGradient(SvgLinearGradient {
+            Ok(Some(SvgPaint::LinearGradient(SvgLinearGradient {
                 from: [from.x, from.y],
                 to: [to.x, to.y],
                 stops: gradient
@@ -690,12 +716,14 @@ fn paint(paint: &usvg::Paint, opacity: f32, path_transform: Transform) -> Option
                     usvg::SpreadMethod::Repeat => SvgGradientSpread::Repeat,
                     usvg::SpreadMethod::Reflect => SvgGradientSpread::Reflect,
                 },
-            }))
+            })))
         }
         usvg::Paint::RadialGradient(gradient) => {
             let transform = path_transform.pre_concat(gradient.transform());
-            let inverse = transform.invert()?;
-            Some(SvgPaint::RadialGradient(SvgRadialGradient {
+            let inverse = transform.invert().ok_or_else(|| {
+                SvgError("SVG radial gradient contains a singular transform.".to_owned())
+            })?;
+            Ok(Some(SvgPaint::RadialGradient(SvgRadialGradient {
                 center: [gradient.cx(), gradient.cy()],
                 focal: [gradient.fx(), gradient.fy()],
                 radius: gradient.r().get(),
@@ -724,7 +752,7 @@ fn paint(paint: &usvg::Paint, opacity: f32, path_transform: Transform) -> Option
                     usvg::SpreadMethod::Repeat => SvgGradientSpread::Repeat,
                     usvg::SpreadMethod::Reflect => SvgGradientSpread::Reflect,
                 },
-            }))
+            })))
         }
         usvg::Paint::Pattern(pattern) => {
             let mut paths = Vec::new();
@@ -740,11 +768,10 @@ fn paint(paint: &usvg::Paint, opacity: f32, path_transform: Transform) -> Option
                 &mut paths,
                 &mut images,
                 &mut order,
-            )
-            .ok()?;
+            )?;
             let rect = pattern.rect();
             let transform = path_transform.pre_concat(pattern.transform());
-            Some(SvgPaint::Pattern(Arc::new(SvgPattern {
+            Ok(Some(SvgPaint::Pattern(Arc::new(SvgPattern {
                 rect: [rect.x(), rect.y(), rect.width(), rect.height()],
                 transform: [
                     transform.sx,
@@ -757,9 +784,29 @@ fn paint(paint: &usvg::Paint, opacity: f32, path_transform: Transform) -> Option
                 paths,
                 images,
                 order,
-            })))
+            }))))
         }
     }
+}
+
+fn validate_group_effects(group: &usvg::Group) -> Result<(), SvgError> {
+    if !group.filters().is_empty() {
+        return Err(SvgError(
+            "SVG filter effects are not supported by the retained vector engine.".to_owned(),
+        ));
+    }
+    if group.blend_mode() != usvg::BlendMode::Normal {
+        return Err(SvgError(
+            "SVG mix-blend-mode effects are not supported by the retained vector engine."
+                .to_owned(),
+        ));
+    }
+    if group.isolate() {
+        return Err(SvgError(
+            "SVG isolation groups are not supported by the retained vector engine.".to_owned(),
+        ));
+    }
+    Ok(())
 }
 
 fn convert_path(source: &tiny_skia_path::Path, transform: Transform) -> Result<Path, SvgError> {
@@ -820,7 +867,7 @@ fn transformed(mut point: Point, transform: Transform) -> Point {
 mod tests {
     use super::{
         SvgElementRef, SvgEngine, SvgFillRule, SvgGradientSpread, SvgImageResampling, SvgLineCap,
-        SvgLineJoin, SvgMaskType, SvgPaint,
+        SvgLineJoin, SvgMaskType, SvgPaint, SvgPaintOrder,
     };
 
     const SAMPLE: &str = r##"
@@ -881,6 +928,59 @@ mod tests {
         assert_eq!(path.fill_rule, SvgFillRule::EvenOdd);
         assert_eq!(path.line_cap, SvgLineCap::Round);
         assert_eq!(path.line_join, SvgLineJoin::Bevel);
+    }
+
+    #[test]
+    fn preserves_stroke_before_fill_paint_order() {
+        let mut engine = SvgEngine::new();
+        let document = engine
+            .document(
+                r#"<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20">
+                  <rect x="2" y="2" width="16" height="16" fill="red" stroke="blue"
+                        stroke-width="5" paint-order="stroke fill"/>
+                </svg>"#,
+            )
+            .unwrap();
+        assert_eq!(document.paths[0].paint_order, SvgPaintOrder::StrokeThenFill);
+    }
+
+    #[test]
+    fn rejects_residual_filter_effects_with_an_exact_diagnostic() {
+        let mut engine = SvgEngine::new();
+        let error = engine
+            .document(
+                r#"<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20">
+                  <defs><filter id="blur"><feGaussianBlur stdDeviation="2"/></filter></defs>
+                  <g filter="url(#blur)"><rect width="20" height="20" fill="red"/></g>
+                </svg>"#,
+            )
+            .unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "SVG filter effects are not supported by the retained vector engine."
+        );
+    }
+
+    #[test]
+    fn pattern_effect_errors_are_not_silently_dropped() {
+        let mut engine = SvgEngine::new();
+        let error = engine
+            .document(
+                r#"<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20">
+                  <defs>
+                    <filter id="blur"><feGaussianBlur stdDeviation="1"/></filter>
+                    <pattern id="p" width="5" height="5" patternUnits="userSpaceOnUse">
+                      <g filter="url(#blur)"><rect width="5" height="5" fill="red"/></g>
+                    </pattern>
+                  </defs>
+                  <rect width="20" height="20" fill="url(#p)"/>
+                </svg>"#,
+            )
+            .unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "SVG filter effects are not supported by the retained vector engine."
+        );
     }
 
     #[test]

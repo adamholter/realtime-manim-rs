@@ -9,6 +9,7 @@ const EMPTY_SCENE = {
   fps: 60,
   background: "#000000",
   nodes: [{ id: "empty-root", type: "group" }],
+  correspondences: [],
 };
 
 let runtimeInitializationPromise = null;
@@ -48,7 +49,7 @@ export const FRAME_HEIGHT = 9;
 export const DEFAULT_MOBJECT_TO_EDGE_BUFFER = 0.5;
 export const DEFAULT_MOBJECT_TO_MOBJECT_BUFFER = 0.25;
 
-const EASINGS = new Set(["linear", "smooth", "easeIn", "easeOut", "easeInOut", "thereAndBack", "bounce"]);
+const EASINGS = new Set(["linear", "smooth", "manimSmooth", "easeIn", "easeOut", "easeInOut", "thereAndBack", "bounce"]);
 const TEXT_ALIGNS = new Set(["left", "center", "right"]);
 const FONT_WEIGHTS = new Set(["normal", "bold"]);
 const FONT_SLANTS = new Set(["normal", "italic"]);
@@ -1203,30 +1204,54 @@ export class Text extends Mobject {
 }
 
 export class MarkupText extends Mobject {
-  constructor(spans, options = {}) {
+  constructor(markupOrSpans, options = {}) {
     const { nodeOptions, kindOptions } = partitionNodeOptions(
       options,
       new Set(["fontSize", "fontFamily", "align"]),
       "MarkupText",
     );
-    if (!Array.isArray(spans) || spans.length === 0 || spans.length > 1_000) throw new RangeError("MarkupText requires 1–1,000 spans.");
+    const fontSize = assertPositive(kindOptions.fontSize ?? 0.6, "font size");
+    const fontFamily = assertFontFamily(kindOptions.fontFamily ?? "Noto Sans");
+    const align = assertEnum(kindOptions.align ?? "center", TEXT_ALIGNS, "text alignment");
+    if (typeof markupOrSpans === "string") {
+      const markup = assertString(markupOrSpans, "Pango markup", { max: 64 * 1024 });
+      super("markupText", { ...nodeOptions, spans: [], markup, fontSize, fontFamily, align });
+      return;
+    }
+    const spans = markupOrSpans;
+    if (!Array.isArray(spans) || spans.length === 0 || spans.length > 1_000) {
+      throw new RangeError("MarkupText requires a Pango markup string or 1–1,000 explicit spans.");
+    }
     const normalizedSpans = spans.map((span, index) => {
       if (!span || typeof span !== "object" || Array.isArray(span)) throw new TypeError(`spans[${index}] must be an object.`);
+      const allowed = new Set([
+        "text", "color", "weight", "slant", "fontFamily", "fontScale", "rise", "letterSpacing",
+        "background", "underline", "underlineColor", "strikethrough", "strikethroughColor",
+      ]);
+      for (const key of Object.keys(span)) {
+        if (!allowed.has(key)) throw new TypeError(`Unknown spans[${index}] property: ${key}.`);
+      }
       const text = assertString(span.text, `spans[${index}].text`, { max: 4_000 });
-      if (text.includes("\n")) throw new TypeError(`spans[${index}].text must be single-line.`);
       const normalized = {
         text,
         weight: assertEnum(span.weight ?? "normal", FONT_WEIGHTS, `spans[${index}].weight`),
         slant: assertEnum(span.slant ?? "normal", FONT_SLANTS, `spans[${index}].slant`),
+        fontScale: assertPositive(span.fontScale ?? 1, `spans[${index}].fontScale`),
+        rise: assertFinite(span.rise ?? 0, `spans[${index}].rise`),
+        letterSpacing: assertFinite(span.letterSpacing ?? 0, `spans[${index}].letterSpacing`),
+        underline: assertEnum(span.underline ?? "none", new Set(["none", "single", "double", "low", "error"]), `spans[${index}].underline`),
+        strikethrough: span.strikethrough ?? false,
       };
       if (span.color !== undefined) normalized.color = assertColor(span.color, `spans[${index}].color`);
+      if (span.fontFamily !== undefined) normalized.fontFamily = assertFontFamily(span.fontFamily, `spans[${index}].fontFamily`);
+      if (span.background !== undefined) normalized.background = assertColor(span.background, `spans[${index}].background`);
+      if (span.underlineColor !== undefined) normalized.underlineColor = assertColor(span.underlineColor, `spans[${index}].underlineColor`);
+      if (span.strikethroughColor !== undefined) normalized.strikethroughColor = assertColor(span.strikethroughColor, `spans[${index}].strikethroughColor`);
+      if (typeof normalized.strikethrough !== "boolean") throw new TypeError(`spans[${index}].strikethrough must be boolean.`);
       return normalized;
     });
-    if (normalizedSpans.reduce((total, span) => total + span.text.length, 0) > 4_000) throw new RangeError("MarkupText is limited to 4,000 characters.");
-    const fontSize = assertPositive(kindOptions.fontSize ?? 0.6, "font size");
-    const fontFamily = assertFontFamily(kindOptions.fontFamily ?? "Noto Sans");
-    const align = assertEnum(kindOptions.align ?? "center", TEXT_ALIGNS, "text alignment");
-    super("markupText", { ...nodeOptions, spans: normalizedSpans, fontSize, fontFamily, align });
+    if (normalizedSpans.reduce((total, span) => total + span.text.length, 0) > 64 * 1024) throw new RangeError("MarkupText is limited to 64 KiB.");
+    super("markupText", { ...nodeOptions, spans: normalizedSpans, markup: null, fontSize, fontFamily, align });
   }
 }
 
@@ -2571,6 +2596,7 @@ export class Scene {
   constructor(options = {}) {
     const {
       nodes = [], tracks = [], signals = [], bindings = [], controls = [], audio = [], captions = [],
+      correspondences = [],
       ...settings
     } = options;
     this.data = {
@@ -2584,6 +2610,7 @@ export class Scene {
       controls: structuredClone(controls),
       audio: structuredClone(audio),
       captions: structuredClone(captions),
+      correspondences: structuredClone(correspondences),
     };
     this.cursor = this.data.tracks.reduce(
       (end, track) => Math.max(end, ...(track.keyframes ?? []).map(({ at }) => at)),

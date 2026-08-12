@@ -747,7 +747,7 @@ mod web {
         Camera, EvaluatedFrameView, EvaluatedLinearGradient, EvaluatedNodeView, FontSlant,
         FontWeight, GradientSpace, GradientSpread, ImageResampling, NodeKind, PathCommand, Scene,
         ShaderAttribute, ShaderPrimitive, ShaderUniform, ShaderUniformType, ShaderVertexFormat,
-        StrokeCap, StrokeJoin, TextAlign, Transform, parse_color,
+        StrokeCap, StrokeJoin, TextAlign, TextSpan, TextUnderline, Transform, parse_color,
     };
     use realtime_manim_svg_engine::{
         SvgClip, SvgElementRef, SvgEngine, SvgFillRule, SvgGradientSpread, SvgImageResampling,
@@ -755,7 +755,8 @@ mod web {
         SvgRasterImage,
     };
     use realtime_manim_text_engine::{
-        FontSelection, FontVariant, StyledTextSpan, TextAlign as ShapedTextAlign, TextEngine,
+        AttributedTextSpan, FontSelection, FontVariant, MarkupSpan, PangoUnderline,
+        TextAlign as ShapedTextAlign, TextEngine, parse_pango_markup,
     };
     use wasm_bindgen::{JsCast, prelude::*};
     use wasm_bindgen_futures::spawn_local;
@@ -1812,7 +1813,26 @@ mod web {
             })
         }
 
-        fn load_scene(&mut self, scene: Scene, now_ms: f64) -> Result<(), JsValue> {
+        fn load_scene(&mut self, mut scene: Scene, now_ms: f64) -> Result<(), JsValue> {
+            for node in &mut scene.nodes {
+                if let NodeKind::MarkupText {
+                    spans,
+                    markup: Some(markup),
+                    ..
+                } = &mut node.kind
+                {
+                    let parsed = parse_pango_markup(markup).map_err(|error| {
+                        js_error(format!(
+                            "Pango markup parsing failed for {}: {error}",
+                            node.id
+                        ))
+                    })?;
+                    *spans = parsed.iter().map(scene_text_span).collect();
+                    if let NodeKind::MarkupText { markup, .. } = &mut node.kind {
+                        *markup = None;
+                    }
+                }
+            }
             for node in &scene.nodes {
                 match &node.kind {
                     NodeKind::Text {
@@ -1855,6 +1875,7 @@ mod web {
                         font_size,
                         font_family,
                         align,
+                        ..
                     } => {
                         if !self.text_engine.has_family(font_family) {
                             return Err(js_error(format!(
@@ -1864,9 +1885,13 @@ mod web {
                         }
                         let shaped_spans = spans
                             .iter()
-                            .map(|span| StyledTextSpan {
+                            .map(|span| AttributedTextSpan {
                                 text: &span.text,
                                 variant: font_variant(span.weight, span.slant),
+                                font_family: span.font_family.as_deref(),
+                                font_scale: span.font_scale,
+                                rise: span.rise,
+                                letter_spacing: span.letter_spacing,
                             })
                             .collect::<Vec<_>>();
                         let align = match align {
@@ -1875,7 +1900,7 @@ mod web {
                             TextAlign::Right => ShapedTextAlign::Right,
                         };
                         self.text_engine
-                            .layout_family_chain_spans(
+                            .layout_family_chain_attributed_spans(
                                 &shaped_spans,
                                 *font_size,
                                 align,
@@ -4378,6 +4403,7 @@ mod web {
                 font_size,
                 font_family,
                 align,
+                ..
             } => append_markup_text(
                 buffers,
                 gradient_stops,
@@ -6524,9 +6550,13 @@ mod web {
     ) -> Result<(), String> {
         let shaped_spans = spans
             .iter()
-            .map(|span| StyledTextSpan {
+            .map(|span| AttributedTextSpan {
                 text: &span.text,
                 variant: font_variant(span.weight, span.slant),
+                font_family: span.font_family.as_deref(),
+                font_scale: span.font_scale,
+                rise: span.rise,
+                letter_spacing: span.letter_spacing,
             })
             .collect::<Vec<_>>();
         let align = match align {
@@ -6535,15 +6565,117 @@ mod web {
             TextAlign::Right => ShapedTextAlign::Right,
         };
         let layout = text_engine
-            .layout_family_chain_spans(&shaped_spans, font_size, align, 1.25, 0.0, font_family, &[])
+            .layout_family_chain_attributed_spans(
+                &shaped_spans,
+                font_size,
+                align,
+                1.25,
+                0.0,
+                font_family,
+                &[],
+            )
             .map_err(|error| format!("Markup shaping failed for {}: {error}", node.id))?;
         let mut source_end = 0usize;
         let mut span_ends = Vec::with_capacity(spans.len());
-        let mut span_colors = Vec::with_capacity(spans.len());
+        let mut span_paints = Vec::with_capacity(spans.len());
         for span in spans {
             source_end = source_end.saturating_add(span.text.len());
             span_ends.push(source_end);
-            span_colors.push(span.color.as_deref().map(parse_color).transpose()?);
+            span_paints.push(MarkupPaint {
+                foreground: span.color.as_deref().map(parse_color).transpose()?,
+                background: span.background.as_deref().map(parse_color).transpose()?,
+                underline: span.underline,
+                underline_color: span
+                    .underline_color
+                    .as_deref()
+                    .map(parse_color)
+                    .transpose()?,
+                strikethrough: span.strikethrough,
+                strikethrough_color: span
+                    .strikethrough_color
+                    .as_deref()
+                    .map(parse_color)
+                    .transpose()?,
+            });
+        }
+        let mut backgrounds: Vec<MarkupDecoration> = Vec::new();
+        let mut decorations: Vec<MarkupDecoration> = Vec::new();
+        for glyph in &layout.glyphs {
+            let path = text_engine
+                .glyph_outline_for_font(glyph.font_id, glyph.glyph_id, glyph.variant)
+                .map_err(|error| format!("Markup outline failed for {}: {error}", node.id))?;
+            // A ligature spanning paint boundaries uses the paint at its
+            // source-cluster start; splitting the glyph would break shaping.
+            let span_index = span_ends.partition_point(|end| *end <= glyph.source_start);
+            let paint = span_paints.get(span_index).copied().unwrap_or_default();
+            let ink_bounds = path.and_then(|path| path_coordinate_bounds(path, None));
+            let logical_end = glyph.x + glyph.advance;
+            let min_x = ink_bounds.map_or(glyph.x.min(logical_end), |bounds| {
+                (glyph.x + bounds[0] * glyph.scale).min(glyph.x.min(logical_end))
+            });
+            let max_x = ink_bounds.map_or(glyph.x.max(logical_end), |bounds| {
+                (glyph.x + bounds[2] * glyph.scale).max(glyph.x.max(logical_end))
+            });
+            let min_y = glyph.baseline + glyph.descender;
+            let max_y = glyph.baseline + glyph.ascender;
+            if let Some(color) = paint.background {
+                push_markup_decoration(
+                    &mut backgrounds,
+                    MarkupDecorationKind::Background,
+                    span_index,
+                    min_x,
+                    max_x,
+                    min_y,
+                    max_y,
+                    color,
+                );
+            }
+            let decoration_thickness = glyph.underline_thickness.max(0.001);
+            let underline_y = match paint.underline {
+                TextUnderline::None => None,
+                TextUnderline::Low => Some(min_y - decoration_thickness * 1.5),
+                TextUnderline::Single | TextUnderline::Double | TextUnderline::Error => {
+                    Some(glyph.baseline + glyph.underline_position)
+                }
+            };
+            if let Some(y) = underline_y {
+                push_markup_decoration(
+                    &mut decorations,
+                    MarkupDecorationKind::Underline(paint.underline),
+                    span_index,
+                    min_x,
+                    max_x,
+                    y,
+                    y + decoration_thickness,
+                    paint
+                        .underline_color
+                        .or(paint.foreground)
+                        .or(node.style.fill)
+                        .or(node.style.stroke)
+                        .unwrap_or([1.0; 4]),
+                );
+            }
+            if paint.strikethrough {
+                let y = glyph.baseline + glyph.strikeout_position;
+                push_markup_decoration(
+                    &mut decorations,
+                    MarkupDecorationKind::Strikethrough,
+                    span_index,
+                    min_x,
+                    max_x,
+                    y,
+                    y + glyph.strikeout_thickness.max(0.001),
+                    paint
+                        .strikethrough_color
+                        .or(paint.foreground)
+                        .or(node.style.fill)
+                        .or(node.style.stroke)
+                        .unwrap_or([1.0; 4]),
+                );
+            }
+        }
+        for background in backgrounds {
+            append_markup_decoration(buffers, gradient_stops, frame, node, background, font_size)?;
         }
         for glyph in layout.glyphs {
             let Some(path) = text_engine
@@ -6552,14 +6684,13 @@ mod web {
             else {
                 continue;
             };
-            // A ligature spanning paint boundaries uses the paint at its
-            // source-cluster start; splitting the glyph would break shaping.
             let span_index = span_ends.partition_point(|end| *end <= glyph.source_start);
-            let span_color = span_colors.get(span_index).copied().flatten();
+            let paint = span_paints.get(span_index).copied().unwrap_or_default();
             let mut glyph_node = node.clone();
             glyph_node.transform =
                 local_matrix(node.transform, glyph.x, glyph.y, glyph.scale, glyph.scale);
-            glyph_node.style.fill = span_color
+            glyph_node.style.fill = paint
+                .foreground
                 .map(|mut color| {
                     color[3] *= node.style.opacity;
                     color
@@ -6571,7 +6702,138 @@ mod web {
             glyph_node.style.stroke_gradient = None;
             append_path(buffers, gradient_stops, frame, &glyph_node, path)?;
         }
+        for decoration in decorations {
+            append_markup_decoration(buffers, gradient_stops, frame, node, decoration, font_size)?;
+        }
         Ok(())
+    }
+
+    #[derive(Clone, Copy, Default)]
+    struct MarkupPaint {
+        foreground: Option<[f32; 4]>,
+        background: Option<[f32; 4]>,
+        underline: TextUnderline,
+        underline_color: Option<[f32; 4]>,
+        strikethrough: bool,
+        strikethrough_color: Option<[f32; 4]>,
+    }
+
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum MarkupDecorationKind {
+        Background,
+        Underline(TextUnderline),
+        Strikethrough,
+    }
+
+    #[derive(Clone, Copy)]
+    struct MarkupDecoration {
+        kind: MarkupDecorationKind,
+        span_index: usize,
+        min_x: f32,
+        max_x: f32,
+        min_y: f32,
+        max_y: f32,
+        color: [f32; 4],
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn push_markup_decoration(
+        decorations: &mut Vec<MarkupDecoration>,
+        kind: MarkupDecorationKind,
+        span_index: usize,
+        min_x: f32,
+        max_x: f32,
+        min_y: f32,
+        max_y: f32,
+        color: [f32; 4],
+    ) {
+        if let Some(previous) = decorations.iter_mut().rev().find(|previous| {
+            previous.kind == kind
+                && previous.span_index == span_index
+                && previous.color == color
+                && ((previous.max_x - min_x).abs() < 0.05 || (max_x - previous.min_x).abs() < 0.05)
+                && (previous.min_y - min_y).abs() < 0.05
+                && (previous.max_y - max_y).abs() < 0.05
+        }) {
+            previous.max_x = previous.max_x.max(max_x);
+            previous.min_x = previous.min_x.min(min_x);
+            return;
+        }
+        decorations.push(MarkupDecoration {
+            kind,
+            span_index,
+            min_x,
+            max_x,
+            min_y,
+            max_y,
+            color,
+        });
+    }
+
+    fn append_markup_decoration(
+        buffers: &mut VertexBuffers<Vertex, u32>,
+        gradient_stops: &mut Vec<GpuGradientStop>,
+        frame: &EvaluatedFrameView<'_>,
+        node: &EvaluatedNodeView<'_>,
+        decoration: MarkupDecoration,
+        font_size: f32,
+    ) -> Result<(), String> {
+        let mut decoration_node = node.clone();
+        decoration_node.style.fill = Some({
+            let mut color = decoration.color;
+            color[3] *= node.style.opacity;
+            color
+        });
+        decoration_node.style.fill_gradient = None;
+        decoration_node.style.stroke = None;
+        decoration_node.style.stroke_gradient = None;
+        let width = (decoration.max_x - decoration.min_x).max(0.001);
+        let height = (decoration.max_y - decoration.min_y).max(0.001);
+        let center_x = (decoration.min_x + decoration.max_x) * 0.5;
+        let center_y = (decoration.min_y + decoration.max_y) * 0.5;
+        let path = match decoration.kind {
+            MarkupDecorationKind::Underline(TextUnderline::Error) => {
+                error_underline_path(width, height, font_size)
+            }
+            _ => rect_path(width, height, 0.0),
+        };
+        decoration_node.transform = local_matrix(node.transform, center_x, center_y, 1.0, 1.0);
+        append_path(buffers, gradient_stops, frame, &decoration_node, &path)?;
+        if decoration.kind == MarkupDecorationKind::Underline(TextUnderline::Double) {
+            decoration_node.transform =
+                local_matrix(node.transform, center_x, center_y - height * 2.0, 1.0, 1.0);
+            append_path(buffers, gradient_stops, frame, &decoration_node, &path)?;
+        }
+        Ok(())
+    }
+
+    fn error_underline_path(width: f32, height: f32, font_size: f32) -> Path {
+        let amplitude = (height * 1.5).max(font_size * 0.035);
+        let wavelength = (font_size * 0.18).max(0.04);
+        let segments = ((width / (wavelength * 0.5)).ceil() as usize).clamp(2, 512);
+        let mut builder = Path::builder().with_svg();
+        builder.move_to(point(-width * 0.5, 0.0));
+        for index in 1..=segments {
+            let x = -width * 0.5 + width * index as f32 / segments as f32;
+            let y = if index % 2 == 0 {
+                -amplitude
+            } else {
+                amplitude
+            };
+            builder.line_to(point(x, y));
+        }
+        builder.line_to(point(width * 0.5, -amplitude + height));
+        for index in (0..segments).rev() {
+            let x = -width * 0.5 + width * index as f32 / segments as f32;
+            let y = if index % 2 == 0 {
+                -amplitude + height
+            } else {
+                amplitude + height
+            };
+            builder.line_to(point(x, y));
+        }
+        builder.close();
+        builder.build()
     }
 
     fn font_variant(weight: FontWeight, slant: FontSlant) -> FontVariant {
@@ -6580,6 +6842,36 @@ mod web {
             (FontWeight::Bold, FontSlant::Normal) => FontVariant::Bold,
             (FontWeight::Normal, FontSlant::Italic) => FontVariant::Italic,
             (FontWeight::Bold, FontSlant::Italic) => FontVariant::BoldItalic,
+        }
+    }
+
+    fn scene_text_span(span: &MarkupSpan) -> TextSpan {
+        let (weight, slant) = match span.style.variant {
+            FontVariant::Regular => (FontWeight::Normal, FontSlant::Normal),
+            FontVariant::Bold => (FontWeight::Bold, FontSlant::Normal),
+            FontVariant::Italic => (FontWeight::Normal, FontSlant::Italic),
+            FontVariant::BoldItalic => (FontWeight::Bold, FontSlant::Italic),
+        };
+        TextSpan {
+            text: span.text.clone(),
+            color: span.style.foreground.clone(),
+            weight,
+            slant,
+            font_family: span.style.font_family.clone(),
+            font_scale: span.style.font_scale,
+            rise: span.style.rise,
+            letter_spacing: span.style.letter_spacing,
+            background: span.style.background.clone(),
+            underline: match span.style.underline {
+                PangoUnderline::None => TextUnderline::None,
+                PangoUnderline::Single => TextUnderline::Single,
+                PangoUnderline::Double => TextUnderline::Double,
+                PangoUnderline::Low => TextUnderline::Low,
+                PangoUnderline::Error => TextUnderline::Error,
+            },
+            underline_color: span.style.underline_color.clone(),
+            strikethrough: span.style.strikethrough,
+            strikethrough_color: span.style.strikethrough_color.clone(),
         }
     }
 

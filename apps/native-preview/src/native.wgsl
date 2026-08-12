@@ -1,36 +1,128 @@
 struct VertexInput {
     @location(0) position: vec3<f32>,
     @location(1) color: vec4<f32>,
+    @location(2) gradient_position: vec2<f32>,
+    @location(3) gradient_meta: vec4<f32>,
+    @location(4) mask_meta: vec2<f32>,
 }
 
 struct VertexOutput {
     @builtin(position) position: vec4<f32>,
     @location(0) color: vec4<f32>,
+    @location(1) gradient_position: vec2<f32>,
+    @location(2) @interpolate(flat) gradient_meta: vec4<f32>,
+    @location(3) @interpolate(flat) mask_meta: vec2<u32>,
 }
+
+struct GradientStop {
+    color: vec4<f32>,
+    data: vec4<f32>,
+}
+
+@group(0) @binding(0) var<storage, read> gradient_stops: array<GradientStop>;
+@group(1) @binding(0) var svg_masks: texture_2d_array<f32>;
+@group(1) @binding(1) var<storage, read> svg_mask_indices: array<u32>;
 
 @vertex
 fn vs_main(input: VertexInput) -> VertexOutput {
     var output: VertexOutput;
     output.position = vec4<f32>(input.position, 1.0);
     output.color = input.color;
+    output.gradient_position = input.gradient_position;
+    output.gradient_meta = input.gradient_meta;
+    output.mask_meta = vec2<u32>(input.mask_meta);
     return output;
+}
+
+fn shade(input: VertexOutput) -> vec4<f32> {
+    let count = u32(input.gradient_meta.y);
+    if count == 0u {
+        return input.color;
+    }
+    let start = u32(input.gradient_meta.x);
+    var amount = input.gradient_position.x;
+    if u32(input.gradient_meta.w) == 1u {
+        let geometry = gradient_stops[start - 1u];
+        let focal = geometry.color.xy;
+        let center = geometry.color.zw;
+        let focal_radius = geometry.data.x;
+        let radius = geometry.data.y;
+        let center_delta = center - focal;
+        let radius_delta = radius - focal_radius;
+        let point_delta = input.gradient_position - focal;
+        let a = dot(center_delta, center_delta) - radius_delta * radius_delta;
+        let b = -2.0 * (dot(point_delta, center_delta) + focal_radius * radius_delta);
+        let c = dot(point_delta, point_delta) - focal_radius * focal_radius;
+        if abs(a) <= 0.000001 {
+            amount = select(0.0, -c / b, abs(b) > 0.000001);
+        } else {
+            amount = (-b - sqrt(max(b * b - 4.0 * a * c, 0.0))) / (2.0 * a);
+        }
+    }
+    let spread = u32(input.gradient_meta.z);
+    if spread == 0u {
+        amount = clamp(amount, 0.0, 1.0);
+    } else if spread == 1u {
+        amount = amount - floor(amount);
+    } else {
+        let reflected = amount - floor(amount / 2.0) * 2.0;
+        amount = select(2.0 - reflected, reflected, reflected <= 1.0);
+    }
+    let first = gradient_stops[start];
+    if count == 1u || amount <= first.data.x {
+        return first.color;
+    }
+    for (var index = 0u; index + 1u < count; index = index + 1u) {
+        let left = gradient_stops[start + index];
+        let right = gradient_stops[start + index + 1u];
+        if amount <= right.data.x {
+            let span = max(right.data.x - left.data.x, 0.000001);
+            return mix(left.color, right.color, clamp((amount - left.data.x) / span, 0.0, 1.0));
+        }
+    }
+    return gradient_stops[start + count - 1u].color;
+}
+
+fn mask_coverage(position: vec4<f32>, mask_descriptor_range: vec2<u32>) -> f32 {
+    var coverage = 1.0;
+    let pixel = vec2<i32>(floor(position.xy));
+    for (var index = 0u; index < mask_descriptor_range.y; index = index + 1u) {
+        let descriptor = svg_mask_indices[mask_descriptor_range.x + index];
+        let sample = textureLoad(svg_masks, pixel, i32(descriptor & 0x7fffffffu), 0);
+        coverage *= select(sample.a, dot(sample.rgb, vec3<f32>(0.2126, 0.7152, 0.0722)), (descriptor & 0x80000000u) != 0u);
+    }
+    return coverage;
 }
 
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-    return input.color;
+    return shade(input);
+}
+
+@fragment
+fn fs_masked(input: VertexOutput) -> @location(0) vec4<f32> {
+    var color = shade(input);
+    color.a *= mask_coverage(input.position, input.mask_meta);
+    return color;
+}
+
+@fragment
+fn fs_clip() -> @location(0) vec4<f32> {
+    return vec4<f32>(0.0);
 }
 
 struct ImageVertexInput {
     @location(0) position: vec3<f32>,
     @location(1) uv: vec2<f32>,
     @location(2) opacity: f32,
+    @location(3) mask_meta: vec2<f32>,
 }
 
 struct ImageVertexOutput {
     @builtin(position) position: vec4<f32>,
     @location(0) uv: vec2<f32>,
     @location(1) opacity: f32,
+    @location(2) @interpolate(flat) mask_meta: vec2<u32>,
 }
 
 @group(0) @binding(0) var image_texture: texture_2d<f32>;
@@ -43,6 +135,7 @@ fn vs_image(input: ImageVertexInput) -> ImageVertexOutput {
     output.position = vec4<f32>(input.position, 1.0);
     output.uv = input.uv;
     output.opacity = input.opacity;
+    output.mask_meta = vec2<u32>(input.mask_meta);
     return output;
 }
 
@@ -50,6 +143,12 @@ fn vs_image(input: ImageVertexInput) -> ImageVertexOutput {
 fn fs_image_sample(input: ImageVertexOutput) -> @location(0) vec4<f32> {
     let color = textureSample(image_texture, image_sampler, input.uv);
     return vec4<f32>(color.rgb, color.a * input.opacity);
+}
+
+@fragment
+fn fs_image_sample_masked(input: ImageVertexOutput) -> @location(0) vec4<f32> {
+    let source = textureSample(image_texture, image_sampler, input.uv);
+    return vec4<f32>(source.rgb, source.a * input.opacity * mask_coverage(input.position, input.mask_meta));
 }
 
 fn cubic_weight(value: f32) -> f32 {

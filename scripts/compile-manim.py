@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import importlib.util
 import json
 import math
@@ -23,11 +24,30 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
+# Manim 0.20.1 builds matching groups by iterating Python sets. Fix the hash
+# seed before importing Manim so repeated compiles preserve correspondence,
+# draw order, node IDs, and bytes exactly. PYTHONHASHSEED only takes effect at
+# interpreter startup, hence the one bounded re-exec for the CLI entry point.
+if __name__ == "__main__" and os.environ.get("PYTHONHASHSEED") != "0":
+    deterministic_environment = os.environ.copy()
+    deterministic_environment["PYTHONHASHSEED"] = "0"
+    os.execve(
+        sys.executable,
+        [sys.executable, str(Path(__file__).resolve()), *sys.argv[1:]],
+        deterministic_environment,
+    )
+
 import numpy as np
 import moderngl
 from PIL import Image
 from manim import Scene, config
 from manim.animation.changing import TracedPath
+from manim.animation.transform import Transform
+from manim.animation.transform_matching_parts import (
+    TransformMatchingAbstractBase,
+    TransformMatchingShapes,
+    TransformMatchingTex,
+)
 from manim.constants import RendererType
 from manim.mobject.mobject import Mobject
 from manim.mobject.value_tracker import ComplexValueTracker, ValueTracker
@@ -42,6 +62,7 @@ from manim.mobject.opengl.opengl_vectorized_mobject import OpenGLVMobject
 from manim.mobject.opengl.opengl_mobject import OpenGLMobject
 from manim.renderer.opengl_renderer import OpenGLCamera
 from manim.renderer.shader_wrapper import get_shader_code_from_file
+from manim.utils.rate_functions import linear, smooth
 from manim.camera.three_d_camera import ThreeDCamera
 from manim.camera.moving_camera import MovingCamera as ManimMovingCamera
 
@@ -51,6 +72,7 @@ OUTPUT_HEIGHT = 9.0
 SHADER_TRANSLATOR: Any | None = None
 REGISTERED_VALUE_TRACKERS: list[ValueTracker] = []
 ORIGINAL_VALUE_TRACKER_INIT = ValueTracker.__init__
+ORIGINAL_TRANSFORM_MATCHING_INIT = TransformMatchingAbstractBase.__init__
 
 
 def registered_value_tracker_init(
@@ -63,6 +85,76 @@ def registered_value_tracker_init(
 
 
 ValueTracker.__init__ = registered_value_tracker_init
+
+
+def retained_transform_matching_init(
+    self: TransformMatchingAbstractBase,
+    mobject: Mobject,
+    target_mobject: Mobject,
+    transform_mismatches: bool = False,
+    fade_transform_mismatches: bool = False,
+    key_map: dict[Any, Any] | None = None,
+    **kwargs: Any,
+) -> None:
+    """Retain the public matching intent before Manim expands it to animations.
+
+    Manim does not keep ``key_map`` or the original roots on the resulting
+    AnimationGroup.  Keeping references here lets the compiler emit stable,
+    inspectable token/shape correspondence without reimplementing or changing
+    Manim's matching algorithm.
+    """
+
+    def shape_map(
+        root: Mobject,
+    ) -> tuple[dict[Any, list[Mobject]], dict[Any, str]]:
+        mapping: dict[Any, list[Mobject]] = {}
+        for part in self.get_mobject_parts(root):
+            mapping.setdefault(self.get_mobject_key(part), []).append(part)
+        stable: dict[Any, str] = {}
+        for raw_key, parts in mapping.items():
+            if isinstance(self, TransformMatchingTex):
+                stable[raw_key] = str(raw_key)
+            elif isinstance(self, TransformMatchingShapes) and parts:
+                normalized = parts[0].copy()
+                normalized.center()
+                normalized.set(height=1)
+                points = np.asarray(
+                    np.round(normalized.points, 3) + 0.0,
+                    dtype="<f8",
+                )
+                stable[raw_key] = (
+                    "shape:"
+                    + hashlib.sha256(points.tobytes()).hexdigest()[:24]
+                )
+            else:
+                stable[raw_key] = f"key:{raw_key!s}"
+        return mapping, stable
+
+    source_map, source_stable_keys = shape_map(mobject)
+    target_map, target_stable_keys = shape_map(target_mobject)
+    ORIGINAL_TRANSFORM_MATCHING_INIT(
+        self,
+        mobject,
+        target_mobject,
+        transform_mismatches=transform_mismatches,
+        fade_transform_mismatches=fade_transform_mismatches,
+        key_map=key_map,
+        **kwargs,
+    )
+    self._realtime_manim_matching_intent = {
+        "source": mobject,
+        "target": target_mobject,
+        "transformMismatches": bool(transform_mismatches),
+        "fadeTransformMismatches": bool(fade_transform_mismatches),
+        "keyMap": dict(key_map or {}),
+        "sourceMap": source_map,
+        "targetMap": target_map,
+        "sourceStableKeys": source_stable_keys,
+        "targetStableKeys": target_stable_keys,
+    }
+
+
+TransformMatchingAbstractBase.__init__ = retained_transform_matching_init
 
 
 def translate_shader_program(
@@ -808,6 +900,30 @@ class Snapshot:
     fixed_orientation_base: list[float] = field(default_factory=list)
 
 
+@dataclass(frozen=True)
+class SemanticTransformWindow:
+    start: float
+    end: float
+    easing: str
+    correspondence_ids: tuple[str, ...]
+    source_commands: list[dict[str, Any]]
+    target_commands: list[dict[str, Any]]
+
+
+@dataclass
+class MatchingCorrespondence:
+    correspondence_id: str
+    kind: str
+    mode: str
+    keys: list[str]
+    target_keys: list[str]
+    source_parts: list[Mobject]
+    target_parts: list[Mobject]
+    start: float
+    end: float
+    path_arc: float = 0.0
+
+
 @dataclass
 class ObjectTrack:
     node_id: str
@@ -816,6 +932,7 @@ class ObjectTrack:
     is_traced_path: bool = False
     disappear_at: float | None = None
     snapshots: list[Snapshot] = field(default_factory=list)
+    semantic_transform: SemanticTransformWindow | None = None
 
 
 @dataclass
@@ -1033,12 +1150,14 @@ class CompatibilityRenderer:
         semantic_billboards: bool = True,
         compact_surface_lifetimes: bool = True,
         full_affine_tracks: bool = True,
+        semantic_matching: bool = True,
     ) -> None:
         self.fps = fps
         self.renderer_name = renderer_name
         self.enable_semantic_billboards = semantic_billboards
         self.enable_compact_surface_lifetimes = compact_surface_lifetimes
         self.enable_full_affine_tracks = full_affine_tracks
+        self.enable_semantic_matching = semantic_matching
         self.time = 0.0
         self.num_plays = 0
         self.skip_animations = False
@@ -1099,6 +1218,12 @@ class CompatibilityRenderer:
         self.semantic_path_data_tracks = 0
         self.semantic_camera_2d_tracks = 0
         self.semantic_camera_3d_tracks = 0
+        self.matching_correspondences: list[MatchingCorrespondence] = []
+        self.active_semantic_transforms: dict[
+            Mobject, SemanticTransformWindow
+        ] = {}
+        self.semantic_matching_path_tracks = 0
+        self.semantic_matching_fallbacks: set[str] = set()
         self.random_seed = 0
         self.active_animations: list[Any] = []
         self.active_local_time = 0.0
@@ -1116,6 +1241,267 @@ class CompatibilityRenderer:
         else:
             self.camera = scene.camera_class()
 
+    def _matching_descriptors(
+        self,
+        animation: TransformMatchingAbstractBase,
+        start: float,
+        end: float,
+    ) -> list[MatchingCorrespondence]:
+        intent = getattr(animation, "_realtime_manim_matching_intent", None)
+        if not isinstance(intent, dict):
+            self.semantic_matching_fallbacks.add("missing-matching-intent")
+            return []
+        source_map = intent["sourceMap"]
+        target_map = intent["targetMap"]
+        source_stable_keys = intent["sourceStableKeys"]
+        target_stable_keys = intent["targetStableKeys"]
+        source_remaining = dict(source_map)
+        target_remaining = dict(target_map)
+        kind = (
+            "transformMatchingTex"
+            if isinstance(animation, TransformMatchingTex)
+            else "transformMatchingShapes"
+        )
+        child_arcs = [
+            float(getattr(child, "path_arc", 0.0))
+            for child in animation.animations
+            if isinstance(child, Transform)
+        ]
+        path_arc = child_arcs[0] if child_arcs else 0.0
+        descriptors: list[MatchingCorrespondence] = []
+
+        def add(
+            mode: str,
+            source_keys: list[Any],
+            target_keys: list[Any],
+        ) -> None:
+            source_parts = [
+                part for key in source_keys for part in source_map.get(key, [])
+            ]
+            target_parts = [
+                part for key in target_keys for part in target_map.get(key, [])
+            ]
+            if not source_parts and not target_parts:
+                return
+            descriptors.append(
+                MatchingCorrespondence(
+                    correspondence_id=(
+                        f"manim-correspondence-"
+                        f"{len(self.matching_correspondences) + len(descriptors):05d}"
+                    ),
+                    kind=kind,
+                    mode=mode,
+                    keys=[source_stable_keys[key] for key in source_keys],
+                    target_keys=[
+                        target_stable_keys[key] for key in target_keys
+                    ],
+                    source_parts=source_parts,
+                    target_parts=target_parts,
+                    start=finite(start),
+                    end=finite(end),
+                    path_arc=finite(path_arc),
+                )
+            )
+
+        shared = sorted(
+            set(source_map).intersection(target_map),
+            key=lambda key: source_stable_keys[key],
+        )
+        for key in shared:
+            add("transform", [key], [key])
+
+        for source_key, target_key in intent["keyMap"].items():
+            if source_key in source_map and target_key in target_map:
+                add("keyMapped", [source_key], [target_key])
+                source_remaining.pop(source_key, None)
+                target_remaining.pop(target_key, None)
+
+        source_only = sorted(
+            set(source_remaining).difference(target_remaining),
+            key=lambda key: source_stable_keys[key],
+        )
+        target_only = sorted(
+            set(target_remaining).difference(source_remaining),
+            key=lambda key: target_stable_keys[key],
+        )
+        if intent["transformMismatches"]:
+            add("transformMismatches", source_only, target_only)
+        elif intent["fadeTransformMismatches"]:
+            add("fadeTransformMismatches", source_only, target_only)
+        else:
+            if source_only:
+                add("fadeOut", source_only, target_only)
+            if target_only:
+                add("fadeIn", source_only, target_only)
+        return descriptors
+
+    @staticmethod
+    def _family_with_points(parts: list[Mobject]) -> set[Mobject]:
+        return {
+            member
+            for part in parts
+            for member in part.family_members_with_points()
+        }
+
+    @staticmethod
+    def _straight_transform_path(animation: Transform) -> bool:
+        try:
+            start = np.asarray(
+                [[-1.5, 0.25, 0.0], [0.75, -2.0, 0.5]], dtype=float
+            )
+            end = np.asarray(
+                [[2.25, -0.5, 0.0], [-1.0, 1.25, -0.25]], dtype=float
+            )
+            amount = 0.371
+            observed = np.asarray(
+                animation.path_func(start, end, amount), dtype=float
+            )
+            expected = start + (end - start) * amount
+            return observed.shape == expected.shape and bool(
+                np.allclose(observed, expected, rtol=0.0, atol=1e-12)
+            )
+        except Exception:
+            return False
+
+    def _prepare_transform_matching(
+        self,
+        animation: TransformMatchingAbstractBase,
+        start: float,
+        end: float,
+        *,
+        compact: bool,
+    ) -> None:
+        descriptors = self._matching_descriptors(animation, start, end)
+        self.matching_correspondences.extend(descriptors)
+        if not descriptors or not compact:
+            return
+        if animation.rate_func is not linear:
+            self.semantic_matching_fallbacks.add("outer-rate-function")
+            return
+        source_members = {
+            descriptor.correspondence_id: self._family_with_points(
+                descriptor.source_parts
+            )
+            for descriptor in descriptors
+        }
+        target_members = {
+            descriptor.correspondence_id: self._family_with_points(
+                descriptor.target_parts
+            )
+            for descriptor in descriptors
+        }
+        maximum_end = max(float(animation.max_end_time), 1e-12)
+        time_scale = (end - start) / maximum_end
+        for child, child_start, child_end in animation.anims_with_timings:
+            if type(child) is not Transform:
+                continue
+            if child.rate_func is smooth:
+                easing = "manimSmooth"
+            elif child.rate_func is linear:
+                easing = "linear"
+            else:
+                self.semantic_matching_fallbacks.add("child-rate-function")
+                continue
+            if not self._straight_transform_path(child):
+                self.semantic_matching_fallbacks.add("nonlinear-path")
+                continue
+            source_leaves = child.mobject.family_members_with_points()
+            target_leaves = child.target_mobject.family_members_with_points()
+            if len(source_leaves) != len(target_leaves):
+                self.semantic_matching_fallbacks.add("unaligned-leaf-count")
+                continue
+            window_start = start + float(child_start) * time_scale
+            window_end = start + float(child_end) * time_scale
+            for source_leaf, target_leaf in zip(
+                source_leaves, target_leaves, strict=True
+            ):
+                correspondence_ids = tuple(
+                    descriptor.correspondence_id
+                    for descriptor in descriptors
+                    if source_leaf
+                    in source_members[descriptor.correspondence_id]
+                    and target_leaf
+                    in target_members[descriptor.correspondence_id]
+                    and descriptor.mode
+                    in {"transform", "transformMismatches"}
+                )
+                if not correspondence_ids:
+                    continue
+                window = SemanticTransformWindow(
+                    start=finite(window_start),
+                    end=finite(window_end),
+                    easing=easing,
+                    correspondence_ids=correspondence_ids,
+                    source_commands=(
+                        projected_opengl_commands(self.camera, source_leaf)
+                        if isinstance(source_leaf, OpenGLVMobject)
+                        else projected_commands(self.camera, source_leaf)
+                        if isinstance(source_leaf, VMobject)
+                        else []
+                    ),
+                    target_commands=(
+                        projected_opengl_commands(self.camera, target_leaf)
+                        if isinstance(target_leaf, OpenGLVMobject)
+                        else projected_commands(self.camera, target_leaf)
+                        if isinstance(target_leaf, VMobject)
+                        else []
+                    ),
+                )
+                existing = self.active_semantic_transforms.get(source_leaf)
+                if existing is not None and existing != window:
+                    self.active_semantic_transforms.pop(source_leaf, None)
+                    self.semantic_matching_fallbacks.add(
+                        "overlapping-source-transform"
+                    )
+                    continue
+                self.active_semantic_transforms[source_leaf] = window
+
+    def _prepare_matching_semantics(
+        self, animations: list[Any], start: float
+    ) -> None:
+        self.active_semantic_transforms.clear()
+
+        def contains_matching(animation: Any) -> bool:
+            return isinstance(
+                animation, TransformMatchingAbstractBase
+            ) or any(
+                contains_matching(child)
+                for child in getattr(animation, "animations", [])
+            )
+
+        def visit(animation: Any, window_start: float, window_end: float) -> None:
+            if isinstance(animation, TransformMatchingAbstractBase):
+                self._prepare_transform_matching(
+                    animation,
+                    window_start,
+                    window_end,
+                    compact=self.enable_semantic_matching,
+                )
+                return
+            children = list(getattr(animation, "animations", []))
+            if not children or not any(contains_matching(child) for child in children):
+                return
+            if animation.rate_func is not linear:
+                # A non-linear outer group composes its easing with child local
+                # time. The current IR cannot describe that composite curve
+                # without samples; do not publish inaccurate correspondence
+                # intervals.
+                self.semantic_matching_fallbacks.add(
+                    "nested-composite-rate-function"
+                )
+                return
+            maximum_end = max(float(animation.max_end_time), 1e-12)
+            duration = window_end - window_start
+            for child, child_start, child_end in animation.anims_with_timings:
+                visit(
+                    child,
+                    window_start + float(child_start) / maximum_end * duration,
+                    window_start + float(child_end) / maximum_end * duration,
+                )
+
+        for animation in animations:
+            visit(animation, start, start + float(animation.run_time))
+
     def play(self, scene: Scene, *animations: Any, **kwargs: Any) -> None:
         scene.compile_animation_data(*animations, **kwargs)
         scene.begin_animations()
@@ -1126,6 +1512,7 @@ class CompatibilityRenderer:
             scene.animations, scene.duration
         )
         start_time = self.time
+        self._prepare_matching_semantics(scene.animations, start_time)
         for local_time in scene.time_progression:
             self.active_local_time = float(local_time)
             self.time = start_time + float(local_time)
@@ -1141,6 +1528,7 @@ class CompatibilityRenderer:
         self.static_image = None
         self.time = start_time + scene.duration
         self.active_local_time = scene.duration
+        self.active_semantic_transforms.clear()
         self.capture(scene)
         self.active_animations = []
         scene.time_progression.close()
@@ -1419,8 +1807,16 @@ class CompatibilityRenderer:
                 draw_start,
                 draw_end,
             ) = self._semantic_draw_range(mobject, commands)
+            semantic_transform = self.active_semantic_transforms.get(mobject)
             key = self.object_active.get(mobject)
             track = None if key is None else self.object_tracks.get(key)
+            if track is not None and semantic_transform is not None:
+                if track.semantic_transform is None:
+                    track.semantic_transform = semantic_transform
+                elif track.semantic_transform != semantic_transform:
+                    self.semantic_matching_fallbacks.add(
+                        "multiple-transform-windows-per-node"
+                    )
             if track is None or track.disappear_at is not None:
                 if track is not None and track.disappear_at is None:
                     track.disappear_at = at
@@ -1434,6 +1830,7 @@ class CompatibilityRenderer:
                     first_seen=at,
                     last_seen=at,
                     is_traced_path=isinstance(mobject, TracedPath),
+                    semantic_transform=semantic_transform,
                 )
                 self.object_tracks[key] = track
             fill, fill_gradient = (
@@ -1590,6 +1987,7 @@ class CompatibilityRenderer:
                     first_seen=at,
                     last_seen=at,
                     is_traced_path=isinstance(mobject, TracedPath),
+                    semantic_transform=semantic_transform,
                 )
                 self.object_tracks[key] = track
             semantic_base = next(
@@ -1626,6 +2024,7 @@ class CompatibilityRenderer:
                     last_seen=at,
                     is_traced_path=track.is_traced_path,
                     snapshots=[previous],
+                    semantic_transform=track.semantic_transform,
                 )
                 self.object_tracks[key] = track
             visible_vectors.add(key)
@@ -3717,6 +4116,62 @@ float realtime_manim_strip_value = 0.0;
             )
         return [], []
 
+    def _resolved_matching_correspondences(
+        self, duration: float
+    ) -> list[dict[str, Any]]:
+        def node_ids_at(parts: list[Mobject], at: float) -> list[str]:
+            members = self._family_with_points(parts)
+            result: list[str] = []
+            for (owner, _generation), track in self.object_tracks.items():
+                if owner not in members:
+                    continue
+                disappear = (
+                    track.disappear_at
+                    if track.disappear_at is not None
+                    else min(
+                        duration + 0.0001,
+                        track.last_seen + 1 / self.fps,
+                    )
+                )
+                if (
+                    track.first_seen <= at + 0.000001
+                    and at < disappear - 0.0000001
+                    and track.node_id not in result
+                ):
+                    result.append(track.node_id)
+            return result
+
+        result: list[dict[str, Any]] = []
+        for descriptor in self.matching_correspondences:
+            midpoint = (descriptor.start + descriptor.end) * 0.5
+            source_nodes = node_ids_at(descriptor.source_parts, midpoint)
+            target_nodes = node_ids_at(descriptor.target_parts, descriptor.end)
+            expects_source = bool(descriptor.source_parts)
+            expects_target = bool(descriptor.target_parts)
+            if (expects_source and not source_nodes) or (
+                expects_target and not target_nodes
+            ):
+                self.semantic_matching_fallbacks.add(
+                    "unresolved-correspondence-nodes"
+                )
+            if not source_nodes and not target_nodes:
+                continue
+            result.append(
+                {
+                    "id": descriptor.correspondence_id,
+                    "kind": descriptor.kind,
+                    "mode": descriptor.mode,
+                    "keys": descriptor.keys,
+                    "targetKeys": descriptor.target_keys,
+                    "sourceNodes": source_nodes,
+                    "targetNodes": target_nodes,
+                    "start": descriptor.start,
+                    "end": descriptor.end,
+                    "pathArc": descriptor.path_arc,
+                }
+            )
+        return result
+
     def to_scene(self) -> dict[str, Any]:
         duration = max(0.25, finite(self.time))
         nodes: list[dict[str, Any]] = []
@@ -3889,12 +4344,56 @@ float realtime_manim_strip_value = 0.0;
                 )
                 self.semantic_draw_progress_tracks += 1
             else:
-                affine_result = self._add_affine_tracks(
-                    tracks,
-                    object_track.node_id,
-                    snapshots,
-                )
-                if affine_result is None:
+                semantic_affine_result = None
+                semantic_matching = False
+                if object_track.semantic_transform is not None:
+                    semantic_tracks: list[dict[str, Any]] = []
+                    semantic_affine_result = (
+                        self._add_semantic_matching_affine_tracks(
+                            semantic_tracks,
+                            object_track.node_id,
+                            snapshots,
+                            object_track.semantic_transform,
+                        )
+                    )
+                    if semantic_affine_result is None:
+                        semantic_matching = (
+                            self._add_semantic_matching_path_track(
+                                semantic_tracks,
+                                object_track.node_id,
+                                snapshots,
+                                object_track.semantic_transform,
+                            )
+                        )
+                    else:
+                        semantic_matching = True
+                    if semantic_matching:
+                        tracks.extend(semantic_tracks)
+                if semantic_matching:
+                    self.semantic_matching_path_tracks += 1
+                    if semantic_affine_result is not None:
+                        (
+                            affine_kind,
+                            affine_scales,
+                            affine_includes_stroke_width,
+                        ) = semantic_affine_result
+                        if affine_kind == "translation":
+                            self.semantic_translation_tracks += 1
+                        else:
+                            self.semantic_scale_translation_tracks += 1
+                else:
+                    if object_track.semantic_transform is not None:
+                        self.semantic_matching_fallbacks.add(
+                            "geometry-proof"
+                        )
+                    affine_result = self._add_affine_tracks(
+                        tracks,
+                        object_track.node_id,
+                        snapshots,
+                    )
+                if semantic_matching:
+                    pass
+                elif affine_result is None:
                     if self._add_path_data_track(
                         tracks, object_track.node_id, snapshots
                     ):
@@ -4519,6 +5018,7 @@ float realtime_manim_strip_value = 0.0;
                 self.camera_3d_snapshots,
             )
         signals, controls = self._value_tracker_controls(duration)
+        correspondences = self._resolved_matching_correspondences(duration)
         return {
             "version": 2,
             "title": self.scene_name,
@@ -4533,6 +5033,7 @@ float realtime_manim_strip_value = 0.0;
             "camera3d": camera_3d,
             "nodes": nodes,
             "tracks": tracks,
+            "correspondences": correspondences,
             "signals": signals,
             "bindings": [],
             "controls": controls,
@@ -4971,6 +5472,13 @@ float realtime_manim_strip_value = 0.0;
             "semanticPathDataTracks": self.semantic_path_data_tracks,
             "semanticCamera2dTracks": self.semantic_camera_2d_tracks,
             "semanticCamera3dTracks": self.semantic_camera_3d_tracks,
+            "semanticMatchingCorrespondences": len(
+                self.matching_correspondences
+            ),
+            "semanticMatchingPathTracks": self.semantic_matching_path_tracks,
+            "semanticMatchingFallbacks": sorted(
+                self.semantic_matching_fallbacks
+            ),
             "audio": [
                 {
                     "id": clip["id"],
@@ -5234,6 +5742,250 @@ float realtime_manim_strip_value = 0.0;
             if value is None or value[0] != parsed[0][0]:
                 return False
             compact_keyframes.append({**keyframe, "value": value[1]})
+        output.append(
+            {
+                "target": target,
+                "property": "pathData",
+                "keyframes": compact_keyframes,
+            }
+        )
+        return True
+
+    @staticmethod
+    def _manim_smooth(amount: float) -> float:
+        amount = max(0.0, min(1.0, amount))
+
+        def sigmoid(value: float) -> float:
+            return 1.0 / (1.0 + math.exp(-value))
+
+        error = sigmoid(-5.0)
+        return max(
+            0.0,
+            min(
+                1.0,
+                (sigmoid(10.0 * (amount - 0.5)) - error)
+                / (1.0 - 2.0 * error),
+            ),
+        )
+
+    @staticmethod
+    def _add_semantic_matching_affine_tracks(
+        output: list[dict[str, Any]],
+        target: str,
+        snapshots: list[Snapshot],
+        window: SemanticTransformWindow,
+    ) -> tuple[str, list[float], bool] | None:
+        """Lower a proven matching translation/scale to exact endpoints.
+
+        Manim interpolates matching points linearly after applying its rate
+        function.  When the target is only a translation and positive uniform
+        scale of the source, the same motion is exactly expressible by native
+        ``x``/``y``/``scale*`` tracks.  This keeps the original path once and
+        avoids repeating every glyph control point at both endpoints.
+        """
+
+        if len(snapshots) < 2 or window.end <= window.start:
+            return None
+        transforms = [
+            CompatibilityRenderer._similarity_offset(
+                window.source_commands, snapshot.commands
+            )
+            for snapshot in snapshots
+        ]
+        source_transform = CompatibilityRenderer._similarity_offset(
+            window.source_commands, window.source_commands
+        )
+        target_transform = CompatibilityRenderer._similarity_offset(
+            window.source_commands, window.target_commands
+        )
+        if (
+            source_transform is None
+            or target_transform is None
+            or any(value is None for value in transforms)
+            or abs(source_transform[3]) > 0.0000001
+            or abs(target_transform[3]) > 0.0000001
+            or source_transform[2] <= 0.0
+            or target_transform[2] <= 0.0
+        ):
+            return None
+        values = [value for value in transforms if value is not None]
+        for snapshot, value in zip(snapshots, values, strict=True):
+            if snapshot.at < window.start - 0.0000011:
+                amount = 0.0
+            elif snapshot.at > window.end + 0.0000011:
+                amount = 1.0
+            else:
+                amount = (snapshot.at - window.start) / (
+                    window.end - window.start
+                )
+                if window.easing == "manimSmooth":
+                    amount = CompatibilityRenderer._manim_smooth(amount)
+                elif window.easing != "linear":
+                    return None
+            expected = [
+                source + (destination - source) * amount
+                for source, destination in zip(
+                    source_transform, target_transform, strict=True
+                )
+            ]
+            if max(
+                abs(observed - wanted)
+                for observed, wanted in zip(value, expected, strict=True)
+            ) > 0.0000031:
+                return None
+
+        emitted = False
+        for index, property_name in enumerate(("x", "y")):
+            if abs(target_transform[index] - source_transform[index]) <= 1e-12:
+                continue
+            output.append(
+                {
+                    "target": target,
+                    "property": property_name,
+                    "keyframes": [
+                        {
+                            "at": window.start,
+                            "value": finite(source_transform[index]),
+                            "easing": "linear",
+                        },
+                        {
+                            "at": window.end,
+                            "value": finite(target_transform[index]),
+                            "easing": window.easing,
+                        },
+                    ],
+                }
+            )
+            emitted = True
+        if abs(target_transform[2] - source_transform[2]) > 1e-12:
+            for property_name in ("scaleX", "scaleY"):
+                output.append(
+                    {
+                        "target": target,
+                        "property": property_name,
+                        "keyframes": [
+                            {
+                                "at": window.start,
+                                "value": finite(source_transform[2]),
+                                "easing": "linear",
+                            },
+                            {
+                                "at": window.end,
+                                "value": finite(target_transform[2]),
+                                "easing": window.easing,
+                            },
+                        ],
+                    }
+                )
+            emitted = True
+        if not emitted:
+            return None
+        return (
+            "scaleTranslation"
+            if abs(target_transform[2] - source_transform[2]) > 1e-12
+            else "translation",
+            [value[2] for value in values],
+            False,
+        )
+
+    @staticmethod
+    def _add_semantic_matching_path_track(
+        output: list[dict[str, Any]],
+        target: str,
+        snapshots: list[Snapshot],
+        window: SemanticTransformWindow,
+    ) -> bool:
+        if (
+            len(snapshots) < 2
+            or window.end <= window.start
+        ):
+            return False
+        parsed = [
+            CompatibilityRenderer._path_data(snapshot.commands)
+            for snapshot in snapshots
+        ]
+        source_path = CompatibilityRenderer._path_data(
+            window.source_commands
+        )
+        target_path = CompatibilityRenderer._path_data(
+            window.target_commands
+        )
+        if (
+            any(value is None for value in parsed)
+            or parsed[0] is None
+            or source_path is None
+            or target_path is None
+            or any(
+                value is not None and value[0] != parsed[0][0]
+                for value in parsed[1:]
+            )
+            or source_path[0] != parsed[0][0]
+            or target_path[0] != parsed[0][0]
+        ):
+            return False
+        start_values = np.asarray(source_path[1], dtype=float)
+        end_values = np.asarray(target_path[1], dtype=float)
+        for snapshot, value in zip(snapshots, parsed, strict=True):
+            assert value is not None
+            if snapshot.at < window.start - 0.0000011:
+                continue
+            if snapshot.at > window.end + 0.0000011:
+                if not np.allclose(
+                    np.asarray(value[1], dtype=float),
+                    end_values,
+                    rtol=0.0,
+                    atol=0.0000031,
+                ):
+                    return False
+                continue
+            amount = (snapshot.at - window.start) / (
+                window.end - window.start
+            )
+            if window.easing == "manimSmooth":
+                amount = CompatibilityRenderer._manim_smooth(amount)
+            elif window.easing != "linear":
+                return False
+            expected = start_values + (end_values - start_values) * amount
+            if float(
+                np.max(np.abs(np.asarray(value[1], dtype=float) - expected))
+            ) > 0.0000031:
+                return False
+        if np.array_equal(start_values, end_values):
+            return True
+        prefix = [
+            snapshot
+            for snapshot in snapshots
+            if snapshot.at < window.start - 0.0000011
+        ]
+        prefix_keyframes = CompatibilityRenderer._attribute_keyframes(
+            prefix, "commands", "commands"
+        )
+        compact_keyframes: list[dict[str, Any]] = []
+        for keyframe in prefix_keyframes:
+            value = CompatibilityRenderer._path_data(keyframe["value"])
+            if value is None or value[0] != source_path[0]:
+                return False
+            compact_keyframes.append({**keyframe, "value": value[1]})
+        if (
+            not compact_keyframes
+            or compact_keyframes[-1]["at"] < window.start - 0.0000011
+        ):
+            compact_keyframes.append(
+                {
+                    "at": window.start,
+                    "value": source_path[1],
+                    "easing": "linear",
+                }
+            )
+        elif compact_keyframes[-1]["at"] == window.start:
+            compact_keyframes[-1]["value"] = source_path[1]
+        compact_keyframes.append(
+            {
+                "at": window.end,
+                "value": target_path[1],
+                "easing": window.easing,
+            }
+        )
         output.append(
             {
                 "target": target,
@@ -6166,6 +6918,7 @@ def compile_scene(
     semantic_billboards: bool = True,
     compact_surface_lifetimes: bool = True,
     full_affine_tracks: bool = True,
+    semantic_matching: bool = True,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     if renderer_name == "auto":
         source_text = source.read_text()
@@ -6200,6 +6953,7 @@ def compile_scene(
         semantic_billboards=semantic_billboards,
         compact_surface_lifetimes=compact_surface_lifetimes,
         full_affine_tracks=full_affine_tracks,
+        semantic_matching=semantic_matching,
     )
     scene_class = import_scene(source, class_name)
     scene = scene_class(renderer=renderer)
@@ -6240,6 +6994,11 @@ def main() -> int:
         action="store_true",
         help="retain non-similarity affine path motion as sampled path data for differential testing",
     )
+    parser.add_argument(
+        "--disable-semantic-matching",
+        action="store_true",
+        help="retain matching transforms as sampled tracks for differential testing",
+    )
     arguments = parser.parse_args()
     source = arguments.source.expanduser().resolve()
     scene, receipt = compile_scene(
@@ -6250,6 +7009,7 @@ def main() -> int:
         semantic_billboards=not arguments.disable_semantic_billboards,
         compact_surface_lifetimes=not arguments.disable_compact_surface_lifetimes,
         full_affine_tracks=not arguments.disable_full_affine_tracks,
+        semantic_matching=not arguments.disable_semantic_matching,
     )
     diagnostics = receipt["diagnostics"]
     if diagnostics and not arguments.allow_partial:
@@ -6271,6 +7031,7 @@ def main() -> int:
                 "fps": scene["fps"],
                 "nodes": len(scene["nodes"]),
                 "tracks": len(scene["tracks"]),
+                "correspondences": len(scene["correspondences"]),
                 "sampledFrames": receipt["sampledFrames"],
                 "receipt": str(receipt_path.resolve()),
                 "diagnostics": diagnostics,

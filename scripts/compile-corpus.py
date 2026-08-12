@@ -64,6 +64,15 @@ def compile_entry(entry: dict[str, object], fps: int) -> dict[str, object]:
         "semanticTimelineControls": receipt.get(
             "semanticTimelineControls", 0
         ),
+        "semanticMatchingCorrespondences": receipt.get(
+            "semanticMatchingCorrespondences", 0
+        ),
+        "semanticMatchingPathTracks": receipt.get(
+            "semanticMatchingPathTracks", 0
+        ),
+        "semanticMatchingFallbacks": receipt.get(
+            "semanticMatchingFallbacks", []
+        ),
     }
 
 
@@ -108,6 +117,21 @@ def main() -> int:
         ),
         "semanticTimelineControls": sum(
             int(result["semanticTimelineControls"]) for result in results
+        ),
+        "semanticMatchingCorrespondences": sum(
+            int(result["semanticMatchingCorrespondences"])
+            for result in results
+        ),
+        "semanticMatchingPathTracks": sum(
+            int(result["semanticMatchingPathTracks"])
+            for result in results
+        ),
+        "semanticMatchingFallbacks": sorted(
+            {
+                str(fallback)
+                for result in results
+                for fallback in result["semanticMatchingFallbacks"]
+            }
         ),
         "results": results,
     }

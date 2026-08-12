@@ -8,6 +8,7 @@ members = [
     "crates/text-engine",
     "tools/env-capture",
     "tools/glsl-to-wgsl",
+    "tools/renderer-shootout",
 ]
 resolver = "3"
 

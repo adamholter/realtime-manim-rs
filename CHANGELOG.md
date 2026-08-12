@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.6.0 — 2026-08-12
+
+- Added strict nested Pango-style `MarkupText` parsing and attributed shaping
+  across native Metal and browser WebGPU, including inherited fonts, bidi-safe
+  paint spans, background paint, rise/tracking, underline and strikethrough.
+- Added production native SVG rendering for fills, strokes, gradients, clips,
+  masks, nested patterns and embedded raster images with bounded diagnostics.
+- Added deterministic semantic `TransformMatchingTex` and
+  `TransformMatchingShapes` compilation with stable correspondence metadata,
+  compact endpoint lowering and exact sampled fallbacks.
+- Added a reproducible Vello-versus-lyon renderer shootout with native Metal
+  and matched browser WebGPU receipts; lyon remains the experimental baseline.
+- Added lossless correspondence validation through the studio/server schema.
+- Published an agent-ready documentation site, `/llms.txt`, agent guide and
+  complete public source references.
+
 ## 0.5.0 — 2026-08-12
 
 - Added Manim-style retained spatial layout and exact nested 2D bounds,
@@ -19,7 +35,6 @@
   sweep that records per-frame hashes and machine-readable benchmark receipts.
 - Added synchronous text-resource validation so unsupported vector glyphs fail
   scene loading with an explicit error instead of producing a blank frame.
-
 ## 0.4.0 — 2026-08-12
 
 - Added retained `NumberLine`, `Axes`, `NumberPlane`, `FunctionGraph`, and

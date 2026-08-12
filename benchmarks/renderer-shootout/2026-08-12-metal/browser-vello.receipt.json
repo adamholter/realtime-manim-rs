@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "benchmark_id": "P-10-browser-vello-primitive-grid",
+  "recorded_at_utc": "2026-08-12T19:41:55.685Z",
+  "environment": {
+    "os": "macOS",
+    "os_version": "15.6.1",
+    "architecture": "arm64",
+    "processor": "Apple M4",
+    "memory_bytes": 17179869184,
+    "display": {
+      "width": 1280,
+      "height": 720,
+      "refresh_hz": 60,
+      "device_pixel_ratio_milli": 1000
+    },
+    "background_load_profile": "isolated-headless-chrome-with-interactive-apps-open"
+  },
+  "workload": {
+    "name": "vello-0.9/WebGPU / primitive-grid",
+    "scene": "tools/renderer-shootout/generated/primitive-grid",
+    "resolution": [
+      1280,
+      720
+    ],
+    "duration_seconds": 0.03660000002384186,
+    "notes": [
+      "1,248 independent filled primitives in isolated headless Chrome WebGPU.",
+      "Experimental architecture evidence; not a renderer selection.",
+      "Frame samples include CPU encoding, GPU submission, and completion callback."
+    ]
+  },
+  "samples": [
+    {
+      "name": "frame_time",
+      "unit": "ms",
+      "statistic": "p50",
+      "value": 0.8999999761581421
+    },
+    {
+      "name": "frame_time",
+      "unit": "ms",
+      "statistic": "p95",
+      "value": 1.100000023841858
+    },
+    {
+      "name": "frame_time",
+      "unit": "ms",
+      "statistic": "p99",
+      "value": 1.100000023841858
+    },
+    {
+      "name": "frame_time",
+      "unit": "ms",
+      "statistic": "mean",
+      "value": 0.9150000005960465
+    },
+    {
+      "name": "retained_geometry",
+      "unit": "bytes",
+      "statistic": "single",
+      "value": 126082
+    },
+    {
+      "name": "content_pixels",
+      "unit": "pixels",
+      "statistic": "single",
+      "value": 230597
+    },
+    {
+      "name": "occupancy_normalized_error",
+      "unit": "ratio",
+      "statistic": "single",
+      "value": 0.07252913090803437
+    }
+  ],
+  "provenance": {
+    "revision": "d47fd5bbf657+tree-e7f0b66331e9933d",
+    "dirty": true,
+    "commands": [
+      "npm run test:renderer-shootout-browser"
+    ],
+    "artifacts": [
+      "benchmarks/renderer-shootout/2026-08-12-metal/browser-comparison-proof.png",
+      "benchmarks/renderer-shootout/2026-08-12-metal/browser-comparison-proof.json"
+    ]
+  }
+}

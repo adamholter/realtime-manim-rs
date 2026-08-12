@@ -47,6 +47,8 @@ try {
     "bidi-markup-colored",
     "bidi-rtl-spans",
     "bidi-isolated",
+    "pango-raw",
+    "pango-decorated",
   ];
   const bidiPixels = {};
   for (const id of bidiCanvases) {
@@ -64,6 +66,11 @@ try {
         red: { rgb: [252, 98, 85], count: 0, xTotal: 0 },
         green: { rgb: [131, 193, 103], count: 0, xTotal: 0 },
         blue: { rgb: [88, 196, 221], count: 0, xTotal: 0 },
+        pureRed: { rgb: [255, 0, 0], count: 0, xTotal: 0 },
+        pureBlue: { rgb: [0, 0, 255], count: 0, xTotal: 0 },
+        lime: { rgb: [0, 255, 0], count: 0, xTotal: 0 },
+        darkBackground: { rgb: [17, 34, 51], count: 0, xTotal: 0 },
+        white: { rgb: [255, 255, 255], count: 0, xTotal: 0 },
       };
       for (let index = 0; index < data.length; index += 4) {
         const distance = Math.abs(data[index] - 7)
@@ -122,6 +129,8 @@ try {
   const coloredMarkup = bidiPixels["bidi-markup-colored"];
   const rtlSpans = bidiPixels["bidi-rtl-spans"];
   const isolated = bidiPixels["bidi-isolated"];
+  const rawPango = bidiPixels["pango-raw"];
+  const decoratedPango = bidiPixels["pango-decorated"];
   if (joined.foregroundMaskSha256 !== sameMarkup.foregroundMaskSha256
     || joined.occupiedPixels !== sameMarkup.occupiedPixels) {
     throw new Error("Same-face MarkupText spans changed joined Arabic geometry.");
@@ -140,6 +149,19 @@ try {
   }
   if (joined.foregroundMaskSha256 === isolated.foregroundMaskSha256) {
     throw new Error("Joined Arabic unexpectedly matched deliberately isolated Text nodes.");
+  }
+  if (joined.foregroundMaskSha256 !== rawPango.foregroundMaskSha256
+    || joined.occupiedPixels !== rawPango.occupiedPixels) {
+    throw new Error("Raw paint-only Pango markup changed joined Arabic geometry.");
+  }
+  if (rawPango.paletteStats.pureRed.count < 30 || rawPango.paletteStats.pureBlue.count < 30) {
+    throw new Error(`Raw Pango markup did not retain named colors: ${JSON.stringify(rawPango)}`);
+  }
+  if (decoratedPango.paletteStats.darkBackground.count < 100
+    || decoratedPango.paletteStats.lime.count < 10
+    || decoratedPango.paletteStats.pureRed.count < 10
+    || decoratedPango.paletteStats.white.count < 30) {
+    throw new Error(`Pango vector decorations did not retain all paints: ${JSON.stringify(decoratedPango)}`);
   }
   const transparencyScenes = await page.evaluate(async () => {
     const { createManimPlayer } = await import("/packages/manim-web/src/index.js");

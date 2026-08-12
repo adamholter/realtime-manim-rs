@@ -1,0 +1,54 @@
+{
+  "version": 2,
+  "title": "Native Metal Pango markup proof",
+  "width": 16,
+  "height": 9,
+  "pixelWidth": 1280,
+  "pixelHeight": 720,
+  "duration": 1,
+  "fps": 60,
+  "background": "#070910",
+  "nodes": [
+    {
+      "id": "heading",
+      "type": "markupText",
+      "markup": "<span foreground='#f8fafc' weight='bold' size='150%'>Native Pango MarkupText</span>",
+      "fontSize": 0.62,
+      "transform": {"y": 2.8},
+      "style": {"fill": "#ffffffff", "stroke": null}
+    },
+    {
+      "id": "joined-arabic",
+      "type": "markupText",
+      "markup": "<span foreground='#ff0000'>س</span><span foreground='#58c4dd'>لام</span>",
+      "fontSize": 1.5,
+      "transform": {"y": 0.9},
+      "style": {"fill": "#ffffffff", "stroke": null}
+    },
+    {
+      "id": "bidi-caption",
+      "type": "markupText",
+      "markup": "<span foreground='#f8fafc'>joined Arabic survives paint-only span boundaries</span>",
+      "fontSize": 0.62,
+      "transform": {"y": -0.15},
+      "style": {"fill": "#ffffffff", "stroke": null}
+    },
+    {
+      "id": "decorated",
+      "type": "markupText",
+      "markup": "<span foreground='white' background='#112233' size='125%' rise='2pt' letter_spacing='256' underline='double' underline_color='lime' strikethrough='true' strikethrough_color='red'>vector background · underline · strike</span>",
+      "fontSize": 0.62,
+      "transform": {"y": -1.55},
+      "style": {"fill": "#ffffffff", "stroke": null}
+    },
+    {
+      "id": "nested",
+      "type": "markupText",
+      "markup": "entities: A&amp;B  <b>bold <i>italic</i></b>  H<sub>2</sub>O  x<sup>2</sup>",
+      "fontSize": 0.65,
+      "transform": {"y": -3.1},
+      "style": {"fill": "#cbd5e1ff", "stroke": null}
+    }
+  ],
+  "tracks": []
+}

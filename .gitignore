@@ -29,6 +29,7 @@ pnpm-debug.log*
 # Generated web application binding output. The distributable package runtime
 # under packages/manim-web/runtime is intentionally versioned.
 /apps/web-preview/www/pkg/
+/tools/renderer-shootout/web/pkg/
 
 # Generated Manim media and benchmark output. Keep corpus source, schemas,
 # hand-authored fixtures, shaders, and sanitized environment manifests.

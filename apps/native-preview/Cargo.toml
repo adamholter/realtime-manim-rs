@@ -12,6 +12,7 @@ image.workspace = true
 lyon = "1.0.16"
 pollster = "0.4.0"
 realtime-manim-scene-core = { path = "../../crates/scene-core" }
+realtime-manim-svg-engine = { path = "../../crates/svg-engine" }
 realtime-manim-text-engine = { path = "../../crates/text-engine" }
 wgpu = { workspace = true, features = ["metal", "std", "wgsl"] }
 winit = { version = "0.30.12", default-features = false, features = ["rwh_06"] }

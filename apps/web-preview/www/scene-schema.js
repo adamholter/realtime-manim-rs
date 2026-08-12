@@ -108,11 +108,36 @@ const NON_NUMERIC_PROPERTIES = new Set([
 const EASINGS = new Set([
   "linear",
   "smooth",
+  "manimSmooth",
   "easeIn",
   "easeOut",
   "easeInOut",
   "thereAndBack",
   "bounce",
+]);
+const CORRESPONDENCE_KINDS = new Set([
+  "transformMatchingTex",
+  "transformMatchingShapes",
+]);
+const CORRESPONDENCE_MODES = new Set([
+  "transform",
+  "keyMapped",
+  "transformMismatches",
+  "fadeTransformMismatches",
+  "fadeOut",
+  "fadeIn",
+]);
+const CORRESPONDENCE_KEYS = new Set([
+  "id",
+  "kind",
+  "mode",
+  "keys",
+  "targetKeys",
+  "sourceNodes",
+  "targetNodes",
+  "start",
+  "end",
+  "pathArc",
 ]);
 const EXPR_OPS = new Set([
   "constant",
@@ -445,18 +470,20 @@ function validateNode(candidate, index, duration) {
       };
     case "markupText": {
       assert(["left", "center", "right"].includes(candidate.align ?? "center"), `${name}.align is invalid.`);
+      const hasMarkup = typeof candidate.markup === "string";
       assert(
-        Array.isArray(candidate.spans) &&
-          candidate.spans.length >= 1 &&
-          candidate.spans.length <= 1_000,
-        `${name}.spans must contain 1–1,000 spans.`,
+        hasMarkup !== (Array.isArray(candidate.spans) && candidate.spans.length > 0),
+        `${name} must provide exactly one of markup or spans.`,
       );
+      if (hasMarkup) assert(candidate.markup.length >= 1 && candidate.markup.length <= 64 * 1024, `${name}.markup must contain 1 byte–64 KiB.`);
+      assert((candidate.spans ?? []).length <= 1_000, `${name}.spans must contain at most 1,000 spans.`);
       let totalLength = 0;
-      const spans = candidate.spans.map((span, spanIndex) => {
+      const spans = (candidate.spans ?? []).map((span, spanIndex) => {
         const spanName = `${name}.spans[${spanIndex}]`;
         object(span, spanName);
+        const allowedSpanKeys = new Set(["text", "color", "weight", "slant", "fontFamily", "fontScale", "rise", "letterSpacing", "background", "underline", "underlineColor", "strikethrough", "strikethroughColor"]);
+        for (const key of Object.keys(span)) assert(allowedSpanKeys.has(key), `${spanName}.${key} is unsupported.`);
         const spanText = text(span.text, `${spanName}.text`);
-        assert(!spanText.includes("\n"), `${spanName}.text must be single-line.`);
         assert(["normal", "bold"].includes(span.weight ?? "normal"), `${spanName}.weight is invalid.`);
         assert(["normal", "italic"].includes(span.slant ?? "normal"), `${spanName}.slant is invalid.`);
         totalLength += spanText.length;
@@ -465,12 +492,26 @@ function validateNode(candidate, index, duration) {
           ...(span.color == null ? {} : { color: color(span.color, `${spanName}.color`) }),
           weight: span.weight ?? "normal",
           slant: span.slant ?? "normal",
+          ...(span.fontFamily == null ? {} : { fontFamily: text(span.fontFamily, `${spanName}.fontFamily`, 120) }),
+          fontScale: number(span.fontScale ?? 1, `${spanName}.fontScale`, 0.01, 100),
+          rise: number(span.rise ?? 0, `${spanName}.rise`, -100, 100),
+          letterSpacing: number(span.letterSpacing ?? 0, `${spanName}.letterSpacing`, -100, 100),
+          ...(span.background == null ? {} : { background: color(span.background, `${spanName}.background`) }),
+          underline: ["none", "single", "double", "low", "error"].includes(span.underline ?? "none") ? (span.underline ?? "none") : (() => { throw new Error(`${spanName}.underline is invalid.`); })(),
+          ...(span.underlineColor == null ? {} : { underlineColor: color(span.underlineColor, `${spanName}.underlineColor`) }),
+          strikethrough: (() => {
+            const value = span.strikethrough ?? false;
+            assert(typeof value === "boolean", `${spanName}.strikethrough must be boolean.`);
+            return value;
+          })(),
+          ...(span.strikethroughColor == null ? {} : { strikethroughColor: color(span.strikethroughColor, `${spanName}.strikethroughColor`) }),
         };
       });
-      assert(totalLength <= 4_000, `${name}.spans are limited to 4,000 characters total.`);
+      assert(totalLength <= 64 * 1024, `${name}.spans are limited to 64 KiB total.`);
       return {
         ...node,
         spans,
+        ...(hasMarkup ? { markup: candidate.markup } : { markup: null }),
         fontSize: number(candidate.fontSize, `${name}.fontSize`, 0.01, 100),
         fontFamily: text(candidate.fontFamily ?? "Noto Sans", `${name}.fontFamily`, 120),
         align: candidate.align ?? "center",
@@ -1079,6 +1120,73 @@ export function validateScene(candidate) {
     }
   }
 
+  assert(Array.isArray(candidate.correspondences ?? []), "correspondences must be an array.");
+  assert(
+    (candidate.correspondences ?? []).length <= 20_000,
+    "correspondences must contain at most 20,000 entries.",
+  );
+  const correspondenceIds = new Set();
+  const correspondences = (candidate.correspondences ?? []).map((correspondence, index) => {
+    const name = `correspondences[${index}]`;
+    object(correspondence, name);
+    for (const key of Object.keys(correspondence)) {
+      assert(CORRESPONDENCE_KEYS.has(key), `${name}.${key} is unsupported.`);
+    }
+    const correspondenceId = id(correspondence.id, `${name}.id`);
+    assert(!correspondenceIds.has(correspondenceId), `Duplicate correspondence id: ${correspondenceId}.`);
+    correspondenceIds.add(correspondenceId);
+    assert(CORRESPONDENCE_KINDS.has(correspondence.kind), `${name}.kind is invalid.`);
+    assert(CORRESPONDENCE_MODES.has(correspondence.mode), `${name}.mode is invalid.`);
+    assert(Array.isArray(correspondence.keys), `${name}.keys must be an array.`);
+    assert(Array.isArray(correspondence.targetKeys ?? []), `${name}.targetKeys must be an array.`);
+    assert(correspondence.keys.length <= 1_000, `${name}.keys must contain at most 1,000 entries.`);
+    assert((correspondence.targetKeys ?? []).length <= 1_000, `${name}.targetKeys must contain at most 1,000 entries.`);
+    const semanticKey = (value, keyName) => {
+      assert(typeof value === "string" && value.length <= 4_000, `${keyName} must contain at most 4,000 characters.`);
+      return value;
+    };
+    const keys = correspondence.keys.map((key, keyIndex) =>
+      semanticKey(key, `${name}.keys[${keyIndex}]`),
+    );
+    const targetKeys = (correspondence.targetKeys ?? []).map((key, keyIndex) =>
+      semanticKey(key, `${name}.targetKeys[${keyIndex}]`),
+    );
+    assert(keys.length > 0 || targetKeys.length > 0, `${name} must contain at least one semantic key.`);
+
+    const nodeSet = (value, property) => {
+      const nodeName = `${name}.${property}`;
+      assert(Array.isArray(value ?? []), `${nodeName} must be an array.`);
+      assert((value ?? []).length <= 5_000, `${nodeName} must contain at most 5,000 entries.`);
+      const result = (value ?? []).map((nodeId, nodeIndex) => id(nodeId, `${nodeName}[${nodeIndex}]`));
+      assert(new Set(result).size === result.length, `${nodeName} must not contain duplicate nodes.`);
+      assert(result.every((nodeId) => nodeIds.has(nodeId)), `${nodeName} references a missing node.`);
+      return result;
+    };
+    const sourceNodes = nodeSet(correspondence.sourceNodes, "sourceNodes");
+    const targetNodes = nodeSet(correspondence.targetNodes, "targetNodes");
+    assert(sourceNodes.length > 0 || targetNodes.length > 0, `${name} must reference at least one node.`);
+    if (correspondence.mode === "transform" || correspondence.mode === "keyMapped") {
+      assert(sourceNodes.length > 0 && targetNodes.length > 0, `${name}.${correspondence.mode} requires source and target nodes.`);
+    }
+    const start = number(correspondence.start, `${name}.start`, 0, duration);
+    const end = number(correspondence.end, `${name}.end`, 0, duration + 0.0001);
+    assert(end > start, `${name}.end must be after start.`);
+    const pathArc = correspondence.pathArc ?? 0;
+    assert(Number.isFinite(pathArc), `${name}.pathArc must be a finite number.`);
+    return {
+      id: correspondenceId,
+      kind: correspondence.kind,
+      mode: correspondence.mode,
+      keys,
+      targetKeys,
+      sourceNodes,
+      targetNodes,
+      start,
+      end,
+      pathArc,
+    };
+  });
+
   const signals = (candidate.signals ?? []).map((signal, index) => {
     object(signal, `signals[${index}]`);
     const signalId = id(signal.id, `signals[${index}].id`);
@@ -1289,6 +1397,7 @@ export function validateScene(candidate) {
     camera3d,
     nodes,
     tracks,
+    correspondences,
     signals,
     bindings,
     controls,

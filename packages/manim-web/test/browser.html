@@ -13,6 +13,8 @@
     <canvas id="bidi-markup-colored" width="640" height="360"></canvas>
     <canvas id="bidi-rtl-spans" width="640" height="360"></canvas>
     <canvas id="bidi-isolated" width="640" height="360"></canvas>
+    <canvas id="pango-raw" width="640" height="360"></canvas>
+    <canvas id="pango-decorated" width="640" height="360"></canvas>
     <canvas id="unsupported-emoji" width="640" height="360"></canvas>
     <script type="module">
       import {
@@ -168,6 +170,18 @@
             fontSize: 2,
           }).fill("#58c4ddff").moveTo(-2.1 + index * 1.4, 0)),
         );
+        const rawPangoScene = new Scene({ background: "#070910" }).add(
+          new MarkupText(
+            "<span foreground='red'>س</span><span foreground='blue'>لام</span>",
+            { id: "raw-pango-arabic", fontSize: 2 },
+          ).fill("#ffffffff"),
+        );
+        const decoratedPangoScene = new Scene({ background: "#070910" }).add(
+          new MarkupText(
+            "<span foreground='white' background='#112233' size='150%' rise='2pt' letter_spacing='256' underline='double' underline_color='lime' strikethrough='true' strikethrough_color='red'>A B</span>",
+            { id: "decorated-pango", fontSize: 1.4 },
+          ).fill("#ffffffff"),
+        );
         const bidiPlayers = await Promise.all([
           createManimPlayer({ canvas: document.querySelector("#bidi-mixed"), scene: mixedDirectionScene, autoplay: false }),
           createManimPlayer({ canvas: document.querySelector("#bidi-joined"), scene: joinedArabicScene, autoplay: false }),
@@ -175,11 +189,24 @@
           createManimPlayer({ canvas: document.querySelector("#bidi-markup-colored"), scene: coloredMarkupArabicScene, autoplay: false }),
           createManimPlayer({ canvas: document.querySelector("#bidi-rtl-spans"), scene: rtlSpanScene, autoplay: false }),
           createManimPlayer({ canvas: document.querySelector("#bidi-isolated"), scene: isolatedArabicScene, autoplay: false }),
+          createManimPlayer({ canvas: document.querySelector("#pango-raw"), scene: rawPangoScene, autoplay: false }),
+          createManimPlayer({ canvas: document.querySelector("#pango-decorated"), scene: decoratedPangoScene, autoplay: false }),
         ]);
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         const bidiRenderingWorks = bidiPlayers.every((player) => player.diagnostics().webgpu === true);
 
         let unsupportedEmojiRejected = false;
+        let invalidPangoRejected = false;
+        let invalidPangoProbe;
+        try {
+          invalidPangoProbe = await createManimPlayer({ canvas: document.querySelector("#unsupported-emoji"), autoplay: false });
+          invalidPangoProbe.load(new Scene().add(new MarkupText("<span gravity='east'>bad</span>", { id: "invalid-pango" })));
+        } catch (error) {
+          invalidPangoRejected = /Pango markup parsing failed for invalid-pango/.test(String(error))
+            && /unsupported Pango <span> attribute gravity/.test(String(error));
+        } finally {
+          invalidPangoProbe?.destroy();
+        }
         let unsupportedEmojiError = "";
         try {
           await createManimPlayer({
@@ -199,7 +226,7 @@
         globalThis.__MANIM_BROWSER_TEST__ = {
           ok: disposedGuard && geometryValid && fontPreloadWorks && missingFontRejected && emptyDefaultWorks
             && unsupportedMarkupEmojiRejected && independentTimes && survivorWorks
-            && bidiRenderingWorks && unsupportedEmojiRejected,
+            && bidiRenderingWorks && unsupportedEmojiRejected && invalidPangoRejected,
           disposedGuard,
           geometryValid,
           fontPreloadWorks,
@@ -212,6 +239,7 @@
           bidiPlayers: bidiPlayers.length,
           bidiRenderingWorks,
           unsupportedEmojiRejected,
+          invalidPangoRejected,
           unsupportedEmojiError,
         };
       } catch (error) {

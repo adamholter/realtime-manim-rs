@@ -45,6 +45,30 @@ test("out-of-range scene values are rejected", () => {
   assert.throws(() => parseSceneCode(`scene(${JSON.stringify(invalid)});`), /radius/);
 });
 
+test("semantic matching correspondences validate and round-trip without being stripped", () => {
+  const scene = structuredClone(DEFAULT_SCENE);
+  scene.correspondences = [{
+    id: "match-x",
+    kind: "transformMatchingTex",
+    mode: "transform",
+    keys: ["x"],
+    targetKeys: ["x"],
+    sourceNodes: ["ring"],
+    targetNodes: ["square"],
+    start: 0.25,
+    end: 1.25,
+    pathArc: 0,
+  }];
+  const parsed = parseSceneCode(formatSceneCode(scene));
+  assert.deepEqual(parsed.correspondences, scene.correspondences);
+
+  scene.correspondences[0].targetNodes = ["missing"];
+  assert.throws(() => formatSceneCode(scene), /references a missing node/);
+  scene.correspondences[0].targetNodes = ["square"];
+  scene.correspondences[0].rendererHint = "sampled";
+  assert.throws(() => formatSceneCode(scene), /rendererHint is unsupported/);
+});
+
 test("tracks can animate topology-independent properties and colors", () => {
   const scene = structuredClone(DEFAULT_SCENE);
   scene.tracks.push({
@@ -454,6 +478,39 @@ test("markup text validates independently styled OpenType spans", () => {
   assert.equal(parsed.nodes.at(-1).type, "markupText");
   assert.equal(parsed.nodes.at(-1).spans[1].weight, "bold");
   assert.equal(parsed.nodes.at(-1).spans[1].slant, "italic");
+});
+
+test("raw Pango markup and retained decorations survive studio validation", () => {
+  const scene = structuredClone(DEFAULT_SCENE);
+  scene.nodes.push({
+    id: "raw-markup",
+    type: "markupText",
+    spans: [],
+    markup: "<span foreground='red'><b>A&amp;<i>B</i></b></span>",
+    fontSize: 0.8,
+  });
+  scene.nodes.push({
+    id: "decorated-markup",
+    type: "markupText",
+    spans: [{
+      text: "styled\ntext",
+      background: "#11223344",
+      fontScale: 1.4,
+      rise: 0.2,
+      letterSpacing: 0.03,
+      underline: "double",
+      underlineColor: "#00ff00ff",
+      strikethrough: true,
+      strikethroughColor: "#ff0000ff",
+    }],
+    fontSize: 0.8,
+  });
+  const parsed = parseSceneCode(formatSceneCode(scene));
+  assert.equal(parsed.nodes.at(-2).markup, "<span foreground='red'><b>A&amp;<i>B</i></b></span>");
+  assert.equal(parsed.nodes.at(-1).spans[0].underline, "double");
+  assert.equal(parsed.nodes.at(-1).spans[0].strikethrough, true);
+  scene.nodes.at(-1).spans[0].gravity = "east";
+  assert.throws(() => formatSceneCode(scene), /gravity|Unknown/i);
 });
 
 test("cubic path commands can be animated for Manim-compatible morphs", () => {

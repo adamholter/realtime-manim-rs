@@ -26,6 +26,7 @@ cargo check --workspace --all-targets
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo check -p realtime-manim-web-preview --target wasm32-unknown-unknown
+.venv-manim-reference/bin/python scripts/test-transform-matching-semantics.py
 npm run check:web
 npm run test:web
 npm run build:package

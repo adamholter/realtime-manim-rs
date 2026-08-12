@@ -1,6 +1,6 @@
 export type Point = readonly [number, number];
 export type Point3D = readonly [number, number, number];
-export type Easing = "linear" | "smooth" | "easeIn" | "easeOut" | "easeInOut" | "thereAndBack" | "bounce";
+export type Easing = "linear" | "smooth" | "manimSmooth" | "easeIn" | "easeOut" | "easeInOut" | "thereAndBack" | "bounce";
 export type TextAlign = "left" | "center" | "right";
 export type FontWeight = "normal" | "bold";
 export type FontSlant = "normal" | "italic";
@@ -119,8 +119,30 @@ export interface TextNode extends BaseNode {
   weight: FontWeight;
   slant: FontSlant;
 }
-export interface TextSpan { text: string; color?: string; weight?: FontWeight; slant?: FontSlant }
-export interface MarkupTextNode extends BaseNode { type: "markupText"; spans: TextSpan[]; fontSize: number; fontFamily: string; align: TextAlign }
+export type TextUnderline = "none" | "single" | "double" | "low" | "error";
+export interface TextSpan {
+  text: string;
+  color?: string;
+  weight?: FontWeight;
+  slant?: FontSlant;
+  fontFamily?: string;
+  fontScale?: number;
+  rise?: number;
+  letterSpacing?: number;
+  background?: string;
+  underline?: TextUnderline;
+  underlineColor?: string;
+  strikethrough?: boolean;
+  strikethroughColor?: string;
+}
+export interface MarkupTextNode extends BaseNode {
+  type: "markupText";
+  spans: TextSpan[];
+  markup?: string | null;
+  fontSize: number;
+  fontFamily: string;
+  align: TextAlign;
+}
 export interface SVGNode extends BaseNode { type: "svg"; svg: string; height: number; preserveStyles: boolean }
 export interface ImageNode extends BaseNode {
   type: "image";
@@ -199,6 +221,18 @@ export interface Camera3D {
 }
 export interface AudioClip { id: string; data: string; mimeType: string; startTime: number; gainDb?: number }
 export interface Caption { text: string; start: number; end: number }
+export interface Correspondence {
+  id: string;
+  kind: "transformMatchingTex" | "transformMatchingShapes";
+  mode: "transform" | "keyMapped" | "transformMismatches" | "fadeTransformMismatches" | "fadeOut" | "fadeIn";
+  keys: string[];
+  targetKeys: string[];
+  sourceNodes: string[];
+  targetNodes: string[];
+  start: number;
+  end: number;
+  pathArc: number;
+}
 export interface SceneData {
   version: number;
   title: string;
@@ -218,6 +252,7 @@ export interface SceneData {
   controls: Array<{ id: string; label: string; signal: string; min: number; max: number; step: number; default: number; timeline?: boolean }>;
   audio: AudioClip[];
   captions: Caption[];
+  correspondences?: Correspondence[];
 }
 
 export interface BaseMobjectOptions {
@@ -429,7 +464,10 @@ export class QuadraticBezier extends Path { constructor(start: Point, control: P
 export class CubicBezier extends Path { constructor(start: Point, control1: Point, control2: Point, end: Point, options?: MobjectOptions); }
 export class Arc extends Path { constructor(options?: MobjectOptions & { radius?: number; startAngle?: number; angle?: number; arcCenter?: Point }); }
 export class Text extends Mobject<TextNode> { constructor(text: string, options?: MobjectOptions & { fontSize?: number; fontFamily?: string; align?: TextAlign; weight?: FontWeight; slant?: FontSlant }); }
-export class MarkupText extends Mobject<MarkupTextNode> { constructor(spans: TextSpan[], options?: MobjectOptions & { fontSize?: number; fontFamily?: string; align?: TextAlign }); }
+export class MarkupText extends Mobject<MarkupTextNode> {
+  constructor(markup: string, options?: MobjectOptions & { fontSize?: number; fontFamily?: string; align?: TextAlign });
+  constructor(spans: TextSpan[], options?: MobjectOptions & { fontSize?: number; fontFamily?: string; align?: TextAlign });
+}
 export class SVG extends Mobject<SVGNode> { constructor(svg: string, options?: MobjectOptions & { height?: number; preserveStyles?: boolean }); }
 export class MathTex extends SVG {
   constructor(compiledSvg: string, options?: MathTexOptions & { tex?: string });
@@ -570,7 +608,7 @@ export function LaggedStart(...animationsAndOptions: [...Animation[], AnimationG
 export function Succession(...animations: Animation[]): Track[];
 export function Succession(...animationsAndOptions: [...Animation[], AnimationGroupOptions]): Track[];
 
-export interface SceneOptions extends Partial<Omit<SceneData, "nodes" | "tracks" | "signals" | "bindings" | "controls" | "audio" | "captions">> {
+export interface SceneOptions extends Partial<Omit<SceneData, "nodes" | "tracks" | "signals" | "bindings" | "controls" | "audio" | "captions" | "correspondences">> {
   nodes?: SceneNode[];
   tracks?: Track[];
   signals?: SceneData["signals"];
@@ -578,6 +616,7 @@ export interface SceneOptions extends Partial<Omit<SceneData, "nodes" | "tracks"
   controls?: SceneData["controls"];
   audio?: SceneData["audio"];
   captions?: SceneData["captions"];
+  correspondences?: SceneData["correspondences"];
 }
 
 type SceneMember = Mobject | SceneNode | Array<Mobject | SceneNode>;

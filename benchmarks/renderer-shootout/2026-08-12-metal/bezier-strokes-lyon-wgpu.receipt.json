@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "benchmark_id": "P-10-lyon-wgpu-bezier-strokes",
+  "recorded_at_utc": "2026-08-12T19:41:25Z",
+  "environment": {
+    "os": "macOS",
+    "os_version": "15.6.1",
+    "architecture": "aarch64",
+    "processor": "Apple M4",
+    "memory_bytes": 17179869184,
+    "display": null,
+    "background_load_profile": "interactive-apps-open"
+  },
+  "workload": {
+    "name": "lyon-wgpu / bezier-strokes",
+    "scene": "tools/renderer-shootout/generated/bezier-strokes",
+    "resolution": [
+      1280,
+      720
+    ],
+    "duration_seconds": 0.024367247000000005,
+    "notes": [
+      "420 multi-cubic antialiased strokes with varied widths and alpha",
+      "Experimental architecture evidence; not a renderer selection.",
+      "Frame samples include CPU encoding, GPU submission, and completion wait."
+    ]
+  },
+  "samples": [
+    {
+      "name": "retained_prepare_time",
+      "unit": "ms",
+      "statistic": "single",
+      "value": 1.8655410000000001
+    },
+    {
+      "name": "frame_time",
+      "unit": "ms",
+      "statistic": "p50",
+      "value": 0.39158299999999996
+    },
+    {
+      "name": "frame_time",
+      "unit": "ms",
+      "statistic": "p95",
+      "value": 0.5703750000000001
+    },
+    {
+      "name": "frame_time",
+      "unit": "ms",
+      "statistic": "p99",
+      "value": 1.101208
+    },
+    {
+      "name": "retained_geometry",
+      "unit": "bytes",
+      "statistic": "single",
+      "value": 2707848.0
+    }
+  ],
+  "provenance": {
+    "revision": "d47fd5bbf657+tree-eb0ec98aad942ad8",
+    "dirty": true,
+    "commands": [
+      "cargo run --release -p realtime-manim-renderer-shootout -- --output benchmarks/renderer-shootout/2026-08-12-metal --width 1280 --height 720 --warmup 12 --iterations 60 --background-load interactive-apps-open"
+    ],
+    "artifacts": [
+      "benchmarks/renderer-shootout/2026-08-12-metal/bezier-strokes-lyon-wgpu.png",
+      "benchmarks/renderer-shootout/2026-08-12-metal/report.json"
+    ]
+  }
+}
