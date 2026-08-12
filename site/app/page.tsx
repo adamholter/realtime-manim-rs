@@ -1,3 +1,5 @@
+import DemoPlayground from "./DemoPlayground";
+
 const install = `npm install realtime-manim`;
 
 const quickstart = `import {
@@ -58,6 +60,7 @@ export default function Home() {
           <span>realtime-manim</span>
         </a>
         <div className="nav-links">
+          <a href="#demos">3D demos</a>
           <a href="#quickstart">Quickstart</a>
           <a href="#agents">For agents</a>
           <a href="https://github.com/adamholter/realtime-manim-rs">GitHub</a>
@@ -87,6 +90,8 @@ export default function Home() {
           <div className="stage-label"><span>60 fps target</span><b>Rust owns every frame</b></div>
         </div>
       </section>
+
+      <DemoPlayground />
 
       <section className="section shell" id="quickstart">
         <div className="eyebrow">Quickstart</div>

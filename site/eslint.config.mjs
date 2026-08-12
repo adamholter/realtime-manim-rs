@@ -13,6 +13,8 @@ const eslintConfig = defineConfig([
     "dist/**",
     "out/**",
     "build/**",
+    "public/playground/realtime-manim.js",
+    "public/runtime/**",
     "next-env.d.ts",
   ]),
   eslint.configs.recommended,

@@ -14,6 +14,10 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: "realtime-manim — Rust-speed Manim for the browser",
     description: "Agent-ready docs for the typed JavaScript API and Rust/WebGPU mathematical animation runtime.",
+    icons: {
+      icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
+      shortcut: "/favicon.svg",
+    },
     metadataBase: new URL(origin),
     openGraph: {
       title: "realtime-manim",

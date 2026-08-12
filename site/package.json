@@ -6,10 +6,12 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "dev": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext dev",
-    "build": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext build",
+    "sync:playground": "node scripts/sync-playground.mjs",
+    "dev": "npm run sync:playground && WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext dev",
+    "build": "npm run sync:playground && WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext build",
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
     "test": "npm run build && node --test tests/rendered-html.test.mjs",
+    "test:browser": "node tests/playground.browser.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"
   },

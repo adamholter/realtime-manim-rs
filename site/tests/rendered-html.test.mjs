@@ -21,10 +21,24 @@ test("server-renders the realtime-manim documentation", async () => {
   assert.match(html, /realtime-manim — Rust-speed Manim for the browser/);
   assert.match(html, /Manim-style animation/);
   assert.match(html, /npm install realtime-manim/);
+  assert.match(html, /Interactive 3D lab/);
+  assert.match(html, /Möbius light field/);
+  assert.match(html, /href="\/favicon\.svg"/);
   assert.match(html, /Give an agent the contract/);
   assert.match(html, /href="\/llms\.txt"/);
   assert.match(html, /compatibility matrix/i);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
+});
+
+test("ships the self-hosted WebGPU playground runtime", async () => {
+  const [api, glue, wasm] = await Promise.all([
+    stat(new URL("../public/playground/realtime-manim.js", import.meta.url)),
+    stat(new URL("../public/runtime/realtime_manim_web_preview.js", import.meta.url)),
+    stat(new URL("../public/runtime/realtime_manim_web_preview_bg.wasm", import.meta.url)),
+  ]);
+  assert.ok(api.size > 50_000);
+  assert.ok(glue.size > 50_000);
+  assert.ok(wasm.size > 1_000_000);
 });
 
 test("ships machine-readable agent documentation and a social card", async () => {
