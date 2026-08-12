@@ -24,19 +24,18 @@ try {
     { timeout: 20_000 },
   );
   const before = await page.evaluate(async () => {
-    const renderer = await import("/pkg/realtime_manim_web_preview.js");
-    renderer.set_paused(true);
-    renderer.seek_scene(0.7);
+    const app = await import("/app.js");
+    app.seekPreview(0.7);
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    const time = renderer.current_scene_time();
-    renderer.simulate_device_loss();
+    const time = app.previewDiagnostics().time;
+    app.simulatePreviewDeviceLoss();
     return time;
   });
   await page.waitForFunction(
     async () => {
-      const renderer = await import("/pkg/realtime_manim_web_preview.js");
+      const app = await import("/app.js");
       return (
-        renderer.device_recovery_count() >= 1 &&
+        app.previewDiagnostics().recoveryCount >= 1 &&
         document.querySelector("#renderer-status")?.textContent.includes("engine running")
       );
     },
@@ -45,10 +44,11 @@ try {
   );
   await page.waitForTimeout(250);
   const result = await page.evaluate(async () => {
-    const renderer = await import("/pkg/realtime_manim_web_preview.js");
+    const app = await import("/app.js");
+    const diagnostics = app.previewDiagnostics();
     return {
-      count: renderer.device_recovery_count(),
-      time: renderer.current_scene_time(),
+      count: diagnostics.recoveryCount,
+      time: diagnostics.time,
       status: document.querySelector("#renderer-status")?.textContent,
       backend: document.querySelector("#backend-value")?.textContent,
       pngLength: document.querySelector("#viewport").toDataURL("image/png").length,

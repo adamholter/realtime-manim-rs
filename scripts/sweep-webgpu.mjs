@@ -73,8 +73,10 @@ try {
     for (const fraction of [0.17, 0.53, 0.89]) {
       const at = scene.duration * fraction;
       await page.evaluate(async (time) => {
-        const runtime = await import("/pkg/realtime_manim_web_preview.js");
-        runtime.seek_scene(time);
+        const timeline = document.querySelector("#timeline-control");
+        if (!(timeline instanceof HTMLInputElement)) throw new Error("Timeline control is unavailable.");
+        timeline.value = String(time);
+        timeline.dispatchEvent(new Event("input", { bubbles: true }));
         await new Promise((resolveFrame) => requestAnimationFrame(resolveFrame));
         await new Promise((resolveFrame) => requestAnimationFrame(resolveFrame));
       }, at);

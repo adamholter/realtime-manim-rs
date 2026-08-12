@@ -80,6 +80,33 @@ const set_render_size = (width, height) => player().set_render_size(width, heigh
 const set_paused = (paused) => player().set_paused(paused);
 const set_signal = (signal, value) => player().set_signal(signal, value);
 
+export function previewDiagnostics() {
+  const renderer = player();
+  let time = null;
+  let engineAvailable = true;
+  try {
+    time = renderer.current_time();
+  } catch {
+    engineAvailable = false;
+  }
+  return {
+    recoveryCount: renderer.recovery_count(),
+    time,
+    engineAvailable,
+    destroyed: renderer.is_destroyed(),
+  };
+}
+
+export function seekPreview(time) {
+  set_paused(true);
+  seek_scene(time);
+  return current_scene_time();
+}
+
+export function simulatePreviewDeviceLoss() {
+  player().simulate_device_loss();
+}
+
 window.addEventListener("pagehide", () => {
   webPlayer?.destroy();
   webPlayer = null;
@@ -272,7 +299,13 @@ function showTimelineTime(time) {
 
 function syncTimeline() {
   if (wasmReady && activeScene && !timelineScrubbing) {
-    const time = current_scene_time();
+    let time;
+    try {
+      time = current_scene_time();
+    } catch {
+      requestAnimationFrame(syncTimeline);
+      return;
+    }
     showTimelineTime(time);
     if (timelineSceneControl) {
       const { control, input, output, signal } = timelineSceneControl;
