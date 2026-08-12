@@ -33,6 +33,10 @@ npm run test:package
 ```
 
 Browser/WebGPU differential tests additionally require a WebGPU-capable browser.
+With a repository-root static server on port 8921, run
+`npm run test:browser-package` for the rendered package lifecycle, bidi, and
+WebGPU pixel gate. The test uses the installed `playwright-core` package and the
+system Google Chrome binary; CI runs this gate on macOS.
 The regular-Manim corpus tools require a separate Python environment with Manim
 Community and its system dependencies.
 

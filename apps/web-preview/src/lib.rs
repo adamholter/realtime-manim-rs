@@ -3,8 +3,726 @@
 //! JavaScript owns chat and DOM controls. Rust owns scene validation, explicit-time
 //! evaluation, geometry generation, animation timing, GPU submission, and presentation.
 
+#[cfg(any(target_arch = "wasm32", test))]
+mod geometry_3d {
+    use realtime_manim_scene_core::{
+        EvaluatedFrameView, EvaluatedNodeView, PathCommand, PathCommand3d, Transform,
+    };
+
+    const PATH_3D_FLATNESS: f32 = 0.001;
+    const PATH_3D_MAX_SUBDIVISION_DEPTH: u8 = 12;
+    const PATH_3D_MAX_FLATTENED_POINTS: usize = 500_000;
+
+    pub(super) fn sort_back_to_front_by_depth<T>(items: &mut [T], depth: impl Fn(&T) -> f32) {
+        items.sort_by(|left, right| depth(right).total_cmp(&depth(left)));
+    }
+
+    struct FlattenedSubpath3d {
+        points: Vec<[f32; 3]>,
+        closed: bool,
+    }
+
+    #[derive(Clone, Copy)]
+    struct PathProjection3d {
+        position: [f32; 3],
+        right: [f32; 3],
+        up: [f32; 3],
+        forward: [f32; 3],
+        near: f32,
+        far: f32,
+        tan_half_fov: f32,
+        aspect: f32,
+        half_width: f32,
+        half_height: f32,
+    }
+
+    impl PathProjection3d {
+        fn new(frame: &EvaluatedFrameView<'_>) -> Self {
+            let camera = frame.camera_3d;
+            let forward = normalize_3d(sub_3d(camera.target, camera.position));
+            let right = normalize_3d(cross_3d(forward, camera.up));
+            Self {
+                position: camera.position,
+                right,
+                up: normalize_3d(cross_3d(right, forward)),
+                forward,
+                near: camera.near,
+                far: camera.far,
+                tan_half_fov: (camera.fov_y * 0.5).tan().max(0.0001),
+                aspect: (frame.width / frame.height).max(0.0001),
+                half_width: frame.width * 0.5,
+                half_height: frame.height * 0.5,
+            }
+        }
+
+        fn world_to_view(self, point: [f32; 3]) -> [f32; 3] {
+            let relative = sub_3d(point, self.position);
+            [
+                dot_3d(relative, self.right),
+                dot_3d(relative, self.up),
+                dot_3d(relative, self.forward),
+            ]
+        }
+
+        fn project(self, point: [f32; 3]) -> [f32; 2] {
+            [
+                point[0] / (point[2] * self.tan_half_fov * self.aspect) * self.half_width,
+                point[1] / (point[2] * self.tan_half_fov) * self.half_height,
+            ]
+        }
+    }
+
+    pub(super) fn project_path_3d(
+        frame: &EvaluatedFrameView<'_>,
+        node: &EvaluatedNodeView<'_>,
+        commands: &[PathCommand3d],
+    ) -> Result<Vec<PathCommand>, String> {
+        let projection = PathProjection3d::new(frame);
+        let subpaths = flatten_path_3d(node, commands, projection)?;
+        let mut projected = Vec::new();
+        for subpath in subpaths {
+            if subpath.closed {
+                append_clipped_closed_path(&mut projected, &subpath.points, projection);
+            } else {
+                append_clipped_open_path(&mut projected, &subpath.points, projection);
+            }
+        }
+        Ok(projected)
+    }
+
+    fn flatten_path_3d(
+        node: &EvaluatedNodeView<'_>,
+        commands: &[PathCommand3d],
+        projection: PathProjection3d,
+    ) -> Result<Vec<FlattenedSubpath3d>, String> {
+        let to_view =
+            |point| projection.world_to_view(transform_point_3d(point, node.transform_3d));
+        let mut subpaths = Vec::new();
+        let mut active: Option<FlattenedSubpath3d> = None;
+        let mut current = None;
+        let mut point_count = 0usize;
+        for command in commands {
+            match command {
+                PathCommand3d::MoveTo { x, y, z } => {
+                    finish_flattened_subpath(&mut subpaths, &mut active);
+                    let point = to_view([*x, *y, *z]);
+                    active = Some(FlattenedSubpath3d {
+                        points: Vec::new(),
+                        closed: false,
+                    });
+                    push_flattened_point(
+                        &mut active.as_mut().expect("subpath was just created").points,
+                        point,
+                        &mut point_count,
+                        node.id,
+                    )?;
+                    current = Some(point);
+                }
+                PathCommand3d::LineTo { x, y, z } => {
+                    let _ = current
+                        .ok_or_else(|| "Path lineTo requires a preceding moveTo.".to_owned())?;
+                    let point = to_view([*x, *y, *z]);
+                    push_flattened_point(
+                        &mut active.as_mut().expect("active point has a subpath").points,
+                        point,
+                        &mut point_count,
+                        node.id,
+                    )?;
+                    current = Some(point);
+                }
+                PathCommand3d::QuadTo {
+                    cx,
+                    cy,
+                    cz,
+                    x,
+                    y,
+                    z,
+                } => {
+                    let start = current
+                        .ok_or_else(|| "Path quadTo requires a preceding moveTo.".to_owned())?;
+                    let control = to_view([*cx, *cy, *cz]);
+                    let end = to_view([*x, *y, *z]);
+                    flatten_quad_3d(
+                        start,
+                        control,
+                        end,
+                        projection.near,
+                        projection.far,
+                        0,
+                        &mut active.as_mut().expect("active point has a subpath").points,
+                        &mut point_count,
+                        node.id,
+                    )?;
+                    current = Some(end);
+                }
+                PathCommand3d::CubicTo {
+                    c1x,
+                    c1y,
+                    c1z,
+                    c2x,
+                    c2y,
+                    c2z,
+                    x,
+                    y,
+                    z,
+                } => {
+                    let start = current
+                        .ok_or_else(|| "Path cubicTo requires a preceding moveTo.".to_owned())?;
+                    let control_1 = to_view([*c1x, *c1y, *c1z]);
+                    let control_2 = to_view([*c2x, *c2y, *c2z]);
+                    let end = to_view([*x, *y, *z]);
+                    flatten_cubic_3d(
+                        start,
+                        control_1,
+                        control_2,
+                        end,
+                        projection.near,
+                        projection.far,
+                        0,
+                        &mut active.as_mut().expect("active point has a subpath").points,
+                        &mut point_count,
+                        node.id,
+                    )?;
+                    current = Some(end);
+                }
+                PathCommand3d::Close => {
+                    if let Some(subpath) = active.as_mut() {
+                        subpath.closed = true;
+                    }
+                    finish_flattened_subpath(&mut subpaths, &mut active);
+                    current = None;
+                }
+            }
+        }
+        finish_flattened_subpath(&mut subpaths, &mut active);
+        Ok(subpaths)
+    }
+
+    fn finish_flattened_subpath(
+        output: &mut Vec<FlattenedSubpath3d>,
+        active: &mut Option<FlattenedSubpath3d>,
+    ) {
+        if let Some(subpath) = active.take() {
+            output.push(subpath);
+        }
+    }
+
+    fn push_flattened_point(
+        points: &mut Vec<[f32; 3]>,
+        point: [f32; 3],
+        point_count: &mut usize,
+        node_id: &str,
+    ) -> Result<(), String> {
+        if points.last().is_some_and(|previous| *previous == point) {
+            return Ok(());
+        }
+        if *point_count >= PATH_3D_MAX_FLATTENED_POINTS {
+            return Err(format!(
+                "Path3d {node_id} exceeds the browser flattening limit of {PATH_3D_MAX_FLATTENED_POINTS} points."
+            ));
+        }
+        points.push(point);
+        *point_count += 1;
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn flatten_quad_3d(
+        start: [f32; 3],
+        control: [f32; 3],
+        end: [f32; 3],
+        near: f32,
+        far: f32,
+        depth: u8,
+        output: &mut Vec<[f32; 3]>,
+        point_count: &mut usize,
+        node_id: &str,
+    ) -> Result<(), String> {
+        if control_hull_outside_view_depth(&[start, control, end], near, far)
+            || point_line_distance_squared_3d(control, start, end)
+                <= PATH_3D_FLATNESS * PATH_3D_FLATNESS
+        {
+            return push_flattened_point(output, end, point_count, node_id);
+        }
+        let start_control = lerp_3d(start, control, 0.5);
+        let control_end = lerp_3d(control, end, 0.5);
+        let midpoint = lerp_3d(start_control, control_end, 0.5);
+        if depth >= PATH_3D_MAX_SUBDIVISION_DEPTH {
+            push_flattened_point(output, midpoint, point_count, node_id)?;
+            return push_flattened_point(output, end, point_count, node_id);
+        }
+        flatten_quad_3d(
+            start,
+            start_control,
+            midpoint,
+            near,
+            far,
+            depth + 1,
+            output,
+            point_count,
+            node_id,
+        )?;
+        flatten_quad_3d(
+            midpoint,
+            control_end,
+            end,
+            near,
+            far,
+            depth + 1,
+            output,
+            point_count,
+            node_id,
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn flatten_cubic_3d(
+        start: [f32; 3],
+        control_1: [f32; 3],
+        control_2: [f32; 3],
+        end: [f32; 3],
+        near: f32,
+        far: f32,
+        depth: u8,
+        output: &mut Vec<[f32; 3]>,
+        point_count: &mut usize,
+        node_id: &str,
+    ) -> Result<(), String> {
+        let flatness = point_line_distance_squared_3d(control_1, start, end)
+            .max(point_line_distance_squared_3d(control_2, start, end));
+        if control_hull_outside_view_depth(&[start, control_1, control_2, end], near, far)
+            || flatness <= PATH_3D_FLATNESS * PATH_3D_FLATNESS
+        {
+            return push_flattened_point(output, end, point_count, node_id);
+        }
+        let start_control = lerp_3d(start, control_1, 0.5);
+        let controls = lerp_3d(control_1, control_2, 0.5);
+        let control_end = lerp_3d(control_2, end, 0.5);
+        let left_control = lerp_3d(start_control, controls, 0.5);
+        let right_control = lerp_3d(controls, control_end, 0.5);
+        let midpoint = lerp_3d(left_control, right_control, 0.5);
+        if depth >= PATH_3D_MAX_SUBDIVISION_DEPTH {
+            push_flattened_point(output, midpoint, point_count, node_id)?;
+            return push_flattened_point(output, end, point_count, node_id);
+        }
+        flatten_cubic_3d(
+            start,
+            start_control,
+            left_control,
+            midpoint,
+            near,
+            far,
+            depth + 1,
+            output,
+            point_count,
+            node_id,
+        )?;
+        flatten_cubic_3d(
+            midpoint,
+            right_control,
+            control_end,
+            end,
+            near,
+            far,
+            depth + 1,
+            output,
+            point_count,
+            node_id,
+        )
+    }
+
+    fn control_hull_outside_view_depth(points: &[[f32; 3]], near: f32, far: f32) -> bool {
+        points.iter().all(|point| point[2] < near) || points.iter().all(|point| point[2] > far)
+    }
+
+    fn point_line_distance_squared_3d(
+        point: [f32; 3],
+        line_start: [f32; 3],
+        line_end: [f32; 3],
+    ) -> f32 {
+        let line = sub_3d(line_end, line_start);
+        let length_squared = dot_3d(line, line);
+        if length_squared <= f32::EPSILON {
+            return dot_3d(sub_3d(point, line_start), sub_3d(point, line_start));
+        }
+        let offset = sub_3d(point, line_start);
+        dot_3d(cross_3d(offset, line), cross_3d(offset, line)) / length_squared
+    }
+
+    fn append_clipped_open_path(
+        output: &mut Vec<PathCommand>,
+        points: &[[f32; 3]],
+        projection: PathProjection3d,
+    ) {
+        let mut last_projected = None;
+        for pair in points.windows(2) {
+            let Some((from, to)) =
+                clip_segment_to_view_depth(pair[0], pair[1], projection.near, projection.far)
+            else {
+                last_projected = None;
+                continue;
+            };
+            if dot_3d(sub_3d(to, from), sub_3d(to, from)) <= f32::EPSILON {
+                continue;
+            }
+            let from = projection.project(from);
+            let to = projection.project(to);
+            if !last_projected.is_some_and(|last| points_2d_nearly_equal(last, from)) {
+                output.push(PathCommand::MoveTo {
+                    x: from[0],
+                    y: from[1],
+                });
+            }
+            output.push(PathCommand::LineTo { x: to[0], y: to[1] });
+            last_projected = Some(to);
+        }
+    }
+
+    fn append_clipped_closed_path(
+        output: &mut Vec<PathCommand>,
+        points: &[[f32; 3]],
+        projection: PathProjection3d,
+    ) {
+        let clipped = clip_polygon_to_view_depth(
+            points.to_vec(),
+            projection.near,
+            projection.far,
+            |point| point[2],
+            |from, to, amount| lerp_3d(*from, *to, amount),
+        );
+        let mut projected = Vec::with_capacity(clipped.len());
+        for point in clipped {
+            let point = projection.project(point);
+            if !projected
+                .last()
+                .is_some_and(|previous| points_2d_nearly_equal(*previous, point))
+            {
+                projected.push(point);
+            }
+        }
+        if projected.len() > 1
+            && points_2d_nearly_equal(projected[0], *projected.last().expect("non-empty path"))
+        {
+            projected.pop();
+        }
+        if projected.len() < 3 {
+            return;
+        }
+        output.push(PathCommand::MoveTo {
+            x: projected[0][0],
+            y: projected[0][1],
+        });
+        output.extend(projected.iter().skip(1).map(|point| PathCommand::LineTo {
+            x: point[0],
+            y: point[1],
+        }));
+        output.push(PathCommand::Close);
+    }
+
+    fn clip_polygon_to_view_depth<T: Copy>(
+        mut polygon: Vec<T>,
+        near: f32,
+        far: f32,
+        depth: impl Fn(&T) -> f32 + Copy,
+        interpolate: impl Fn(&T, &T, f32) -> T + Copy,
+    ) -> Vec<T> {
+        polygon = clip_polygon_to_view_plane(polygon, near, true, depth, interpolate);
+        clip_polygon_to_view_plane(polygon, far, false, depth, interpolate)
+    }
+
+    fn clip_polygon_to_view_plane<T: Copy>(
+        polygon: Vec<T>,
+        boundary: f32,
+        keep_greater: bool,
+        depth: impl Fn(&T) -> f32 + Copy,
+        interpolate: impl Fn(&T, &T, f32) -> T + Copy,
+    ) -> Vec<T> {
+        if polygon.is_empty() {
+            return polygon;
+        }
+        let inside = |value: f32| {
+            if keep_greater {
+                value >= boundary
+            } else {
+                value <= boundary
+            }
+        };
+        let mut output = Vec::with_capacity(polygon.len() + 1);
+        let mut previous = *polygon.last().expect("non-empty polygon");
+        let mut previous_depth = depth(&previous);
+        let mut previous_inside = inside(previous_depth);
+        for current in polygon {
+            let current_depth = depth(&current);
+            let current_inside = inside(current_depth);
+            if current_inside != previous_inside {
+                let amount = ((boundary - previous_depth) / (current_depth - previous_depth))
+                    .clamp(0.0, 1.0);
+                output.push(interpolate(&previous, &current, amount));
+            }
+            if current_inside {
+                output.push(current);
+            }
+            previous = current;
+            previous_depth = current_depth;
+            previous_inside = current_inside;
+        }
+        output
+    }
+
+    fn clip_segment_to_view_depth(
+        from: [f32; 3],
+        to: [f32; 3],
+        near: f32,
+        far: f32,
+    ) -> Option<([f32; 3], [f32; 3])> {
+        let depth_delta = to[2] - from[2];
+        if depth_delta.abs() <= f32::EPSILON {
+            return (near..=far).contains(&from[2]).then_some((from, to));
+        }
+        let near_amount = (near - from[2]) / depth_delta;
+        let far_amount = (far - from[2]) / depth_delta;
+        let start = near_amount.min(far_amount).max(0.0);
+        let end = near_amount.max(far_amount).min(1.0);
+        (start <= end).then(|| (lerp_3d(from, to, start), lerp_3d(from, to, end)))
+    }
+
+    fn points_2d_nearly_equal(left: [f32; 2], right: [f32; 2]) -> bool {
+        let scale = left
+            .iter()
+            .chain(&right)
+            .fold(1.0_f32, |scale, value| scale.max(value.abs()));
+        (left[0] - right[0]).abs() <= 1e-5 * scale && (left[1] - right[1]).abs() <= 1e-5 * scale
+    }
+
+    fn transform_point_3d(point: [f32; 3], transform: Transform) -> [f32; 3] {
+        let mut point = [
+            point[0] * transform.scale_x,
+            point[1] * transform.scale_y,
+            point[2] * transform.scale_z,
+        ];
+        let (sin_x, cos_x) = transform.rotation_x.sin_cos();
+        point = [
+            point[0],
+            point[1] * cos_x - point[2] * sin_x,
+            point[1] * sin_x + point[2] * cos_x,
+        ];
+        let (sin_y, cos_y) = transform.rotation_y.sin_cos();
+        point = [
+            point[0] * cos_y + point[2] * sin_y,
+            point[1],
+            -point[0] * sin_y + point[2] * cos_y,
+        ];
+        let (sin_z, cos_z) = transform.rotation.sin_cos();
+        [
+            point[0] * cos_z - point[1] * sin_z + transform.x,
+            point[0] * sin_z + point[1] * cos_z + transform.y,
+            point[2] + transform.z,
+        ]
+    }
+
+    pub(super) fn transform_normal_3d(
+        normal: [f32; 3],
+        transform: Transform,
+    ) -> Result<[f32; 3], &'static str> {
+        let scales = [transform.scale_x, transform.scale_y, transform.scale_z];
+        if scales
+            .iter()
+            .any(|scale| *scale == 0.0 || !scale.recip().is_finite())
+        {
+            return Err(
+                "the 3D scale is singular because a scale component is zero or non-invertible.",
+            );
+        }
+        let mut normal = [
+            normal[0] / transform.scale_x,
+            normal[1] / transform.scale_y,
+            normal[2] / transform.scale_z,
+        ];
+        let (sin_x, cos_x) = transform.rotation_x.sin_cos();
+        normal = [
+            normal[0],
+            normal[1] * cos_x - normal[2] * sin_x,
+            normal[1] * sin_x + normal[2] * cos_x,
+        ];
+        let (sin_y, cos_y) = transform.rotation_y.sin_cos();
+        normal = [
+            normal[0] * cos_y + normal[2] * sin_y,
+            normal[1],
+            -normal[0] * sin_y + normal[2] * cos_y,
+        ];
+        let (sin_z, cos_z) = transform.rotation.sin_cos();
+        Ok(normalize_3d([
+            normal[0] * cos_z - normal[1] * sin_z,
+            normal[0] * sin_z + normal[1] * cos_z,
+            normal[2],
+        ]))
+    }
+
+    fn lerp_3d(from: [f32; 3], to: [f32; 3], amount: f32) -> [f32; 3] {
+        [
+            from[0] + (to[0] - from[0]) * amount,
+            from[1] + (to[1] - from[1]) * amount,
+            from[2] + (to[2] - from[2]) * amount,
+        ]
+    }
+
+    fn sub_3d(left: [f32; 3], right: [f32; 3]) -> [f32; 3] {
+        [left[0] - right[0], left[1] - right[1], left[2] - right[2]]
+    }
+
+    fn mul_3d(value: [f32; 3], scalar: f32) -> [f32; 3] {
+        [value[0] * scalar, value[1] * scalar, value[2] * scalar]
+    }
+
+    fn dot_3d(left: [f32; 3], right: [f32; 3]) -> f32 {
+        left[0] * right[0] + left[1] * right[1] + left[2] * right[2]
+    }
+
+    fn cross_3d(left: [f32; 3], right: [f32; 3]) -> [f32; 3] {
+        [
+            left[1] * right[2] - left[2] * right[1],
+            left[2] * right[0] - left[0] * right[2],
+            left[0] * right[1] - left[1] * right[0],
+        ]
+    }
+
+    fn normalize_3d(value: [f32; 3]) -> [f32; 3] {
+        let length = dot_3d(value, value).sqrt().max(f32::EPSILON);
+        mul_3d(value, 1.0 / length)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use realtime_manim_scene_core::{NodeKind, Scene, Transform};
+
+        use super::{
+            cross_3d, dot_3d, normalize_3d, project_path_3d, sub_3d, transform_normal_3d,
+            transform_point_3d,
+        };
+
+        #[test]
+        fn inverse_transpose_normal_stays_perpendicular_after_nonuniform_scale() {
+            let transform = Transform {
+                rotation: 0.31,
+                rotation_x: -0.27,
+                rotation_y: 0.43,
+                scale_x: 2.0,
+                scale_y: 0.75,
+                scale_z: 0.4,
+                ..Transform::default()
+            };
+            let tangent_1 = [1.0, 0.0, -1.0];
+            let tangent_2 = [0.0, 1.0, -1.0];
+            let local_normal = normalize_3d(cross_3d(tangent_1, tangent_2));
+            let origin = transform_point_3d([0.0; 3], transform);
+            let transformed_tangent_1 = sub_3d(transform_point_3d(tangent_1, transform), origin);
+            let transformed_tangent_2 = sub_3d(transform_point_3d(tangent_2, transform), origin);
+            let geometric_normal =
+                normalize_3d(cross_3d(transformed_tangent_1, transformed_tangent_2));
+            let transformed_normal = transform_normal_3d(local_normal, transform).unwrap();
+
+            assert!(dot_3d(transformed_normal, transformed_tangent_1).abs() < 1e-5);
+            assert!(dot_3d(transformed_normal, transformed_tangent_2).abs() < 1e-5);
+            assert!(dot_3d(transformed_normal, geometric_normal) > 0.999_99);
+        }
+
+        #[test]
+        fn singular_normal_scale_returns_exact_renderer_error() {
+            let error = transform_normal_3d(
+                [0.0, 0.0, 1.0],
+                Transform {
+                    scale_y: 0.0,
+                    ..Transform::default()
+                },
+            )
+            .unwrap_err();
+            assert_eq!(
+                error,
+                "the 3D scale is singular because a scale component is zero or non-invertible."
+            );
+        }
+
+        #[test]
+        fn path3d_line_is_clipped_at_both_depth_planes() {
+            let scene = Scene::from_json(
+                r##"{
+                  "version":2,"title":"browser 3D line clipping","width":16,"height":9,"duration":1,
+                  "background":"#000000",
+                  "camera3d":{"position":[0,0,0],"target":[0,0,1],"up":[0,1,0],"fovY":0.9,"near":1,"far":3},
+                  "nodes":[{
+                    "id":"crossing","type":"path3d","commands":[
+                      {"op":"moveTo","x":-1,"y":0,"z":0.5},
+                      {"op":"lineTo","x":1,"y":0,"z":4}
+                    ],"style":{"fill":null,"stroke":"#ffffff","strokeWidth":0.08}
+                  }]
+                }"##,
+            )
+            .unwrap();
+            let frame = scene.evaluate_view(0.0).unwrap();
+            let node = &frame.nodes[0];
+            let NodeKind::Path3d { commands } = node.kind.as_ref() else {
+                panic!("expected Path3d");
+            };
+            let projected = project_path_3d(&frame, node, commands).unwrap();
+            assert_eq!(projected.len(), 2);
+            assert!(projected.iter().all(|command| match command {
+                realtime_manim_scene_core::PathCommand::MoveTo { x, y }
+                | realtime_manim_scene_core::PathCommand::LineTo { x, y } => {
+                    x.is_finite() && y.is_finite()
+                }
+                _ => false,
+            }));
+        }
+
+        #[test]
+        fn path3d_cubic_stays_visible_with_both_endpoints_behind_near_plane() {
+            let scene = Scene::from_json(
+                r##"{
+                  "version":2,"title":"browser 3D cubic clipping","width":16,"height":9,"duration":1,
+                  "background":"#000000",
+                  "camera3d":{"position":[0,0,0],"target":[0,0,1],"up":[0,1,0],"fovY":0.9,"near":1,"far":10},
+                  "nodes":[{
+                    "id":"curved-crossing","type":"path3d","commands":[
+                      {"op":"moveTo","x":-1,"y":0,"z":0.5},
+                      {"op":"cubicTo","c1x":-0.6,"c1y":1,"c1z":3,"c2x":0.6,"c2y":1,"c2z":3,"x":1,"y":0,"z":0.5}
+                    ],"style":{"fill":null,"stroke":"#38bdf8","strokeWidth":0.08}
+                  }]
+                }"##,
+            )
+            .unwrap();
+            let frame = scene.evaluate_view(0.0).unwrap();
+            let node = &frame.nodes[0];
+            let NodeKind::Path3d { commands } = node.kind.as_ref() else {
+                panic!("expected Path3d");
+            };
+            let projected = project_path_3d(&frame, node, commands).unwrap();
+            assert!(projected.len() > 8);
+            assert!(matches!(
+                projected.first(),
+                Some(realtime_manim_scene_core::PathCommand::MoveTo { .. })
+            ));
+            assert!(projected.iter().all(|command| match command {
+                realtime_manim_scene_core::PathCommand::MoveTo { x, y }
+                | realtime_manim_scene_core::PathCommand::LineTo { x, y } => {
+                    x.is_finite() && y.is_finite()
+                }
+                _ => false,
+            }));
+        }
+
+        #[test]
+        fn transparent_triangles_sort_globally_across_retained_nodes() {
+            let mut triangles = [(2.0_f32, "near-first"), (6.0, "far-second")];
+            super::sort_back_to_front_by_depth(&mut triangles, |triangle| triangle.0);
+            assert_eq!(triangles[0].1, "far-second");
+            assert_eq!(triangles[1].1, "near-first");
+        }
+    }
+}
+
 #[cfg(target_arch = "wasm32")]
 mod web {
+    use super::geometry_3d::{project_path_3d, sort_back_to_front_by_depth, transform_normal_3d};
     use std::cell::{Cell, RefCell};
     use std::collections::HashMap;
     use std::f32::consts::TAU;
@@ -27,9 +745,9 @@ mod web {
     };
     use realtime_manim_scene_core::{
         Camera, EvaluatedFrameView, EvaluatedLinearGradient, EvaluatedNodeView, FontSlant,
-        FontWeight, GradientSpace, GradientSpread, ImageResampling, NodeKind, PathCommand,
-        PathCommand3d, Scene, ShaderAttribute, ShaderPrimitive, ShaderUniform, ShaderUniformType,
-        ShaderVertexFormat, StrokeCap, StrokeJoin, TextAlign, Transform, parse_color,
+        FontWeight, GradientSpace, GradientSpread, ImageResampling, NodeKind, PathCommand, Scene,
+        ShaderAttribute, ShaderPrimitive, ShaderUniform, ShaderUniformType, ShaderVertexFormat,
+        StrokeCap, StrokeJoin, TextAlign, Transform, parse_color,
     };
     use realtime_manim_svg_engine::{
         SvgClip, SvgElementRef, SvgEngine, SvgFillRule, SvgGradientSpread, SvgImageResampling,
@@ -37,7 +755,7 @@ mod web {
         SvgRasterImage,
     };
     use realtime_manim_text_engine::{
-        FontSelection, FontVariant, TextAlign as ShapedTextAlign, TextEngine,
+        FontSelection, FontVariant, StyledTextSpan, TextAlign as ShapedTextAlign, TextEngine,
     };
     use wasm_bindgen::{JsCast, prelude::*};
     use wasm_bindgen_futures::spawn_local;
@@ -185,6 +903,7 @@ mod web {
         Vector {
             indices: Range<u32>,
             depth_test: bool,
+            transparent_3d: bool,
         },
         ClipPush {
             indices: Range<u32>,
@@ -334,6 +1053,13 @@ mod web {
         commands: Vec<MaskDrawCommand>,
     }
 
+    struct TransparentPrimitive {
+        depth: f32,
+        command_index: usize,
+        range: Range<u32>,
+    }
+
+    #[derive(Default)]
     struct FrameGeometry {
         vertices: Vec<Vertex>,
         indices: Vec<u32>,
@@ -341,6 +1067,7 @@ mod web {
         image_vertices: Vec<ImageVertex>,
         mesh_texture_vertices: Vec<MeshTextureVertex>,
         commands: Vec<DrawCommand>,
+        transparent_primitives: Vec<TransparentPrimitive>,
         mask_layers: Vec<MaskLayerGeometry>,
         mask_indices: Vec<u32>,
     }
@@ -356,6 +1083,7 @@ mod web {
         depth_view: wgpu::TextureView,
         pipeline: wgpu::RenderPipeline,
         mesh_pipeline: wgpu::RenderPipeline,
+        mesh_transparent_pipeline: wgpu::RenderPipeline,
         clipped_pipeline: wgpu::RenderPipeline,
         masked_pipeline: wgpu::RenderPipeline,
         masked_clipped_pipeline: wgpu::RenderPipeline,
@@ -400,6 +1128,7 @@ mod web {
         index_capacity: usize,
         image_vertex_capacity: usize,
         mesh_texture_vertex_capacity: usize,
+        frame_geometry: FrameGeometry,
         canvas: HtmlCanvasElement,
         render_size_override: Option<(u32, u32)>,
         scene: Scene,
@@ -621,6 +1350,15 @@ mod web {
                 multiview_mask: None,
                 cache: None,
             });
+            let mesh_transparent_pipeline = create_vector_fragment_pipeline(
+                &device,
+                &shader,
+                &pipeline_layout,
+                config.format,
+                "realtime-manim transparent depth-tested mesh pipeline",
+                "fs_main",
+                transparent_depth_state(),
+            );
             let clipped_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some("realtime-manim stencil-clipped vector pipeline"),
                 layout: Some(&pipeline_layout),
@@ -1010,6 +1748,7 @@ mod web {
                 depth_view,
                 pipeline,
                 mesh_pipeline,
+                mesh_transparent_pipeline,
                 clipped_pipeline,
                 masked_pipeline,
                 masked_clipped_pipeline,
@@ -1054,6 +1793,7 @@ mod web {
                 index_capacity,
                 image_vertex_capacity,
                 mesh_texture_vertex_capacity,
+                frame_geometry: FrameGeometry::default(),
                 canvas,
                 render_size_override: None,
                 scene: Scene::from_json(DEFAULT_SCENE).map_err(js_error)?,
@@ -1074,18 +1814,81 @@ mod web {
 
         fn load_scene(&mut self, scene: Scene, now_ms: f64) -> Result<(), JsValue> {
             for node in &scene.nodes {
-                let family = match &node.kind {
-                    NodeKind::Text { font_family, .. }
-                    | NodeKind::MarkupText { font_family, .. } => Some(font_family),
-                    _ => None,
-                };
-                if let Some(family) = family
-                    && !self.text_engine.has_family(family)
-                {
-                    return Err(js_error(format!(
-                        "Node {} selects unregistered font family {family}.",
-                        node.id
-                    )));
+                match &node.kind {
+                    NodeKind::Text {
+                        text,
+                        font_size,
+                        font_family,
+                        align,
+                        weight,
+                        slant,
+                    } => {
+                        if !self.text_engine.has_family(font_family) {
+                            return Err(js_error(format!(
+                                "Node {} selects unregistered font family {font_family}.",
+                                node.id
+                            )));
+                        }
+                        let align = match align {
+                            TextAlign::Left => ShapedTextAlign::Left,
+                            TextAlign::Center => ShapedTextAlign::Center,
+                            TextAlign::Right => ShapedTextAlign::Right,
+                        };
+                        self.text_engine
+                            .layout_family_variant(
+                                text,
+                                *font_size,
+                                align,
+                                1.25,
+                                0.0,
+                                FontSelection {
+                                    family: font_family,
+                                    variant: font_variant(*weight, *slant),
+                                },
+                            )
+                            .map_err(|error| {
+                                js_error(format!("Text shaping failed for {}: {error}", node.id))
+                            })?;
+                    }
+                    NodeKind::MarkupText {
+                        spans,
+                        font_size,
+                        font_family,
+                        align,
+                    } => {
+                        if !self.text_engine.has_family(font_family) {
+                            return Err(js_error(format!(
+                                "Node {} selects unregistered font family {font_family}.",
+                                node.id
+                            )));
+                        }
+                        let shaped_spans = spans
+                            .iter()
+                            .map(|span| StyledTextSpan {
+                                text: &span.text,
+                                variant: font_variant(span.weight, span.slant),
+                            })
+                            .collect::<Vec<_>>();
+                        let align = match align {
+                            TextAlign::Left => ShapedTextAlign::Left,
+                            TextAlign::Center => ShapedTextAlign::Center,
+                            TextAlign::Right => ShapedTextAlign::Right,
+                        };
+                        self.text_engine
+                            .layout_family_chain_spans(
+                                &shaped_spans,
+                                *font_size,
+                                align,
+                                1.25,
+                                0.0,
+                                font_family,
+                                &[],
+                            )
+                            .map_err(|error| {
+                                js_error(format!("Markup shaping failed for {}: {error}", node.id))
+                            })?;
+                    }
+                    _ => {}
                 }
             }
             self.scene = scene;
@@ -1301,19 +2104,19 @@ mod web {
                 show_error();
                 return;
             }
-            let geometry = match build_geometry(
+            let mut geometry = mem::take(&mut self.frame_geometry);
+            if let Err(error) = build_geometry_into(
                 &frame,
                 &self.image_cache,
                 &mut self.text_engine,
                 &mut self.svg_engine,
+                &mut geometry,
             ) {
-                Ok(geometry) => geometry,
-                Err(error) => {
-                    set_text("error-detail", &error);
-                    show_error();
-                    return;
-                }
-            };
+                self.frame_geometry = geometry;
+                set_text("error-detail", &error);
+                show_error();
+                return;
+            }
             let background = frame.background;
             drop(frame);
             self.upload_geometry(
@@ -1329,12 +2132,14 @@ mod web {
                 wgpu::CurrentSurfaceTexture::Success(texture)
                 | wgpu::CurrentSurfaceTexture::Suboptimal(texture) => texture,
                 wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => {
+                    self.frame_geometry = geometry;
                     return;
                 }
                 wgpu::CurrentSurfaceTexture::Outdated
                 | wgpu::CurrentSurfaceTexture::Lost
                 | wgpu::CurrentSurfaceTexture::Validation => {
                     self.surface.configure(&self.device, &self.config);
+                    self.frame_geometry = geometry;
                     return;
                 }
             };
@@ -1506,17 +2311,140 @@ mod web {
                     }),
                     ..Default::default()
                 });
+                // Populate depth with every opaque 3D primitive before blending anything.
+                for command in &geometry.commands {
+                    match command {
+                        DrawCommand::Vector {
+                            indices,
+                            depth_test: true,
+                            ..
+                        } => {
+                            pass.set_pipeline(&self.mesh_pipeline);
+                            pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                            pass.set_bind_group(0, &self.gradient_bind_group, &[]);
+                            pass.set_index_buffer(
+                                self.index_buffer.slice(..),
+                                wgpu::IndexFormat::Uint32,
+                            );
+                            pass.draw_indexed(indices.clone(), 0, 0..1);
+                        }
+                        DrawCommand::MeshTexture {
+                            vertices,
+                            key,
+                            resampling,
+                            depth_test: true,
+                        } => {
+                            let Some(image) = self.image_cache.get(key) else {
+                                continue;
+                            };
+                            let (pipeline, bind_group) = match resampling {
+                                ImageResampling::Nearest => (
+                                    &self.mesh_texture_depth_sample_pipeline,
+                                    &image.nearest_bind_group,
+                                ),
+                                ImageResampling::Box => (
+                                    &self.mesh_texture_depth_box_pipeline,
+                                    &image.bicubic_bind_group,
+                                ),
+                                ImageResampling::Bilinear => (
+                                    &self.mesh_texture_depth_sample_pipeline,
+                                    &image.linear_bind_group,
+                                ),
+                                ImageResampling::Hamming => (
+                                    &self.mesh_texture_depth_hamming_pipeline,
+                                    &image.bicubic_bind_group,
+                                ),
+                                ImageResampling::Bicubic => (
+                                    &self.mesh_texture_depth_bicubic_pipeline,
+                                    &image.bicubic_bind_group,
+                                ),
+                                ImageResampling::Lanczos => (
+                                    &self.mesh_texture_depth_lanczos_pipeline,
+                                    &image.bicubic_bind_group,
+                                ),
+                            };
+                            pass.set_pipeline(pipeline);
+                            pass.set_bind_group(0, bind_group, &[]);
+                            pass.set_vertex_buffer(0, self.mesh_texture_vertex_buffer.slice(..));
+                            pass.draw(vertices.clone(), 0..1);
+                        }
+                        _ => {}
+                    }
+                }
+
+                // Blend all transparent 3D triangles globally far-to-near without writing depth.
+                for primitive in &geometry.transparent_primitives {
+                    let Some(command) = geometry.commands.get(primitive.command_index) else {
+                        continue;
+                    };
+                    match command {
+                        DrawCommand::Vector {
+                            transparent_3d: true,
+                            ..
+                        } => {
+                            pass.set_pipeline(&self.mesh_transparent_pipeline);
+                            pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                            pass.set_bind_group(0, &self.gradient_bind_group, &[]);
+                            pass.set_index_buffer(
+                                self.index_buffer.slice(..),
+                                wgpu::IndexFormat::Uint32,
+                            );
+                            pass.draw_indexed(primitive.range.clone(), 0, 0..1);
+                        }
+                        DrawCommand::MeshTexture {
+                            key,
+                            resampling,
+                            depth_test: false,
+                            ..
+                        } => {
+                            let Some(image) = self.image_cache.get(key) else {
+                                continue;
+                            };
+                            let (pipeline, bind_group) = match resampling {
+                                ImageResampling::Nearest => (
+                                    &self.mesh_texture_sample_pipeline,
+                                    &image.nearest_bind_group,
+                                ),
+                                ImageResampling::Box => {
+                                    (&self.mesh_texture_box_pipeline, &image.bicubic_bind_group)
+                                }
+                                ImageResampling::Bilinear => {
+                                    (&self.mesh_texture_sample_pipeline, &image.linear_bind_group)
+                                }
+                                ImageResampling::Hamming => (
+                                    &self.mesh_texture_hamming_pipeline,
+                                    &image.bicubic_bind_group,
+                                ),
+                                ImageResampling::Bicubic => (
+                                    &self.mesh_texture_bicubic_pipeline,
+                                    &image.bicubic_bind_group,
+                                ),
+                                ImageResampling::Lanczos => (
+                                    &self.mesh_texture_lanczos_pipeline,
+                                    &image.bicubic_bind_group,
+                                ),
+                            };
+                            pass.set_pipeline(pipeline);
+                            pass.set_bind_group(0, bind_group, &[]);
+                            pass.set_vertex_buffer(0, self.mesh_texture_vertex_buffer.slice(..));
+                            pass.draw(primitive.range.clone(), 0..1);
+                        }
+                        _ => {}
+                    }
+                }
+
+                // Screen-space vectors, images, SVG, and custom shaders remain ordered overlays.
                 for command in &geometry.commands {
                     match command {
                         DrawCommand::Vector {
                             indices,
                             depth_test,
+                            transparent_3d,
                         } => {
-                            pass.set_pipeline(if *depth_test {
-                                &self.mesh_pipeline
-                            } else {
-                                &self.pipeline
-                            });
+                            if *depth_test || *transparent_3d {
+                                continue;
+                            }
+                            pass.set_pipeline(&self.pipeline);
                             pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
                             pass.set_bind_group(0, &self.gradient_bind_group, &[]);
                             pass.set_index_buffer(
@@ -1630,67 +2558,8 @@ mod web {
                             pass.set_vertex_buffer(0, self.image_vertex_buffer.slice(..));
                             pass.draw(vertices.clone(), 0..1);
                         }
-                        DrawCommand::MeshTexture {
-                            vertices,
-                            key,
-                            resampling,
-                            depth_test,
-                        } => {
-                            let Some(image) = self.image_cache.get(key) else {
-                                continue;
-                            };
-                            let (pipeline, bind_group) = match (resampling, *depth_test) {
-                                (ImageResampling::Nearest, false) => (
-                                    &self.mesh_texture_sample_pipeline,
-                                    &image.nearest_bind_group,
-                                ),
-                                (ImageResampling::Nearest, true) => (
-                                    &self.mesh_texture_depth_sample_pipeline,
-                                    &image.nearest_bind_group,
-                                ),
-                                (ImageResampling::Box, false) => {
-                                    (&self.mesh_texture_box_pipeline, &image.bicubic_bind_group)
-                                }
-                                (ImageResampling::Box, true) => (
-                                    &self.mesh_texture_depth_box_pipeline,
-                                    &image.bicubic_bind_group,
-                                ),
-                                (ImageResampling::Bilinear, false) => {
-                                    (&self.mesh_texture_sample_pipeline, &image.linear_bind_group)
-                                }
-                                (ImageResampling::Bilinear, true) => (
-                                    &self.mesh_texture_depth_sample_pipeline,
-                                    &image.linear_bind_group,
-                                ),
-                                (ImageResampling::Hamming, false) => (
-                                    &self.mesh_texture_hamming_pipeline,
-                                    &image.bicubic_bind_group,
-                                ),
-                                (ImageResampling::Hamming, true) => (
-                                    &self.mesh_texture_depth_hamming_pipeline,
-                                    &image.bicubic_bind_group,
-                                ),
-                                (ImageResampling::Bicubic, false) => (
-                                    &self.mesh_texture_bicubic_pipeline,
-                                    &image.bicubic_bind_group,
-                                ),
-                                (ImageResampling::Bicubic, true) => (
-                                    &self.mesh_texture_depth_bicubic_pipeline,
-                                    &image.bicubic_bind_group,
-                                ),
-                                (ImageResampling::Lanczos, false) => (
-                                    &self.mesh_texture_lanczos_pipeline,
-                                    &image.bicubic_bind_group,
-                                ),
-                                (ImageResampling::Lanczos, true) => (
-                                    &self.mesh_texture_depth_lanczos_pipeline,
-                                    &image.bicubic_bind_group,
-                                ),
-                            };
-                            pass.set_pipeline(pipeline);
-                            pass.set_bind_group(0, bind_group, &[]);
-                            pass.set_vertex_buffer(0, self.mesh_texture_vertex_buffer.slice(..));
-                            pass.draw(vertices.clone(), 0..1);
+                        DrawCommand::MeshTexture { .. } => {
+                            continue;
                         }
                         DrawCommand::CustomShader { key } => {
                             let Some(shader) = self.custom_shader_cache.get(key) else {
@@ -1715,6 +2584,7 @@ mod web {
             self.queue.submit(Some(encoder.finish()));
             self.queue.present(surface_texture);
             self.update_frame_metrics(now_ms);
+            self.frame_geometry = geometry;
         }
 
         fn upload_geometry(
@@ -1971,7 +2841,11 @@ mod web {
                 cull_mode: None,
                 ..Default::default()
             },
-            depth_stencil: Some(pass_depth_state(depth_test)),
+            depth_stencil: Some(if depth_test {
+                pass_depth_state(true)
+            } else {
+                transparent_depth_state()
+            }),
             multisample: wgpu::MultisampleState {
                 count: SAMPLE_COUNT,
                 mask: !0,
@@ -2793,6 +3667,16 @@ mod web {
         }
     }
 
+    fn transparent_depth_state() -> wgpu::DepthStencilState {
+        wgpu::DepthStencilState {
+            format: DEPTH_STENCIL_FORMAT,
+            depth_write_enabled: Some(false),
+            depth_compare: Some(wgpu::CompareFunction::LessEqual),
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }
+    }
+
     fn clipped_depth_state() -> wgpu::DepthStencilState {
         wgpu::DepthStencilState {
             format: DEPTH_STENCIL_FORMAT,
@@ -2987,119 +3871,169 @@ mod web {
         }
     }
 
-    fn build_geometry(
+    fn build_geometry_into(
         frame: &EvaluatedFrameView<'_>,
         image_cache: &HashMap<String, GpuImage>,
         text_engine: &mut TextEngine,
         svg_engine: &mut SvgEngine,
-    ) -> Result<FrameGeometry, String> {
-        let mut buffers: VertexBuffers<Vertex, u32> = VertexBuffers::new();
-        let mut image_vertices = Vec::new();
-        let mut mesh_texture_vertices = Vec::new();
-        let mut gradient_stops = Vec::new();
-        let mut commands = Vec::new();
-        let mut mask_layers = Vec::new();
-        let mut mask_indices = Vec::new();
-        for node in &frame.nodes {
-            if let NodeKind::Image {
-                corners,
-                resampling,
-                ..
-            } = node.kind.as_ref()
-            {
-                let start = image_vertices.len() as u32;
-                append_image_vertices(&mut image_vertices, frame, node, corners)?;
-                commands.push(DrawCommand::Image {
-                    vertices: start..image_vertices.len() as u32,
-                    key: node.id.to_owned(),
-                    resampling: *resampling,
-                    reference: 0,
-                    masked: false,
-                });
-            } else if let NodeKind::Svg {
-                svg,
-                height,
-                preserve_styles,
-            } = node.kind.as_ref()
-            {
-                append_svg(
-                    &mut buffers,
-                    &mut gradient_stops,
-                    &mut commands,
-                    &mut image_vertices,
-                    &mut mask_layers,
-                    &mut mask_indices,
-                    frame,
-                    node,
+        output: &mut FrameGeometry,
+    ) -> Result<(), String> {
+        let mut buffers = VertexBuffers {
+            vertices: mem::take(&mut output.vertices),
+            indices: mem::take(&mut output.indices),
+        };
+        let mut image_vertices = mem::take(&mut output.image_vertices);
+        let mut mesh_texture_vertices = mem::take(&mut output.mesh_texture_vertices);
+        let mut gradient_stops = mem::take(&mut output.gradient_stops);
+        let mut commands = mem::take(&mut output.commands);
+        let mut transparent_primitives = mem::take(&mut output.transparent_primitives);
+        let mut mask_layers = mem::take(&mut output.mask_layers);
+        let mut mask_indices = mem::take(&mut output.mask_indices);
+        buffers.vertices.clear();
+        buffers.indices.clear();
+        image_vertices.clear();
+        mesh_texture_vertices.clear();
+        gradient_stops.clear();
+        commands.clear();
+        transparent_primitives.clear();
+        mask_layers.clear();
+        mask_indices.clear();
+
+        let result = (|| {
+            for node in &frame.nodes {
+                if let NodeKind::Image {
+                    corners,
+                    resampling,
+                    ..
+                } = node.kind.as_ref()
+                {
+                    let start = image_vertices.len() as u32;
+                    append_image_vertices(&mut image_vertices, frame, node, corners)?;
+                    commands.push(DrawCommand::Image {
+                        vertices: start..image_vertices.len() as u32,
+                        key: node.id.to_owned(),
+                        resampling: *resampling,
+                        reference: 0,
+                        masked: false,
+                    });
+                } else if let NodeKind::Svg {
                     svg,
-                    *height,
-                    *preserve_styles,
-                    svg_engine,
-                )?;
-            } else if matches!(node.kind.as_ref(), NodeKind::CustomShaderMesh { .. }) {
-                commands.push(DrawCommand::CustomShader {
-                    key: node.id.to_owned(),
-                });
-            } else if let NodeKind::Mesh {
-                vertices,
-                triangles,
-                uvs,
-                texture_pixels,
-                texture_resampling,
-                normals,
-                gloss,
-                shadow,
-                light_position,
-                dark_texture_pixels,
-                ..
-            } = node.kind.as_ref()
-                && !texture_pixels.is_empty()
-            {
-                let start = mesh_texture_vertices.len() as u32;
-                let depth_test = node.style.opacity >= 0.999
-                    && image_cache.get(node.id).is_some_and(|image| image.opaque);
-                append_textured_mesh_vertices(
-                    &mut mesh_texture_vertices,
-                    frame,
-                    node,
+                    height,
+                    preserve_styles,
+                } = node.kind.as_ref()
+                {
+                    append_svg(
+                        &mut buffers,
+                        &mut gradient_stops,
+                        &mut commands,
+                        &mut image_vertices,
+                        &mut mask_layers,
+                        &mut mask_indices,
+                        frame,
+                        node,
+                        svg,
+                        *height,
+                        *preserve_styles,
+                        svg_engine,
+                    )?;
+                } else if matches!(node.kind.as_ref(), NodeKind::CustomShaderMesh { .. }) {
+                    commands.push(DrawCommand::CustomShader {
+                        key: node.id.to_owned(),
+                    });
+                } else if let NodeKind::Mesh {
                     vertices,
                     triangles,
                     uvs,
+                    texture_pixels,
+                    texture_resampling,
                     normals,
-                    *gloss,
-                    *shadow,
-                    *light_position,
-                    !dark_texture_pixels.is_empty(),
-                    depth_test,
-                )?;
-                commands.push(DrawCommand::MeshTexture {
-                    vertices: start..mesh_texture_vertices.len() as u32,
-                    key: node.id.to_owned(),
-                    resampling: *texture_resampling,
-                    depth_test,
-                });
-            } else {
-                let start = buffers.indices.len() as u32;
-                append_node(&mut buffers, &mut gradient_stops, frame, node, text_engine)?;
-                let end = buffers.indices.len() as u32;
-                if end > start {
-                    commands.push(DrawCommand::Vector {
-                        indices: start..end,
-                        depth_test: mesh_node_is_opaque(node)?,
+                    gloss,
+                    shadow,
+                    light_position,
+                    dark_texture_pixels,
+                    ..
+                } = node.kind.as_ref()
+                    && !texture_pixels.is_empty()
+                {
+                    let start = mesh_texture_vertices.len() as u32;
+                    let depth_test = node.style.opacity >= 0.999
+                        && image_cache.get(node.id).is_some_and(|image| image.opaque);
+                    let triangle_depths = append_textured_mesh_vertices(
+                        &mut mesh_texture_vertices,
+                        frame,
+                        node,
+                        vertices,
+                        triangles,
+                        uvs,
+                        normals,
+                        *gloss,
+                        *shadow,
+                        *light_position,
+                        !dark_texture_pixels.is_empty(),
+                    )?;
+                    let end = mesh_texture_vertices.len() as u32;
+                    let command_index = commands.len();
+                    commands.push(DrawCommand::MeshTexture {
+                        vertices: start..end,
+                        key: node.id.to_owned(),
+                        resampling: *texture_resampling,
+                        depth_test,
                     });
+                    if !depth_test {
+                        transparent_primitives.extend(triangle_depths.into_iter().enumerate().map(
+                            |(triangle, depth)| TransparentPrimitive {
+                                depth,
+                                command_index,
+                                range: start + triangle as u32 * 3..start + triangle as u32 * 3 + 3,
+                            },
+                        ));
+                    }
+                } else {
+                    let start = buffers.indices.len() as u32;
+                    append_node(&mut buffers, &mut gradient_stops, frame, node, text_engine)?;
+                    let end = buffers.indices.len() as u32;
+                    if end > start {
+                        let depth_test = mesh_node_is_opaque(node)?;
+                        let transparent_3d = matches!(
+                            node.kind.as_ref(),
+                            NodeKind::Mesh { .. } | NodeKind::Surface { .. }
+                        ) && !depth_test;
+                        let command_index = commands.len();
+                        commands.push(DrawCommand::Vector {
+                            indices: start..end,
+                            depth_test,
+                            transparent_3d,
+                        });
+                        if transparent_3d {
+                            for triangle_start in (start..end).step_by(3) {
+                                transparent_primitives.push(TransparentPrimitive {
+                                    depth: vector_triangle_view_depth(
+                                        frame,
+                                        &buffers,
+                                        triangle_start,
+                                    ),
+                                    command_index,
+                                    range: triangle_start..triangle_start + 3,
+                                });
+                            }
+                        }
+                    }
                 }
             }
-        }
-        Ok(FrameGeometry {
-            vertices: buffers.vertices,
-            indices: buffers.indices,
-            gradient_stops,
-            image_vertices,
-            mesh_texture_vertices,
-            commands,
-            mask_layers,
-            mask_indices,
-        })
+            sort_back_to_front_by_depth(&mut transparent_primitives, |primitive| primitive.depth);
+            Ok(())
+        })();
+
+        output.vertices = buffers.vertices;
+        output.indices = buffers.indices;
+        output.gradient_stops = gradient_stops;
+        output.image_vertices = image_vertices;
+        output.mesh_texture_vertices = mesh_texture_vertices;
+        output.commands = commands;
+        output.transparent_primitives = transparent_primitives;
+        output.mask_layers = mask_layers;
+        output.mask_indices = mask_indices;
+        result
     }
 
     fn mesh_node_is_opaque(node: &EvaluatedNodeView<'_>) -> Result<bool, String> {
@@ -3304,8 +4238,7 @@ mod web {
         shadow: f32,
         light_position: [f32; 3],
         has_dark_texture: bool,
-        depth_test: bool,
-    ) -> Result<(), String> {
+    ) -> Result<Vec<f32>, String> {
         if uvs.len() != vertices.len() {
             return Err(format!(
                 "Textured mesh {} requires one UV per vertex.",
@@ -3320,8 +4253,9 @@ mod web {
         let transformed_normals = if normals.len() == vertices.len() {
             normals
                 .iter()
-                .map(|normal| transform_direction_3d(*normal, node.transform_3d))
-                .collect::<Vec<_>>()
+                .map(|normal| transform_normal_3d(*normal, node.transform_3d))
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|error| format!("Mesh {} normal transform failed: {error}", node.id))?
         } else {
             Vec::new()
         };
@@ -3382,9 +4316,10 @@ mod web {
                 ));
             }
         }
-        if !depth_test {
-            projected_triangles.sort_by(|left, right| right.0.total_cmp(&left.0));
-        }
+        let triangle_depths = projected_triangles
+            .iter()
+            .map(|triangle| triangle.0)
+            .collect();
         let opacity = node.style.opacity;
         for (_, positions, triangle_uvs, points, triangle_normals) in projected_triangles {
             output.extend(
@@ -3406,7 +4341,7 @@ mod web {
                     }),
             );
         }
-        Ok(())
+        Ok(triangle_depths)
     }
 
     fn append_node(
@@ -3456,7 +4391,8 @@ mod web {
             )?,
             NodeKind::Svg { .. } => {}
             NodeKind::Path3d { commands } => {
-                if let Some(commands) = project_path_3d(frame, node, commands) {
+                let commands = project_path_3d(frame, node, commands)?;
+                if !commands.is_empty() {
                     let mut projected_node = node.clone();
                     projected_node.transform = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
                     let path =
@@ -3699,8 +4635,9 @@ mod web {
         let transformed_normals = if normals.len() == vertices.len() {
             normals
                 .iter()
-                .map(|normal| transform_direction_3d(*normal, node.transform_3d))
-                .collect::<Vec<_>>()
+                .map(|normal| transform_normal_3d(*normal, node.transform_3d))
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|error| format!("Mesh {} normal transform failed: {error}", node.id))?
         } else {
             Vec::new()
         };
@@ -3859,11 +4796,6 @@ mod web {
         ]
     }
 
-    fn transform_direction_3d(direction: [f32; 3], transform: Transform) -> [f32; 3] {
-        let origin = transform_point_3d([0.0, 0.0, 0.0], transform);
-        normalize_3d(sub_3d(transform_point_3d(direction, transform), origin))
-    }
-
     fn add_3d(left: [f32; 3], right: [f32; 3]) -> [f32; 3] {
         [left[0] + right[0], left[1] + right[1], left[2] + right[2]]
     }
@@ -3895,6 +4827,29 @@ mod web {
 
     fn view_depth_to_clip(near: f32, far: f32, view_z: f32) -> f32 {
         (far / (far - near) - far * near / ((far - near) * view_z)).clamp(0.0, 1.0)
+    }
+
+    fn clip_to_view_depth(near: f32, far: f32, clip_z: f32) -> f32 {
+        let scale = far / (far - near);
+        far * near / ((far - near) * (scale - clip_z))
+    }
+
+    fn vector_triangle_view_depth(
+        frame: &EvaluatedFrameView<'_>,
+        buffers: &VertexBuffers<Vertex, u32>,
+        triangle_start: u32,
+    ) -> f32 {
+        buffers.indices[triangle_start as usize..triangle_start as usize + 3]
+            .iter()
+            .map(|index| {
+                clip_to_view_depth(
+                    frame.camera_3d.near,
+                    frame.camera_3d.far,
+                    buffers.vertices[*index as usize].position[2],
+                )
+            })
+            .sum::<f32>()
+            / 3.0
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -4146,6 +5101,7 @@ mod web {
                 draw_commands.push(DrawCommand::Vector {
                     indices: content_start..content_end,
                     depth_test: false,
+                    transparent_3d: false,
                 });
             } else {
                 for (depth, indices) in clip_ranges.iter().enumerate() {
@@ -4331,6 +5287,7 @@ mod web {
             draw_commands.push(DrawCommand::Vector {
                 indices: content_start..content_end,
                 depth_test: false,
+                transparent_3d: false,
             });
             return Ok(());
         }
@@ -5148,91 +6105,6 @@ mod web {
         Ok(layer)
     }
 
-    fn project_path_3d(
-        frame: &EvaluatedFrameView<'_>,
-        node: &EvaluatedNodeView<'_>,
-        commands: &[PathCommand3d],
-    ) -> Option<Vec<PathCommand>> {
-        let project = |point: [f32; 3]| {
-            let point = transform_point_3d(point, node.transform_3d);
-            let camera = frame.camera_3d;
-            let forward = normalize_3d(sub_3d(camera.target, camera.position));
-            let right = normalize_3d(cross_3d(forward, camera.up));
-            let camera_up = normalize_3d(cross_3d(right, forward));
-            let relative = sub_3d(point, camera.position);
-            let view_z = dot_3d(relative, forward);
-            if !(camera.near..=camera.far).contains(&view_z) {
-                return None;
-            }
-            let tan_half_fov = (camera.fov_y * 0.5).tan().max(0.0001);
-            let aspect = (frame.width / frame.height).max(0.0001);
-            Some([
-                dot_3d(relative, right) / (view_z * tan_half_fov * aspect) * frame.width * 0.5,
-                dot_3d(relative, camera_up) / (view_z * tan_half_fov) * frame.height * 0.5,
-            ])
-        };
-        commands
-            .iter()
-            .map(|command| match command {
-                PathCommand3d::MoveTo { x, y, z } => {
-                    let point = project([*x, *y, *z])?;
-                    Some(PathCommand::MoveTo {
-                        x: point[0],
-                        y: point[1],
-                    })
-                }
-                PathCommand3d::LineTo { x, y, z } => {
-                    let point = project([*x, *y, *z])?;
-                    Some(PathCommand::LineTo {
-                        x: point[0],
-                        y: point[1],
-                    })
-                }
-                PathCommand3d::QuadTo {
-                    cx,
-                    cy,
-                    cz,
-                    x,
-                    y,
-                    z,
-                } => {
-                    let control = project([*cx, *cy, *cz])?;
-                    let point = project([*x, *y, *z])?;
-                    Some(PathCommand::QuadTo {
-                        cx: control[0],
-                        cy: control[1],
-                        x: point[0],
-                        y: point[1],
-                    })
-                }
-                PathCommand3d::CubicTo {
-                    c1x,
-                    c1y,
-                    c1z,
-                    c2x,
-                    c2y,
-                    c2z,
-                    x,
-                    y,
-                    z,
-                } => {
-                    let control_1 = project([*c1x, *c1y, *c1z])?;
-                    let control_2 = project([*c2x, *c2y, *c2z])?;
-                    let point = project([*x, *y, *z])?;
-                    Some(PathCommand::CubicTo {
-                        c1x: control_1[0],
-                        c1y: control_1[1],
-                        c2x: control_2[0],
-                        c2y: control_2[1],
-                        x: point[0],
-                        y: point[1],
-                    })
-                }
-                PathCommand3d::Close => Some(PathCommand::Close),
-            })
-            .collect()
-    }
-
     fn append_circle(
         buffers: &mut VertexBuffers<Vertex, u32>,
         gradient_stops: &mut Vec<GpuGradientStop>,
@@ -5650,60 +6522,54 @@ mod web {
         align: TextAlign,
         text_engine: &mut TextEngine,
     ) -> Result<(), String> {
-        let mut layouts = Vec::with_capacity(spans.len());
-        let mut total_width = 0.0;
-        for span in spans {
-            let layout = text_engine
-                .layout_family_variant(
-                    &span.text,
-                    font_size,
-                    ShapedTextAlign::Left,
-                    1.25,
-                    0.0,
-                    FontSelection {
-                        family: font_family,
-                        variant: font_variant(span.weight, span.slant),
-                    },
-                )
-                .map_err(|error| format!("Markup shaping failed for {}: {error}", node.id))?;
-            total_width += layout.width;
-            layouts.push(layout);
-        }
-        let mut cursor = match align {
-            TextAlign::Left => 0.0,
-            TextAlign::Center => -total_width * 0.5,
-            TextAlign::Right => -total_width,
+        let shaped_spans = spans
+            .iter()
+            .map(|span| StyledTextSpan {
+                text: &span.text,
+                variant: font_variant(span.weight, span.slant),
+            })
+            .collect::<Vec<_>>();
+        let align = match align {
+            TextAlign::Left => ShapedTextAlign::Left,
+            TextAlign::Center => ShapedTextAlign::Center,
+            TextAlign::Right => ShapedTextAlign::Right,
         };
-        for (span, layout) in spans.iter().zip(layouts) {
-            let span_color = span.color.as_deref().map(parse_color).transpose()?;
-            for glyph in layout.glyphs {
-                let Some(path) = text_engine
-                    .glyph_outline_for_font(glyph.font_id, glyph.glyph_id, glyph.variant)
-                    .map_err(|error| format!("Markup outline failed for {}: {error}", node.id))?
-                else {
-                    continue;
-                };
-                let mut glyph_node = node.clone();
-                glyph_node.transform = local_matrix(
-                    node.transform,
-                    cursor + glyph.x,
-                    glyph.y,
-                    glyph.scale,
-                    glyph.scale,
-                );
-                glyph_node.style.fill = span_color
-                    .map(|mut color| {
-                        color[3] *= node.style.opacity;
-                        color
-                    })
-                    .or(node.style.fill)
-                    .or(node.style.stroke);
-                glyph_node.style.fill_gradient = None;
-                glyph_node.style.stroke = None;
-                glyph_node.style.stroke_gradient = None;
-                append_path(buffers, gradient_stops, frame, &glyph_node, path)?;
-            }
-            cursor += layout.width;
+        let layout = text_engine
+            .layout_family_chain_spans(&shaped_spans, font_size, align, 1.25, 0.0, font_family, &[])
+            .map_err(|error| format!("Markup shaping failed for {}: {error}", node.id))?;
+        let mut source_end = 0usize;
+        let mut span_ends = Vec::with_capacity(spans.len());
+        let mut span_colors = Vec::with_capacity(spans.len());
+        for span in spans {
+            source_end = source_end.saturating_add(span.text.len());
+            span_ends.push(source_end);
+            span_colors.push(span.color.as_deref().map(parse_color).transpose()?);
+        }
+        for glyph in layout.glyphs {
+            let Some(path) = text_engine
+                .glyph_outline_for_font(glyph.font_id, glyph.glyph_id, glyph.variant)
+                .map_err(|error| format!("Markup outline failed for {}: {error}", node.id))?
+            else {
+                continue;
+            };
+            // A ligature spanning paint boundaries uses the paint at its
+            // source-cluster start; splitting the glyph would break shaping.
+            let span_index = span_ends.partition_point(|end| *end <= glyph.source_start);
+            let span_color = span_colors.get(span_index).copied().flatten();
+            let mut glyph_node = node.clone();
+            glyph_node.transform =
+                local_matrix(node.transform, glyph.x, glyph.y, glyph.scale, glyph.scale);
+            glyph_node.style.fill = span_color
+                .map(|mut color| {
+                    color[3] *= node.style.opacity;
+                    color
+                })
+                .or(node.style.fill)
+                .or(node.style.stroke);
+            glyph_node.style.fill_gradient = None;
+            glyph_node.style.stroke = None;
+            glyph_node.style.stroke_gradient = None;
+            append_path(buffers, gradient_stops, frame, &glyph_node, path)?;
         }
         Ok(())
     }

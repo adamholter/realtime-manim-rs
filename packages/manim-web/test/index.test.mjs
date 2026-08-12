@@ -3,17 +3,24 @@ import test from "node:test";
 import {
   AnimationGroup,
   Arc,
+  Arrow,
   Axes,
   Billboard,
   Circle,
   Create,
   CubicBezier,
+  DL,
+  DR,
   DotCloud,
   FadeIn,
   FadeOut,
+  FRAME_HEIGHT,
+  FRAME_WIDTH,
   FunctionGraph,
   Group,
   Image,
+  LEFT,
+  Line,
   MarkupText,
   LaggedStart,
   MathTex,
@@ -25,18 +32,25 @@ import {
   OrbitCamera,
   Path,
   Path3D,
+  PathReference,
   ParametricFunction,
   Polygon,
+  Rectangle,
   RegularPolygon,
   ReplacementTransform,
   RetainedNode,
+  RIGHT,
   Scene,
   Square,
+  SVG,
   Text,
   Transform,
   Triangle,
   Surface,
   TracePath,
+  UL,
+  UP,
+  VGroup,
   Succession,
   animate,
   pathCommand,
@@ -224,6 +238,237 @@ test("group style helpers affect descendants without flattening transforms", () 
   assert.deepEqual(tracks.map(({ target }) => target), ["first", "second"]);
   assert.equal(first.toJSON().style.fill, "#ff0000ff");
   assert.deepEqual(group.toJSON().transform, { x: 2, y: 1 });
+});
+
+test("computes exact 2D geometry bounds through retained nested transforms", () => {
+  const rectangle = new Rectangle({ id: "bounded-rectangle", width: 4, height: 2 }).moveTo([1, 0]);
+  const nested = new Group(rectangle, { id: "bounded-nested" }).rotate(Math.PI / 2).shift([3, -1]);
+  const bounds = nested.getBounds();
+  assert.ok(Math.abs(bounds.minX - 2) < 1e-12);
+  assert.ok(Math.abs(bounds.maxX - 4) < 1e-12);
+  assert.ok(Math.abs(bounds.minY + 2) < 1e-12);
+  assert.ok(Math.abs(bounds.maxY - 2) < 1e-12);
+  assert.deepEqual(bounds.center, [3, 0]);
+  assert.equal(bounds.width, 2);
+  assert.equal(bounds.height, 4);
+  assert.equal(Object.isFrozen(bounds), true);
+  assert.equal(Object.isFrozen(bounds.center), true);
+  assert.ok(Math.abs(nested.getLeft()[0] - 2) < 1e-12);
+  assert.ok(Math.abs(nested.getRight()[0] - 4) < 1e-12);
+  assert.ok(Math.abs(nested.getTop()[1] - 2) < 1e-12);
+  assert.ok(Math.abs(nested.getBottom()[1] + 2) < 1e-12);
+
+  const quadratic = new Path([
+    pathCommand.moveTo([-1, 0]),
+    pathCommand.quadTo([0, 2], [1, 0]),
+  ], { id: "bounded-quadratic" });
+  assert.deepEqual(quadratic.getBounds(), {
+    minX: -1,
+    minY: 0,
+    maxX: 1,
+    maxY: 1,
+    width: 2,
+    height: 1,
+    center: [0, 0.5],
+  });
+
+  const arrow = new Arrow([0, 0], [2, 0], { id: "bounded-arrow", tipSize: 1 });
+  assert.deepEqual(arrow.getBounds(), {
+    minX: 0,
+    minY: -0.55,
+    maxX: 2,
+    maxY: 0.55,
+    width: 2,
+    height: 1.1,
+    center: [1, 0],
+  });
+});
+
+test("moveTo aligns asymmetric geometry centers exactly and shift preserves the resulting translation", () => {
+  const line = new Line([1, -2], [5, 4], { id: "move-line" }).moveTo([10, -3]);
+  assert.deepEqual(line.getCenter(), [10, -3]);
+  assert.deepEqual(line.node.transform, { x: 7, y: -4 });
+  line.shift([2, 1]);
+  assert.deepEqual(line.getCenter(), [12, -2]);
+  assert.deepEqual(line.node.transform, { x: 9, y: -3 });
+
+  const path = new Path([
+    pathCommand.moveTo([-4, -1]),
+    pathCommand.lineTo([2, 5]),
+  ], { id: "move-path" }).moveTo([-2, 7]);
+  assert.deepEqual(path.getCenter(), [-2, 7]);
+  assert.deepEqual(path.node.transform, { x: -1, y: 5 });
+
+  const image = new Image(new Uint8Array([255, 255, 255, 255]), 1, 1, {
+    id: "move-image",
+    corners: [[0, 4], [6, 3], [1, -2], [7, -1]],
+  }).moveTo([4, -5]);
+  assert.deepEqual(image.getCenter(), [4, -5]);
+  assert.deepEqual(image.node.transform, { x: 0.5, y: -6 });
+});
+
+test("moveTo aligns matching critical points on Mobject targets", () => {
+  const target = new Rectangle({ id: "move-target", width: 4, height: 2 }).moveTo([5, 1]);
+  const line = new Line([0, -2], [3, 1], { id: "move-aligned-line" }).moveTo(target, UL);
+  assert.deepEqual(line.getCriticalPoint(UL), target.getCriticalPoint(UL));
+  assert.deepEqual(line.getCriticalPoint(UL), [3, 2]);
+
+  const pointAligned = new Rectangle({ id: "move-aligned-point", width: 2, height: 4 })
+    .moveTo([7, -3], DR);
+  assert.deepEqual(pointAligned.getCriticalPoint(DR), [7, -3]);
+});
+
+test("moveTo keeps centered renderer geometry compatible and rejects unavailable edge metrics", () => {
+  const text = new Text("centered", { id: "move-text" }).moveTo([3, -2]);
+  const markup = new MarkupText([{ text: "centered" }], { id: "move-markup" }).moveTo(-4, 1);
+  const svg = new SVG("<svg viewBox='0 0 10 10'/>", { id: "move-svg" }).moveTo([2, 3]);
+  const math = new MathTex("<svg viewBox='0 0 10 10'/>", { id: "move-math" }).moveTo([-1, -3]);
+  assert.deepEqual(text.node.transform, { x: 3, y: -2 });
+  assert.deepEqual(markup.node.transform, { x: -4, y: 1 });
+  assert.deepEqual(svg.node.transform, { x: 2, y: 3 });
+  assert.deepEqual(math.node.transform, { x: -1, y: -3 });
+
+  const anchor = new Circle({ id: "move-renderer-anchor" }).moveTo([6, 2]);
+  text.moveTo(anchor);
+  assert.deepEqual(text.node.transform, { x: 6, y: 2 });
+  anchor.moveTo(svg);
+  assert.deepEqual(anchor.getCenter(), [2, 3]);
+
+  assert.throws(() => text.moveTo([0, 0], RIGHT), /font shaping metrics/);
+  assert.throws(
+    () => new Text("left", { id: "move-left-text", align: "left" }).moveTo([0, 0]),
+    /font shaping metrics/,
+  );
+  assert.throws(
+    () => new MarkupText([{ text: "right" }], { id: "move-right-markup", align: "right" }).moveTo([0, 0]),
+    /font shaping metrics/,
+  );
+  assert.throws(() => svg.moveTo(anchor, UP), /parsed SVG viewport/);
+  assert.throws(
+    () => new Text("nested", { id: "move-parented-text", parent: "parent" }).moveTo([0, 0]),
+    /Cannot resolve parent/,
+  );
+});
+
+test("positions retained objects with Manim-style center, alignment, edge, and corner helpers", () => {
+  const anchor = new Square({ id: "layout-anchor", size: 2 });
+  const placed = new Rectangle({ id: "layout-placed", width: 4, height: 2 })
+    .setX(10)
+    .setY(-3)
+    .nextTo(anchor, RIGHT, 0.5, UP);
+  assert.deepEqual(placed.getCenter(), [3.5, 0]);
+  assert.deepEqual(placed.getLeft(), [1.5, 0]);
+  assert.deepEqual(placed.getTop(), [3.5, 1]);
+
+  placed.alignTo(anchor, UL);
+  assert.equal(placed.getLeft()[0], anchor.getLeft()[0]);
+  assert.equal(placed.getTop()[1], anchor.getTop()[1]);
+  placed.nextTo(Object.freeze([5, -2]), LEFT, 0.25);
+  assert.deepEqual(placed.getRight(), [4.75, -2]);
+
+  const diagonal = new Square({ id: "layout-diagonal", size: 2 }).nextTo(anchor, DR, 0.5);
+  assert.deepEqual(diagonal.getCenter(), [2.5, -2.5]);
+
+  const edge = new Square({ id: "layout-edge", size: 2 }).toEdge(RIGHT);
+  assert.equal(FRAME_WIDTH, 16);
+  assert.equal(FRAME_HEIGHT, 9);
+  assert.deepEqual(edge.getRight(), [7.5, 0]);
+  edge.toCorner(DR, 1, Object.freeze({ width: 20, height: 10, center: Object.freeze([10, 5]) }));
+  assert.deepEqual(edge.getRight(), [19, 2]);
+  assert.deepEqual(edge.getBottom(), [18, 1]);
+  edge.center();
+  assert.deepEqual(edge.getCenter(), [0, 0]);
+
+  const weightedEdge = new Square({ id: "layout-weighted-edge", size: 2 }).toEdge([2, 1], 0.5);
+  assert.deepEqual(weightedEdge.getRight(), [7, 3]);
+  assert.deepEqual(weightedEdge.getTop(), [6, 4]);
+
+  const defaultCorner = new Square({ id: "layout-default-corner", size: 2 }).toCorner();
+  assert.deepEqual(defaultCorner.getCriticalPoint(DL), [-7.5, -4]);
+  const cornerAlias = new Square({ id: "layout-corner-as-edge", size: 2 }).toCorner(UP);
+  assert.deepEqual(cornerAlias.getTop(), [0, 4]);
+  assert.deepEqual(new Square({ id: "layout-zero-direction" }).toEdge([0, 0]).getCenter(), [0, 0]);
+});
+
+test("arranges direct Group members locally while preserving retained hierarchy transforms", () => {
+  const first = new Square({ id: "arrange-first", size: 2 });
+  const second = new Rectangle({ id: "arrange-second", width: 2, height: 4 });
+  const nestedLeaf = new Square({ id: "arrange-nested-leaf", size: 2 });
+  const third = new Group(nestedLeaf, { id: "arrange-third" });
+  const group = new VGroup(first, second, third, { id: "arranged", transform: { x: 8, y: -4, rotation: 0.2 } })
+    .arrange(RIGHT, { buff: 1, alignedEdge: UP });
+
+  assert.deepEqual(group.toJSON().transform, { x: 8, y: -4, rotation: 0.2 });
+  assert.deepEqual(first.getCenter(), [-3, 1]);
+  assert.deepEqual(second.getCenter(), [0, 0]);
+  assert.deepEqual(third.getCenter(), [3, 1]);
+  assert.equal(first.getTop()[1], second.getTop()[1]);
+  assert.equal(second.getTop()[1], third.getTop()[1]);
+  assert.equal(second.getLeft()[0] - first.getRight()[0], 1);
+  assert.equal(third.getLeft()[0] - second.getRight()[0], 1);
+
+  const nodes = new Scene().add(group).toJSON().nodes;
+  assert.deepEqual(nodes.map(({ id }) => id), [
+    "arranged", "arrange-first", "arrange-second", "arrange-third", "arrange-nested-leaf",
+  ]);
+  assert.equal(nodes.find(({ id }) => id === "arrange-nested-leaf").parent, "arrange-third");
+});
+
+test("copies complete retained hierarchies with fresh ids and remapped public aliases", () => {
+  const axes = new Axes({ id: "copy-axes", xRange: [-2, 2, 1], yRange: [-1, 1, 1] }).shift([2, -1]);
+  const copy = axes.copy();
+  assert.ok(copy instanceof Axes);
+  assert.notEqual(copy.id, axes.id);
+  assert.notEqual(copy.xAxis.id, axes.xAxis.id);
+  assert.equal(copy.xAxis, copy.members[0]);
+  assert.equal(copy.yAxis, copy.members[1]);
+  assert.deepEqual(copy.getBounds(), axes.getBounds());
+  copy.xAxis.shift([5, 0]);
+  assert.notDeepEqual(copy.xAxis.toJSON().transform, axes.xAxis.toJSON().transform);
+
+  const nodes = new Scene().add(axes, copy).toJSON().nodes;
+  assert.equal(new Set(nodes.map(({ id }) => id)).size, nodes.length);
+  assert.ok(nodes.every(({ parent }) => parent === undefined || nodes.some(({ id }) => id === parent)));
+
+  const probe = new Circle();
+  const nextSuffix = Number(probe.id.slice(probe.id.lastIndexOf("-") + 1)) + 1;
+  const occupied = new Circle({ id: `circle-${nextSuffix}` });
+  const collisionSafeCopy = probe.copy();
+  assert.notEqual(collisionSafeCopy.id, probe.id);
+  assert.notEqual(collisionSafeCopy.id, occupied.id);
+  assert.doesNotThrow(() => new Scene().add(probe, occupied, collisionSafeCopy).toJSON());
+
+  const sourcePath = new Path([
+    pathCommand.moveTo([0, 0]),
+    pathCommand.lineTo([1, 0]),
+  ], { id: "copy-reference-source" });
+  const referenceBundle = new Group(
+    sourcePath,
+    new PathReference(sourcePath, { id: "copy-reference" }),
+    { id: "copy-reference-bundle" },
+  ).copy();
+  assert.equal(referenceBundle.members[1].node.source, referenceBundle.members[0].id);
+});
+
+test("Group ignores repeated object identities like Manim", () => {
+  const circle = new Circle({ id: "deduplicated-member" });
+  const group = new Group(circle, circle).add(circle);
+  assert.equal(group.members.length, 1);
+  assert.doesNotThrow(() => group.arrange());
+  assert.equal(new Scene().add(group).toJSON().nodes.filter(({ id }) => id === circle.id).length, 1);
+});
+
+test("layout fails explicitly when exact 2D bounds are unavailable", () => {
+  assert.throws(() => new Text("metrics", { id: "layout-text" }).getBounds(), /font shaping metrics/);
+  assert.throws(() => new SVG("<svg/>", { id: "layout-svg" }).getCenter(), /parsed SVG viewport/);
+  assert.throws(() => new Path3D([
+    pathCommand3D.moveTo([0, 0, 0]), pathCommand3D.lineTo([1, 1, 1]),
+  ], { id: "layout-3d" }).getBounds(), /camera projection/);
+  assert.throws(() => RetainedNode.from({ id: "layout-unknown", type: "futureNode" }).getBounds(), /unknown to the public layout API/);
+  assert.throws(() => new Group({ id: "layout-empty" }).getBounds(), /empty or non-drawing/);
+  assert.throws(() => new Circle({ id: "layout-parented", parent: "missing" }).getBounds(), /Cannot resolve parent/);
+  assert.throws(() => new Circle({ id: "layout-rotated-3d", transform: { rotationX: 0.2 } }).getBounds(), /3D rotation/);
+  assert.throws(() => new Group(new Circle()).arrange(RIGHT, { mystery: true }), /Unknown arrange option/);
 });
 
 test("composes parallel, lagged, and successive animation timing", () => {
@@ -563,4 +808,18 @@ test("ParametricFunction and NumberPlane lower to general retained paths and lin
   assert.throws(() => new ParametricFunction(() => [Number.NaN, 0]), /did not produce a finite curve/);
   assert.throws(() => new FunctionGraph(() => "wrong"), /must return a number/);
   assert.throws(() => new NumberPlane({ gridSubdivisions: 0 }), /at least 1/);
+});
+
+test("automatic ids remain unique beyond JavaScript's safe-integer boundary", () => {
+  new Circle({ id: "id-boundary-9007199254740990" });
+  const ids = [new Circle().id, new Circle().id, new Circle().id];
+  assert.deepEqual(ids, [
+    "circle-9007199254740991",
+    "circle-9007199254740992",
+    "circle-9007199254740993",
+  ]);
+  assert.equal(new Set(ids).size, ids.length);
+
+  new Circle({ id: `circle-${"9".repeat(73)}` });
+  assert.match(new Circle().id, /^circle-\d+$/);
 });

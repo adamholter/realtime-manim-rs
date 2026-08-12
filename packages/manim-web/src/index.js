@@ -13,13 +13,40 @@ const EMPTY_SCENE = {
 
 let runtimeInitializationPromise = null;
 let runtimeSource;
-let nextObjectId = 1;
+let nextObjectId = 1n;
+
+function freshObjectId(type, reserved = null) {
+  let id;
+  do {
+    id = `${type}-${nextObjectId}`;
+    nextObjectId += 1n;
+  }
+  while (reserved?.has(id));
+  return id;
+}
+
+function noteObjectId(id) {
+  const suffix = /-(\d+)$/.exec(id);
+  // Explicit ids can legally consume the whole 80-character id budget. Do not
+  // let an enormous user-authored suffix poison all later generated ids.
+  if (suffix === null || suffix[1].length > 32) return;
+  const next = BigInt(suffix[1]) + 1n;
+  if (next > nextObjectId) nextObjectId = next;
+}
 
 export const ORIGIN = Object.freeze([0, 0]);
 export const UP = Object.freeze([0, 1]);
 export const DOWN = Object.freeze([0, -1]);
 export const LEFT = Object.freeze([-1, 0]);
 export const RIGHT = Object.freeze([1, 0]);
+export const UL = Object.freeze([-1, 1]);
+export const UR = Object.freeze([1, 1]);
+export const DL = Object.freeze([-1, -1]);
+export const DR = Object.freeze([1, -1]);
+export const FRAME_WIDTH = 16;
+export const FRAME_HEIGHT = 9;
+export const DEFAULT_MOBJECT_TO_EDGE_BUFFER = 0.5;
+export const DEFAULT_MOBJECT_TO_MOBJECT_BUFFER = 0.25;
 
 const EASINGS = new Set(["linear", "smooth", "easeIn", "easeOut", "easeInOut", "thereAndBack", "bounce"]);
 const TEXT_ALIGNS = new Set(["left", "center", "right"]);
@@ -412,10 +439,374 @@ function sceneObject(scene) {
   throw new TypeError("Scene must be a Scene, object, or JSON string.");
 }
 
+const IDENTITY_AFFINE = Object.freeze([1, 0, 0, 1, 0, 0]);
+
+function transformAffine(transform = {}, label = "transform") {
+  if (Math.abs(transform.rotationX ?? 0) > 1e-12 || Math.abs(transform.rotationY ?? 0) > 1e-12) {
+    throw new RangeError(`${label} has a 3D rotation; 2D layout bounds require camera projection.`);
+  }
+  const scaleX = transform.scaleX ?? 1;
+  const scaleY = transform.scaleY ?? 1;
+  const rotation = transform.rotation ?? 0;
+  const cosine = Math.cos(rotation);
+  const sine = Math.sin(rotation);
+  return [
+    cosine * scaleX,
+    sine * scaleX,
+    -sine * scaleY,
+    cosine * scaleY,
+    transform.x ?? 0,
+    transform.y ?? 0,
+  ];
+}
+
+function multiplyAffine(parent, local) {
+  return [
+    parent[0] * local[0] + parent[2] * local[1],
+    parent[1] * local[0] + parent[3] * local[1],
+    parent[0] * local[2] + parent[2] * local[3],
+    parent[1] * local[2] + parent[3] * local[3],
+    parent[0] * local[4] + parent[2] * local[5] + parent[4],
+    parent[1] * local[4] + parent[3] * local[5] + parent[5],
+  ];
+}
+
+function affinePoint(matrix, point) {
+  return [
+    matrix[0] * point[0] + matrix[2] * point[1] + matrix[4],
+    matrix[1] * point[0] + matrix[3] * point[1] + matrix[5],
+  ];
+}
+
+function boundsFromPoints(points) {
+  if (points.length === 0) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const point of points) {
+    minX = Math.min(minX, point[0]);
+    minY = Math.min(minY, point[1]);
+    maxX = Math.max(maxX, point[0]);
+    maxY = Math.max(maxY, point[1]);
+  }
+  return { minX, minY, maxX, maxY };
+}
+
+function mergeBounds(left, right) {
+  if (left === null) return right;
+  if (right === null) return left;
+  return {
+    minX: Math.min(left.minX, right.minX),
+    minY: Math.min(left.minY, right.minY),
+    maxX: Math.max(left.maxX, right.maxX),
+    maxY: Math.max(left.maxY, right.maxY),
+  };
+}
+
+function evaluateQuadratic(start, control, end, time) {
+  const inverse = 1 - time;
+  return inverse * inverse * start + 2 * inverse * time * control + time * time * end;
+}
+
+function evaluateCubic(start, control1, control2, end, time) {
+  const inverse = 1 - time;
+  return inverse ** 3 * start
+    + 3 * inverse ** 2 * time * control1
+    + 3 * inverse * time ** 2 * control2
+    + time ** 3 * end;
+}
+
+function quadraticRoots(start, control, end) {
+  const denominator = start - 2 * control + end;
+  if (Math.abs(denominator) <= 1e-14) return [];
+  const root = (start - control) / denominator;
+  return root > 0 && root < 1 ? [root] : [];
+}
+
+function cubicRoots(start, control1, control2, end) {
+  const a = -start + 3 * control1 - 3 * control2 + end;
+  const b = 2 * (start - 2 * control1 + control2);
+  const c = control1 - start;
+  if (Math.abs(a) <= 1e-14) {
+    if (Math.abs(b) <= 1e-14) return [];
+    const root = -c / b;
+    return root > 0 && root < 1 ? [root] : [];
+  }
+  const discriminant = b * b - 4 * a * c;
+  if (discriminant < 0) return [];
+  const squareRoot = Math.sqrt(Math.max(0, discriminant));
+  const roots = [(-b + squareRoot) / (2 * a), (-b - squareRoot) / (2 * a)];
+  return roots.filter((root, index) => root > 0 && root < 1 && (index === 0 || Math.abs(root - roots[0]) > 1e-12));
+}
+
+function quadraticBounds(start, control, end) {
+  const times = new Set([0, 1, ...quadraticRoots(start[0], control[0], end[0]), ...quadraticRoots(start[1], control[1], end[1])]);
+  return boundsFromPoints([...times].map((time) => [
+    evaluateQuadratic(start[0], control[0], end[0], time),
+    evaluateQuadratic(start[1], control[1], end[1], time),
+  ]));
+}
+
+function cubicBounds(start, control1, control2, end) {
+  const times = new Set([
+    0,
+    1,
+    ...cubicRoots(start[0], control1[0], control2[0], end[0]),
+    ...cubicRoots(start[1], control1[1], control2[1], end[1]),
+  ]);
+  return boundsFromPoints([...times].map((time) => [
+    evaluateCubic(start[0], control1[0], control2[0], end[0], time),
+    evaluateCubic(start[1], control1[1], control2[1], end[1], time),
+  ]));
+}
+
+function retainedPathBounds(commands, matrix, label) {
+  let result = null;
+  let current = null;
+  let subpathStart = null;
+  const requireCurrent = (index) => {
+    if (current === null) throw new RangeError(`${label} commands[${index}] must follow moveTo for layout bounds.`);
+  };
+  for (let index = 0; index < commands.length; index += 1) {
+    const command = commands[index];
+    if (command.op === "moveTo") {
+      current = affinePoint(matrix, [command.x, command.y]);
+      subpathStart = current;
+      continue;
+    }
+    requireCurrent(index);
+    if (command.op === "lineTo") {
+      const end = affinePoint(matrix, [command.x, command.y]);
+      result = mergeBounds(result, boundsFromPoints([current, end]));
+      current = end;
+    } else if (command.op === "quadTo") {
+      const control = affinePoint(matrix, [command.cx, command.cy]);
+      const end = affinePoint(matrix, [command.x, command.y]);
+      result = mergeBounds(result, quadraticBounds(current, control, end));
+      current = end;
+    } else if (command.op === "cubicTo") {
+      const control1 = affinePoint(matrix, [command.c1x, command.c1y]);
+      const control2 = affinePoint(matrix, [command.c2x, command.c2y]);
+      const end = affinePoint(matrix, [command.x, command.y]);
+      result = mergeBounds(result, cubicBounds(current, control1, control2, end));
+      current = end;
+    } else if (command.op === "close" && subpathStart !== null) {
+      result = mergeBounds(result, boundsFromPoints([current, subpathStart]));
+      current = subpathStart;
+    }
+  }
+  return result;
+}
+
+function circleBounds(center, radius, matrix) {
+  const transformedCenter = affinePoint(matrix, center);
+  const extentX = radius * Math.hypot(matrix[0], matrix[2]);
+  const extentY = radius * Math.hypot(matrix[1], matrix[3]);
+  return {
+    minX: transformedCenter[0] - extentX,
+    minY: transformedCenter[1] - extentY,
+    maxX: transformedCenter[0] + extentX,
+    maxY: transformedCenter[1] + extentY,
+  };
+}
+
+function unsupportedBounds(node, reason = "renderer-derived geometry") {
+  throw new RangeError(`Cannot compute 2D layout bounds for ${node.type} node ${node.id}: ${reason}.`);
+}
+
+function retainedNodeBounds(node, matrix) {
+  switch (node.type) {
+    case "circle":
+      return circleBounds([0, 0], node.radius, matrix);
+    case "rect": {
+      const halfWidth = node.width / 2;
+      const halfHeight = node.height / 2;
+      return boundsFromPoints([
+        [-halfWidth, -halfHeight], [halfWidth, -halfHeight],
+        [halfWidth, halfHeight], [-halfWidth, halfHeight],
+      ].map((point) => affinePoint(matrix, point)));
+    }
+    case "line":
+      return boundsFromPoints([node.from, node.to].map((point) => affinePoint(matrix, point)));
+    case "arrow": {
+      const dx = node.to[0] - node.from[0];
+      const dy = node.to[1] - node.from[1];
+      const length = Math.max(Number.EPSILON, Math.hypot(dx, dy));
+      const direction = [dx / length, dy / length];
+      const perpendicular = [-direction[1], direction[0]];
+      const base = [node.to[0] - direction[0] * node.tipSize, node.to[1] - direction[1] * node.tipSize];
+      return boundsFromPoints([
+        node.from,
+        node.to,
+        [base[0] + perpendicular[0] * node.tipSize * 0.55, base[1] + perpendicular[1] * node.tipSize * 0.55],
+        [base[0] - perpendicular[0] * node.tipSize * 0.55, base[1] - perpendicular[1] * node.tipSize * 0.55],
+      ].map((point) => affinePoint(matrix, point)));
+    }
+    case "polyline":
+      return boundsFromPoints(node.points.map((point) => affinePoint(matrix, point)));
+    case "path":
+      return retainedPathBounds(node.commands, matrix, `path ${node.id}`);
+    case "tracePath": {
+      let result = null;
+      for (const segment of node.segments) {
+        result = mergeBounds(result, cubicBounds(
+          affinePoint(matrix, segment.start),
+          affinePoint(matrix, segment.control1),
+          affinePoint(matrix, segment.control2),
+          affinePoint(matrix, segment.end),
+        ));
+      }
+      return result;
+    }
+    case "image":
+      return boundsFromPoints(node.corners.map((point) => affinePoint(matrix, point)));
+    case "pointCloud": {
+      if (node.screenSpaceRadius) unsupportedBounds(node, "screen-space radius depends on camera zoom");
+      let result = null;
+      for (const point of node.points) {
+        result = mergeBounds(result, circleBounds([point.x, point.y], point.radius ?? node.radius, matrix));
+      }
+      return result;
+    }
+    case "text":
+    case "markupText":
+      return unsupportedBounds(node, "font shaping metrics live in the Rust text engine");
+    case "svg":
+      return unsupportedBounds(node, "the parsed SVG viewport lives in the Rust renderer");
+    case "path3d":
+    case "mesh":
+    case "surface":
+    case "billboard":
+      return unsupportedBounds(node, "camera projection is required");
+    case "pathRef":
+      return unsupportedBounds(node, "its source geometry is resolved by retained node id");
+    case "group":
+      return unsupportedBounds(node, "a raw retained group has no attached JS member hierarchy");
+    default:
+      return unsupportedBounds(node, "the node kind is unknown to the public layout API");
+  }
+}
+
+function mobjectBounds(object, parentMatrix = IDENTITY_AFFINE, nested = false) {
+  if (!nested && object.node.parent !== undefined) {
+    throw new RangeError(`Cannot resolve parent ${object.node.parent} while ${object.id} is used as a layout root; query its containing Group instead.`);
+  }
+  const matrix = multiplyAffine(parentMatrix, transformAffine(object.node.transform, `${object.id} transform`));
+  if (object instanceof Group) {
+    let result = null;
+    for (const member of object._members) result = mergeBounds(result, mobjectBounds(member, matrix, true));
+    return result;
+  }
+  return retainedNodeBounds(object.node, matrix);
+}
+
+function publicBounds(object) {
+  const bounds = mobjectBounds(object);
+  if (bounds === null) throw new RangeError(`Cannot compute layout bounds for empty or non-drawing object ${object.id}.`);
+  const center = Object.freeze([(bounds.minX + bounds.maxX) / 2, (bounds.minY + bounds.maxY) / 2]);
+  return Object.freeze({
+    minX: bounds.minX,
+    minY: bounds.minY,
+    maxX: bounds.maxX,
+    maxY: bounds.maxY,
+    width: bounds.maxX - bounds.minX,
+    height: bounds.maxY - bounds.minY,
+    center,
+  });
+}
+
+function boundsTarget(target, label) {
+  if (target instanceof Mobject) return publicBounds(target);
+  const point = assertPoint(target, label);
+  return Object.freeze({ minX: point[0], minY: point[1], maxX: point[0], maxY: point[1], width: 0, height: 0, center: Object.freeze(point) });
+}
+
+function criticalPoint(bounds, direction) {
+  return [
+    direction[0] < 0 ? bounds.minX : direction[0] > 0 ? bounds.maxX : bounds.center[0],
+    direction[1] < 0 ? bounds.minY : direction[1] > 0 ? bounds.maxY : bounds.center[1],
+  ];
+}
+
+function layoutCriticalPoint(object, direction) {
+  const centeredRendererGeometry = object.node.type === "svg"
+    || ((object.node.type === "text" || object.node.type === "markupText") && object.node.align === "center");
+  if (centeredRendererGeometry && direction[0] === 0 && direction[1] === 0 && object.node.parent === undefined) {
+    return [object.node.transform.x ?? 0, object.node.transform.y ?? 0];
+  }
+  return object.getCriticalPoint(direction);
+}
+
+function layoutDirection(direction, label) {
+  const point = assertPoint(direction, label);
+  return point;
+}
+
+function normalizeLayoutFrame(frame) {
+  if (frame === undefined) return { width: FRAME_WIDTH, height: FRAME_HEIGHT, center: ORIGIN };
+  assertObject(frame, "layout frame");
+  const allowed = new Set(["width", "height", "center"]);
+  for (const key of Object.keys(frame)) if (!allowed.has(key)) throw new TypeError(`Unknown layout frame property: ${key}.`);
+  return {
+    width: assertPositive(frame.width ?? FRAME_WIDTH, "layout frame width"),
+    height: assertPositive(frame.height ?? FRAME_HEIGHT, "layout frame height"),
+    center: assertPoint(frame.center ?? ORIGIN, "layout frame center"),
+  };
+}
+
+function cloneMetadata(value, hierarchy, seen) {
+  if (value === null || typeof value !== "object") return value;
+  if (value instanceof Mobject) return hierarchy.get(value) ?? value;
+  if (seen.has(value)) return seen.get(value);
+  if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) return structuredClone(value);
+  const clone = Array.isArray(value) ? [] : Object.create(Object.getPrototypeOf(value));
+  seen.set(value, clone);
+  for (const key of Reflect.ownKeys(value)) clone[key] = cloneMetadata(value[key], hierarchy, seen);
+  if (Object.isFrozen(value)) Object.freeze(clone);
+  return clone;
+}
+
+function copyMobjectHierarchy(root) {
+  const hierarchy = new Map();
+  const collect = (source) => {
+    if (hierarchy.has(source)) return;
+    hierarchy.set(source, Object.create(Object.getPrototypeOf(source)));
+    if (source instanceof Group) for (const member of source._members) collect(member);
+  };
+  collect(root);
+  const seen = new Map();
+  for (const [source, clone] of hierarchy) {
+    for (const key of Reflect.ownKeys(source)) {
+      clone[key] = key === "node"
+        ? structuredClone(source.node)
+        : cloneMetadata(source[key], hierarchy, seen);
+    }
+  }
+  const ids = new Map();
+  const reservedIds = new Set([...hierarchy.keys()].map((source) => source.id));
+  for (const [source, clone] of hierarchy) {
+    const id = freshObjectId(clone.node.type, reservedIds);
+    reservedIds.add(id);
+    ids.set(source.id, id);
+    clone.node.id = id;
+  }
+  for (const clone of hierarchy.values()) {
+    if (clone.node.parent !== undefined) {
+      if (ids.has(clone.node.parent)) clone.node.parent = ids.get(clone.node.parent);
+      else delete clone.node.parent;
+    }
+    if (clone.node.type === "pathRef" && ids.has(clone.node.source)) clone.node.source = ids.get(clone.node.source);
+  }
+  return hierarchy.get(root);
+}
+
 export class Mobject {
   constructor(type, options = {}) {
-    const { id = `${type}-${nextObjectId++}`, style = {}, transform = {}, ...kind } = options;
+    const { id: requestedId, style = {}, transform = {}, ...kind } = options;
+    const id = requestedId === undefined ? freshObjectId(type) : requestedId;
     assertId(id);
+    noteObjectId(id);
     if (!style || typeof style !== "object" || Array.isArray(style)) throw new TypeError("style must be an object.");
     if (!transform || typeof transform !== "object" || Array.isArray(transform)) throw new TypeError("transform must be an object.");
     const normalizedTransform = {};
@@ -476,15 +867,92 @@ export class Mobject {
   }
 
   get id() { return this.node.id; }
-  moveTo(x, y) {
-    const point = Array.isArray(x) ? assertPoint(x) : [assertFinite(x, "x"), assertFinite(y, "y")];
-    this.node.transform.x = point[0];
-    this.node.transform.y = point[1];
-    return this;
+  copy() { return copyMobjectHierarchy(this); }
+  getBounds() { return publicBounds(this); }
+  getCenter() { return this.getBounds().center; }
+  getWidth() { return this.getBounds().width; }
+  getHeight() { return this.getBounds().height; }
+  getLeft() { const bounds = this.getBounds(); return Object.freeze([bounds.minX, bounds.center[1]]); }
+  getRight() { const bounds = this.getBounds(); return Object.freeze([bounds.maxX, bounds.center[1]]); }
+  getTop() { const bounds = this.getBounds(); return Object.freeze([bounds.center[0], bounds.maxY]); }
+  getBottom() { const bounds = this.getBounds(); return Object.freeze([bounds.center[0], bounds.minY]); }
+  getCriticalPoint(direction) {
+    return Object.freeze(criticalPoint(this.getBounds(), assertPoint(direction, "critical-point direction")));
+  }
+  center() {
+    const point = this.getCenter();
+    return this.shift([-point[0], -point[1]]);
+  }
+  moveTo(target, alignedEdge = ORIGIN) {
+    let point;
+    let edge;
+    if (typeof target === "number") {
+      point = [assertFinite(target, "x"), assertFinite(alignedEdge, "y")];
+      edge = ORIGIN;
+    } else {
+      edge = assertPoint(alignedEdge, "moveTo alignedEdge");
+      point = target instanceof Mobject
+        ? layoutCriticalPoint(target, edge)
+        : assertPoint(target, "moveTo target");
+    }
+    const ownPoint = layoutCriticalPoint(this, edge);
+    return this.shift([point[0] - ownPoint[0], point[1] - ownPoint[1]]);
   }
   shift(dx, dy) {
     const offset = Array.isArray(dx) ? assertPoint(dx, "offset") : [assertFinite(dx, "dx"), assertFinite(dy, "dy")];
-    return this.moveTo((this.node.transform.x ?? 0) + offset[0], (this.node.transform.y ?? 0) + offset[1]);
+    this.node.transform.x = (this.node.transform.x ?? 0) + offset[0];
+    this.node.transform.y = (this.node.transform.y ?? 0) + offset[1];
+    return this;
+  }
+  setX(value) {
+    const x = assertFinite(value, "x");
+    return this.shift([x - this.getCenter()[0], 0]);
+  }
+  setY(value) {
+    const y = assertFinite(value, "y");
+    return this.shift([0, y - this.getCenter()[1]]);
+  }
+  alignTo(target, direction = ORIGIN) {
+    const vector = assertPoint(direction, "alignment direction");
+    const own = criticalPoint(this.getBounds(), vector);
+    const other = criticalPoint(boundsTarget(target, "alignment target"), vector);
+    return this.shift([
+      vector[0] === 0 ? 0 : other[0] - own[0],
+      vector[1] === 0 ? 0 : other[1] - own[1],
+    ]);
+  }
+  nextTo(target, direction = RIGHT, buff = DEFAULT_MOBJECT_TO_MOBJECT_BUFFER, alignedEdge = ORIGIN) {
+    const vector = layoutDirection(direction, "nextTo direction");
+    const edge = assertPoint(alignedEdge, "nextTo alignedEdge");
+    const buffer = assertNonNegative(buff, "nextTo buffer");
+    const otherPoint = criticalPoint(boundsTarget(target, "nextTo target"), [vector[0] + edge[0], vector[1] + edge[1]]);
+    const ownPoint = criticalPoint(this.getBounds(), [edge[0] - vector[0], edge[1] - vector[1]]);
+    return this.shift([
+      otherPoint[0] - ownPoint[0] + vector[0] * buffer,
+      otherPoint[1] - ownPoint[1] + vector[1] * buffer,
+    ]);
+  }
+  toEdge(direction = LEFT, buff = DEFAULT_MOBJECT_TO_EDGE_BUFFER, frame) {
+    const vector = layoutDirection(direction, "edge direction");
+    const buffer = assertNonNegative(buff, "edge buffer");
+    const layoutFrame = normalizeLayoutFrame(frame);
+    const bounds = this.getBounds();
+    let dx = 0;
+    let dy = 0;
+    if (vector[0] !== 0) {
+      dx = vector[0] < 0
+        ? layoutFrame.center[0] - layoutFrame.width / 2 - buffer * vector[0] - bounds.minX
+        : layoutFrame.center[0] + layoutFrame.width / 2 - buffer * vector[0] - bounds.maxX;
+    }
+    if (vector[1] !== 0) {
+      dy = vector[1] < 0
+        ? layoutFrame.center[1] - layoutFrame.height / 2 - buffer * vector[1] - bounds.minY
+        : layoutFrame.center[1] + layoutFrame.height / 2 - buffer * vector[1] - bounds.maxY;
+    }
+    return this.shift([dx, dy]);
+  }
+  toCorner(direction = DL, buff = DEFAULT_MOBJECT_TO_EDGE_BUFFER, frame) {
+    return this.toEdge(assertPoint(direction, "corner direction"), buff, frame);
   }
   scale(value) { assertFinite(value, "scale"); this.node.transform.scaleX = value; this.node.transform.scaleY = value; return this; }
   rotate(radians) { this.node.transform.rotation = assertFinite(radians, "rotation"); return this; }
@@ -1077,6 +1545,7 @@ export class Group extends Mobject {
     for (const member of items.flat(Infinity)) {
       if (!(member instanceof Mobject)) throw new TypeError("Group members must be Mobjects.");
       if (member === this || (member instanceof Group && member._contains(this))) throw new RangeError("A Group cannot contain itself.");
+      if (this._members.includes(member)) continue;
       this._members.push(member);
     }
     return this;
@@ -1091,6 +1560,26 @@ export class Group extends Mobject {
   strokeJoin(value) { super.strokeJoin(value); for (const member of this._members) member.strokeJoin(value); return this; }
   dash(pattern, offset) { super.dash(pattern, offset); for (const member of this._members) member.dash(pattern, offset); return this; }
   opacity(value) { super.opacity(value); for (const member of this._members) member.opacity(value); return this; }
+  arrange(direction = RIGHT, options = {}) {
+    layoutDirection(direction, "arrange direction");
+    assertObject(options, "arrange options");
+    const allowed = new Set(["buff", "alignedEdge", "center"]);
+    for (const key of Object.keys(options)) if (!allowed.has(key)) throw new TypeError(`Unknown arrange option: ${key}.`);
+    const buff = assertNonNegative(options.buff ?? DEFAULT_MOBJECT_TO_MOBJECT_BUFFER, "arrange buffer");
+    const alignedEdge = assertPoint(options.alignedEdge ?? ORIGIN, "arrange alignedEdge");
+    const shouldCenter = assertBoolean(options.center ?? true, "arrange center");
+    for (let index = 1; index < this._members.length; index += 1) {
+      this._members[index].nextTo(this._members[index - 1], direction, buff, alignedEdge);
+    }
+    if (shouldCenter && this._members.length > 0) {
+      let bounds = null;
+      for (const member of this._members) bounds = mergeBounds(bounds, mobjectBounds(member, IDENTITY_AFFINE, true));
+      if (bounds === null) throw new RangeError(`Cannot center empty or non-drawing members in Group ${this.id}.`);
+      const offset = [-(bounds.minX + bounds.maxX) / 2, -(bounds.minY + bounds.maxY) / 2];
+      for (const member of this._members) member.shift(offset);
+    }
+    return this;
+  }
 }
 
 export class VGroup extends Group {}
@@ -1215,7 +1704,7 @@ function normalizeAxisConfig(value, label) {
 export class NumberLine extends VGroup {
   constructor(options = {}) {
     const { nodeOptions, kindOptions } = partitionNodeOptions(options, NUMBER_LINE_OPTION_KEYS, "NumberLine");
-    const rootId = nodeOptions.id ?? `number-line-${nextObjectId++}`;
+    const rootId = nodeOptions.id ?? freshObjectId("number-line");
     const range = normalizeNumericRange(kindOptions.xRange, "NumberLine xRange", [-5, 5, 1]);
     const normalizedRange = range.length === 2 ? [range[0], range[1], 1] : range;
     const length = assertPositive(kindOptions.length ?? 10, "NumberLine length");
@@ -1457,7 +1946,7 @@ const AXES_OPTION_KEYS = new Set([
 export class Axes extends VGroup {
   constructor(options = {}) {
     const { nodeOptions, kindOptions } = partitionNodeOptions(options, AXES_OPTION_KEYS, "Axes");
-    const rootId = nodeOptions.id ?? `axes-${nextObjectId++}`;
+    const rootId = nodeOptions.id ?? freshObjectId("axes");
     const xRange = normalizeNumericRange(kindOptions.xRange, "Axes xRange", [-6, 6, 1]);
     const yRange = normalizeNumericRange(kindOptions.yRange, "Axes yRange", [-4, 4, 1]);
     const normalizedXRange = xRange.length === 2 ? [xRange[0], xRange[1], 1] : xRange;

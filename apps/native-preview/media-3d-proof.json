@@ -1,0 +1,107 @@
+{
+  "version": 2,
+  "title": "Native Metal media + 3D proof",
+  "width": 16,
+  "height": 9,
+  "pixelWidth": 1280,
+  "pixelHeight": 720,
+  "duration": 4,
+  "fps": 60,
+  "background": "#090d18",
+  "camera3d": {
+    "position": [7, -9, 6],
+    "target": [0, 0, 0.3],
+    "up": [0, 0, 1],
+    "fovY": 0.78,
+    "near": 0.1,
+    "far": 100,
+    "ambient": 0.22,
+    "lightDirection": [0.4, -0.2, 1]
+  },
+  "nodes": [
+    {
+      "id": "rgba-image",
+      "type": "image",
+      "pixels": "/wAA/wD/AP8AAP////8A/w==",
+      "pixelWidth": 2,
+      "pixelHeight": 2,
+      "corners": [[-7.2, 3.2], [-4.2, 3.2], [-7.2, 0.2], [-4.2, 0.2]],
+      "resampling": "nearest",
+      "style": {"stroke": null, "opacity": 0.92}
+    },
+    {
+      "id": "lit-pyramid",
+      "type": "mesh",
+      "vertices": [[-1.8, -1.8, 0], [1.8, -1.8, 0], [1.8, 1.8, 0], [-1.8, 1.8, 0], [0, 0, 2.8]],
+      "triangles": [[0, 1, 4], [1, 2, 4], [2, 3, 4], [3, 0, 4], [0, 3, 2], [0, 2, 1]],
+      "colors": ["#ef476fff", "#ffd166ff", "#06d6a0ff", "#118ab2ff", "#f7f9ffff"],
+      "normals": [[-0.5, -0.5, 0.7], [0.5, -0.5, 0.7], [0.5, 0.5, 0.7], [-0.5, 0.5, 0.7], [0, 0, 1]],
+      "gloss": 0.5,
+      "shadow": 0.55,
+      "lightPosition": [3, -4, 7],
+      "doubleSided": false,
+      "transform": {"x": -0.8, "rotation": 0},
+      "style": {"fill": "#ffffff", "stroke": null, "opacity": 1}
+    },
+    {
+      "id": "textured-plane",
+      "type": "mesh",
+      "vertices": [[-2, -1.5, 0], [2, -1.5, 0], [2, 1.5, 0], [-2, 1.5, 0]],
+      "triangles": [[0, 1, 2], [0, 2, 3]],
+      "uvs": [[0, 0], [1, 0], [1, 1], [0, 1]],
+      "normals": [[0, 0, 1], [0, 0, 1], [0, 0, 1], [0, 0, 1]],
+      "texturePixels": "/wAA/wD/AP8AAP////8A/w==",
+      "textureWidth": 2,
+      "textureHeight": 2,
+      "darkTexturePixels": "ICBA/0BAgP+AgP//8PD//w==",
+      "darkTextureWidth": 2,
+      "darkTextureHeight": 2,
+      "textureResampling": "bicubic",
+      "gloss": 0.25,
+      "shadow": 0.35,
+      "lightPosition": [4, -4, 6],
+      "doubleSided": true,
+      "transform": {"x": 3.8, "rotationX": 0.55, "rotation": -0.25},
+      "style": {"fill": "#ffffff", "stroke": null, "opacity": 1}
+    },
+    {
+      "id": "patch-surface",
+      "type": "surface",
+      "vertices": [[-2, -1.3, 0], [0, -1.3, 0.8], [2, -1.3, 0], [-2, 1.3, 0.6], [0, 1.3, -0.4], [2, 1.3, 0.6]],
+      "patches": [[0, 1, 4, 3], [1, 2, 5, 4]],
+      "colors": ["#5b8cffff", "#7c5cffdd", "#bd5cffcc", "#4ee1c1ff", "#7c5cffdd", "#ff5ca8ff", "#ffb45cdd", "#4ee1c1ff"],
+      "strokeColors": ["#eaf2ffff", "#fff0f8ff"],
+      "strokeRadii": [0.045, 0.045],
+      "doubleSided": true,
+      "transform": {"x": 0.4, "y": 3.4, "rotation": 0.08},
+      "style": {"fill": "#ffffff", "stroke": null, "opacity": 0.94}
+    },
+    {
+      "id": "path-in-space",
+      "type": "path3d",
+      "commands": [
+        {"op": "moveTo", "x": -3, "y": -2.5, "z": 0.2},
+        {"op": "cubicTo", "c1x": -1, "c1y": -3, "c1z": 2.5, "c2x": 1, "c2y": -2, "c2z": -0.5, "x": 3, "y": -2.5, "z": 1.2}
+      ],
+      "style": {"fill": null, "stroke": "#f8f9ffff", "strokeWidth": 0.08, "strokeCap": "round"}
+    }
+  ],
+  "tracks": [
+    {
+      "target": "lit-pyramid",
+      "property": "rotation",
+      "keyframes": [
+        {"at": 0, "value": -0.45},
+        {"at": 4, "value": 0.55, "easing": "linear"}
+      ]
+    },
+    {
+      "target": "textured-plane",
+      "property": "rotationY",
+      "keyframes": [
+        {"at": 0, "value": -0.25},
+        {"at": 4, "value": 0.35, "easing": "easeInOut"}
+      ]
+    }
+  ]
+}

@@ -19,7 +19,7 @@
     {
       "tier": "typography",
       "status": "partial",
-      "implemented": ["OpenType-shaped Noto Sans vector text", "real regular, bold, italic, and bold-italic faces", "arbitrary registered OpenType font families", "deterministic grapheme-safe native font fallback with explicit missing-vector errors", "mixed-style MarkupText spans", "server-side Tectonic MathTex to SVG", "regular Manim Text, MarkupText, Tex, MathTex, Write, and TransformMatchingTex compiled as vectors", "MSAA"],
+      "implemented": ["OpenType-shaped Noto Sans vector text", "real regular, bold, italic, and bold-italic faces", "arbitrary registered OpenType font families", "native UAX #9 bidi visual runs and explicit script shaping", "portable joined Arabic and Hebrew vector fallbacks", "deterministic grapheme-safe native font fallback with explicit missing-vector errors", "mixed-style MarkupText spans", "server-side Tectonic MathTex to SVG", "regular Manim Text, MarkupText, Tex, MathTex, Write, and TransformMatchingTex compiled as vectors", "MSAA"],
       "missing": ["native Pango MarkupText parser parity", "compact semantic TransformMatchingTex correspondence in Rust", "color emoji font rendering"]
     },
     {
@@ -55,8 +55,8 @@
     {
       "tier": "layout",
       "status": "partial",
-      "implemented": ["regular Manim Matrix, Table, Code, Brace, SurroundingRectangle, groups, and layout operations compile through VMobject vectors"],
-      "missing": ["native Rust layout object APIs"]
+      "implemented": ["regular Manim Matrix, Table, Code, Brace, SurroundingRectangle, groups, and layout operations compile through VMobject vectors", "retained JavaScript exact 2D bounds through nested affine groups", "hierarchy-safe copy, center, setX, setY, alignTo, nextTo, toEdge, toCorner, and Group arrange APIs"],
+      "missing": ["Rust-crate-native layout object APIs", "renderer-derived JavaScript bounds for shaped text, parsed SVG, and camera-projected 3D nodes"]
     },
     {
       "tier": "data-viz",
@@ -85,8 +85,8 @@
     {
       "tier": "international",
       "status": "partial",
-      "implemented": ["Rustybuzz shaping", "Unicode scalar input", "deterministic registered-family fallback at extended-grapheme boundaries", "explicit missing-vector-glyph errors", "regular Manim Unicode Text and subcaption metadata captured by the compatibility compiler", "runtime subcaption presentation and WebVTT export"],
-      "missing": ["complete RTL and complex-script golden coverage", "emoji color fonts", "grapheme-aware native transforms"]
+      "implemented": ["Rustybuzz shaping", "Unicode scalar input", "UAX #9 visual bidi runs", "explicit OpenType script and direction shaping", "portable joined Arabic and Hebrew vector fallbacks", "deterministic registered-family fallback at extended-grapheme boundaries", "explicit missing-vector-glyph errors", "regular Manim Unicode Text and subcaption metadata captured by the compatibility compiler", "runtime subcaption presentation and WebVTT export"],
+      "missing": ["exhaustive complex-script golden coverage", "emoji color fonts", "grapheme-aware native transforms"]
     }
   ]
 }

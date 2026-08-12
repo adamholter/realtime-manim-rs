@@ -7,10 +7,17 @@
     <canvas id="second" width="640" height="360"></canvas>
     <canvas id="third" width="640" height="360"></canvas>
     <canvas id="fourth" width="640" height="360"></canvas>
+    <canvas id="bidi-mixed" width="640" height="360"></canvas>
+    <canvas id="bidi-joined" width="640" height="360"></canvas>
+    <canvas id="bidi-markup-same" width="640" height="360"></canvas>
+    <canvas id="bidi-markup-colored" width="640" height="360"></canvas>
+    <canvas id="bidi-rtl-spans" width="640" height="360"></canvas>
+    <canvas id="bidi-isolated" width="640" height="360"></canvas>
+    <canvas id="unsupported-emoji" width="640" height="360"></canvas>
     <script type="module">
       import {
         Arc, Axes, Circle, Create, DotCloud, Group, MarkupText, Path, Path3D, Polygon, Scene,
-        createManimPlayer, pathCommand, pathCommand3D,
+        Text, createManimPlayer, pathCommand, pathCommand3D,
       } from "../src/index.js";
 
       const makeScene = (color) => {
@@ -91,6 +98,16 @@
         } catch (error) {
           missingFontRejected = /unregistered font family/.test(String(error));
         }
+        let unsupportedMarkupEmojiRejected = false;
+        try {
+          empty.load(new Scene().add(new MarkupText(
+            [{ text: "vector" }, { text: "😀" }],
+            { id: "unsupported-markup-emoji" },
+          )));
+        } catch (error) {
+          unsupportedMarkupEmojiRejected = /Markup shaping failed for unsupported-markup-emoji/.test(String(error))
+            && /U\+1F600/.test(String(error));
+        }
         empty.destroy();
 
         const concurrent = await Promise.all([
@@ -105,16 +122,97 @@
         third.destroy();
         const survivorWorks = Math.abs(fourth.time() - 0.2) < 0.01;
         fourth.destroy();
+
+        const mixedDirectionScene = new Scene({ background: "#070910" }).add(
+          new Text("English — שלום — سلام — 123", { id: "mixed-direction", fontSize: 1.05 })
+            .fill("#f4f7ffff")
+            .moveTo(0, 1.3),
+          new Text("שלום", { id: "hebrew", fontSize: 1.35 })
+            .fill("#83c167ff")
+            .moveTo(0, -0.2),
+          new Text("سَلَام", { id: "arabic-with-marks", fontSize: 1.35 })
+            .fill("#58c4ddff")
+            .moveTo(0, -1.8),
+        );
+        const joinedArabicScene = new Scene({ background: "#070910" }).add(
+          new Text("سلام", { id: "joined-arabic", fontSize: 2 }).fill("#58c4ddff"),
+        );
+        const sameStyleMarkupArabicScene = new Scene({ background: "#070910" }).add(
+          new MarkupText(
+            [..."سلام"].map((text) => ({ text, color: "#58c4ddff" })),
+            { id: "same-style-markup-arabic", fontSize: 2 },
+          ).fill("#58c4ddff"),
+        );
+        const coloredMarkupArabicScene = new Scene({ background: "#070910" }).add(
+          new MarkupText(
+            [..."سلام"].map((text, index) => ({
+              text,
+              color: index % 2 === 0 ? "#fc6255ff" : "#58c4ddff",
+            })),
+            { id: "colored-markup-arabic", fontSize: 2 },
+          ).fill("#ffffffff"),
+        );
+        const rtlSpanScene = new Scene({ background: "#070910" }).add(
+          new MarkupText(
+            [
+              { text: "א", color: "#fc6255ff" },
+              { text: "ב", color: "#83c167ff" },
+              { text: "ג", color: "#58c4ddff" },
+            ],
+            { id: "rtl-colored-spans", fontSize: 2 },
+          ).fill("#ffffffff"),
+        );
+        const isolatedArabicScene = new Scene({ background: "#070910" }).add(
+          ...[..."سلام"].map((text, index) => new Text(text, {
+            id: `isolated-arabic-${index}`,
+            fontSize: 2,
+          }).fill("#58c4ddff").moveTo(-2.1 + index * 1.4, 0)),
+        );
+        const bidiPlayers = await Promise.all([
+          createManimPlayer({ canvas: document.querySelector("#bidi-mixed"), scene: mixedDirectionScene, autoplay: false }),
+          createManimPlayer({ canvas: document.querySelector("#bidi-joined"), scene: joinedArabicScene, autoplay: false }),
+          createManimPlayer({ canvas: document.querySelector("#bidi-markup-same"), scene: sameStyleMarkupArabicScene, autoplay: false }),
+          createManimPlayer({ canvas: document.querySelector("#bidi-markup-colored"), scene: coloredMarkupArabicScene, autoplay: false }),
+          createManimPlayer({ canvas: document.querySelector("#bidi-rtl-spans"), scene: rtlSpanScene, autoplay: false }),
+          createManimPlayer({ canvas: document.querySelector("#bidi-isolated"), scene: isolatedArabicScene, autoplay: false }),
+        ]);
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        const bidiRenderingWorks = bidiPlayers.every((player) => player.diagnostics().webgpu === true);
+
+        let unsupportedEmojiRejected = false;
+        let unsupportedEmojiError = "";
+        try {
+          await createManimPlayer({
+            canvas: document.querySelector("#unsupported-emoji"),
+            scene: new Scene({ background: "#070910" }).add(
+              new Text("😀", { id: "unsupported-emoji", fontSize: 2 }).fill("#ffffffff"),
+            ),
+            autoplay: false,
+          });
+        } catch (error) {
+          unsupportedEmojiError = String(error);
+          unsupportedEmojiRejected = /Text shaping failed for unsupported-emoji/.test(unsupportedEmojiError)
+            && /U\+1F600/.test(unsupportedEmojiError)
+            && /No registered vector font covers/.test(unsupportedEmojiError);
+        }
+        bidiPlayers.forEach((player) => player.destroy());
         globalThis.__MANIM_BROWSER_TEST__ = {
-          ok: disposedGuard && geometryValid && fontPreloadWorks && missingFontRejected && emptyDefaultWorks && independentTimes && survivorWorks,
+          ok: disposedGuard && geometryValid && fontPreloadWorks && missingFontRejected && emptyDefaultWorks
+            && unsupportedMarkupEmojiRejected && independentTimes && survivorWorks
+            && bidiRenderingWorks && unsupportedEmojiRejected,
           disposedGuard,
           geometryValid,
           fontPreloadWorks,
           missingFontRejected,
+          unsupportedMarkupEmojiRejected,
           emptyDefaultWorks,
           concurrentPlayers: concurrent.length,
           independentTimes,
           survivorWorks,
+          bidiPlayers: bidiPlayers.length,
+          bidiRenderingWorks,
+          unsupportedEmojiRejected,
+          unsupportedEmojiError,
         };
       } catch (error) {
         globalThis.__MANIM_BROWSER_TEST__ = { ok: false, error: error?.stack ?? String(error) };

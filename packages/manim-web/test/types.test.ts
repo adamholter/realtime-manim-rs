@@ -5,6 +5,7 @@ import {
   Billboard,
   Circle,
   Create,
+  DR,
   DotCloud,
   FunctionGraph,
   Group,
@@ -24,6 +25,7 @@ import {
   Path3D,
   ParametricFunction,
   Polygon,
+  Rectangle,
   RegularPolygon,
   ReplacementTransform,
   RIGHT,
@@ -33,6 +35,9 @@ import {
   Succession,
   TracePath,
   Transform,
+  UL,
+  UP,
+  VGroup,
   pathCommand,
   pathCommand3D,
   createManimPlayer,
@@ -40,7 +45,9 @@ import {
   type BrowserFontFace,
   type Expression,
   type ImageNode,
+  type LayoutFrame,
   type MeshNode,
+  type MobjectBounds,
   type NumericRange,
   type Point,
   type NumberLineOptions,
@@ -50,6 +57,42 @@ import {
 
 const circle = new Circle({ id: "typed", radius: 1 }).fill("#58c4ddff");
 circle.strokeCap("round").strokeJoin("bevel").dash([0.4, 0.2], -0.1);
+const readonlyDirection = [1, 0] as const;
+const readonlyCorner = [-1, 1] as const;
+const layoutFrame = { width: 20, height: 10, center: [2, 3] as const } as const satisfies LayoutFrame;
+const layoutAnchor = new Rectangle({ width: 3, height: 2 });
+const layoutCopy: Circle = circle.copy();
+const layoutBounds: MobjectBounds = layoutCopy
+  .moveTo(layoutAnchor, UL)
+  .moveTo([1, 2] as const, DR)
+  .moveTo(1, 2)
+  .setX(1)
+  .setY(2)
+  .alignTo(layoutAnchor, UP)
+  .nextTo(layoutAnchor, readonlyDirection, 0.25, UL)
+  .toEdge(readonlyDirection, 0.5, layoutFrame)
+  .toCorner(readonlyCorner, 0.5, layoutFrame)
+  .getBounds();
+const arranged = new VGroup(circle.copy(), layoutAnchor.copy()).arrange(RIGHT, {
+  buff: 0.4,
+  alignedEdge: UL,
+  center: false,
+});
+const centerPoint: Point = arranged.getCenter();
+const edgePoint: Point = arranged.getCriticalPoint(DR);
+void layoutBounds;
+void centerPoint;
+void edgePoint;
+// @ts-expect-error layout bounds are immutable snapshots
+layoutBounds.width = 10;
+// @ts-expect-error Group member snapshots are readonly
+arranged.members.push(circle);
+// @ts-expect-error arrange rejects unknown options
+arranged.arrange(RIGHT, { unknownLayoutOption: true });
+// @ts-expect-error layout frame centers are two-number points
+circle.toEdge(RIGHT, 0.5, { center: [0, 0, 0] });
+// @ts-expect-error moveTo aligned edges are two-number points
+circle.moveTo(layoutAnchor, [1, 0, 0]);
 const customText = new MarkupText([{ text: "Typed" }], { fontFamily: "Uploaded Sans" });
 const signal: Expression = { op: "signal", id: "radius" };
 const scene = new Scene({ title: "Typed scene" })

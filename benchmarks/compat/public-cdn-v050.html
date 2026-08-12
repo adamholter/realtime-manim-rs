@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,">
+    <title>realtime-manim 0.5 public CDN smoke</title>
+    <style>
+      html, body { width: 100%; height: 100%; margin: 0; background: #080b12; overflow: hidden; }
+      canvas { display: block; width: 100vw; height: 100vh; }
+      #status { position: fixed; left: 12px; bottom: 10px; color: #9fb1cc; font: 12px/1.4 system-ui, sans-serif; }
+    </style>
+  </head>
+  <body>
+    <canvas id="manim" width="1280" height="720"></canvas>
+    <output id="status">loading public package…</output>
+    <script type="module">
+      import {
+        Axes,
+        Create,
+        Scene,
+        Text,
+        createManimPlayer,
+      } from "https://cdn.jsdelivr.net/npm/realtime-manim@0.5.0/src/index.js";
+
+      const status = document.querySelector("#status");
+      try {
+        const axes = new Axes({
+          xRange: [0, 10, 1],
+          yRange: [-2, 4, 1],
+          xLength: 11,
+          yLength: 5.8,
+          includeNumbers: true,
+          xLabel: "x",
+          yLabel: "f(x)",
+        }).stroke("#52617fff", 0.025);
+        const graph = axes.plot((x) => Math.sin(x) + 1, [0, 10], { samples: 401 })
+          .stroke("#58c4ddff", 0.09)
+          .strokeCap("round")
+          .strokeJoin("round")
+          .dash([0.22, 0.08, 0.05], 0.13);
+        const label = new Text("realtime-manim 0.5.0", { fontSize: 0.62 })
+          .fill("#ffffffff")
+          .moveTo(0, 3.7);
+        const scene = new Scene({
+          title: "Public CDN 0.5 release smoke",
+          background: "#080b12",
+          duration: 2.4,
+        })
+          .add(axes, graph, label)
+          .play(Create(axes, { duration: 1 }), Create(graph, { duration: 2.2 }));
+        const player = await createManimPlayer({
+          canvas: document.querySelector("#manim"),
+          scene,
+          autoplay: false,
+        });
+        player.seek(1.65);
+        const roundTrip = axes.p2c(axes.c2p(4.5, 2.25));
+        if (Math.abs(roundTrip[0] - 4.5) > 1e-9 || Math.abs(roundTrip[1] - 2.25) > 1e-9) {
+          throw new Error(`coordinate round-trip failed: ${roundTrip}`);
+        }
+        status.textContent = "public npm + CDN + Rust/Wasm/WebGPU 0.5: ready";
+        globalThis.__realtimeManimPublicPlayer = player;
+        globalThis.__realtimeManimPublicReady = true;
+      } catch (error) {
+        status.textContent = error?.stack ?? String(error);
+        globalThis.__realtimeManimPublicError = error?.stack ?? String(error);
+        throw error;
+      }
+    </script>
+  </body>
+</html>

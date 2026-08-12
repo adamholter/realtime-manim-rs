@@ -49,7 +49,7 @@ For a plain HTML file, import the module from a CDN. Pin the version in producti
 <script type="module">
   import {
     Circle, Create, Scene, createManimPlayer,
-  } from "https://cdn.jsdelivr.net/npm/realtime-manim@0.4.0/src/index.js";
+  } from "https://cdn.jsdelivr.net/npm/realtime-manim@0.5.0/src/index.js";
 
   const circle = new Circle().fill("#58c4ddcc");
   const scene = new Scene().add(circle).play(Create(circle));
@@ -81,6 +81,54 @@ const scene = new Scene()
   .add(diagram)
   .play(Create(diagram), MoveCamera({ zoom: 1.4 }, { duration: 2 }));
 ```
+
+### Spatial layout
+
+The builder has geometry-aware Manim-style layout methods. Bounds compose each
+retained parent transform without flattening the hierarchy; arranging a group
+moves only its direct child roots and leaves the group's own transform intact:
+
+```js
+import {
+  DOWN, RIGHT, UL, Circle, Rectangle, VGroup,
+} from "realtime-manim";
+
+const cards = new VGroup(
+  new Circle({ radius: 0.8 }),
+  new Rectangle({ width: 3, height: 1.4 }),
+  new Circle({ radius: 0.8 }),
+)
+  .arrange(RIGHT, { buff: 0.4, alignedEdge: DOWN })
+  .toCorner(UL, 0.6);
+
+const focus = cards.copy() // deep hierarchy copy with collision-safe fresh ids
+  .nextTo(cards, DOWN, 0.5)
+  .setX(0);
+
+const bounds = cards.getBounds();
+console.log(bounds.center, bounds.width, bounds.height);
+```
+
+`getBounds()`, `getCenter()`, `getWidth()`, `getHeight()`, `getLeft()`,
+`getRight()`, `getTop()`, `getBottom()`, and `getCriticalPoint(direction)`
+return scene-coordinate geometry. Positioning methods are chainable:
+`center()`, `moveTo(target, alignedEdge)`, `setX()`, `setY()`, `alignTo()`,
+`nextTo()`, `toEdge()`, and `toCorner()`. Like Manim, `moveTo` aligns the
+object's center by default or aligns matching critical points when an edge such
+as `UL` is supplied; it does not assign the raw retained transform origin.
+Direction constants include `UP`, `DOWN`, `LEFT`, `RIGHT`, `UL`,
+`UR`, `DL`, and `DR`; the default frame is `FRAME_WIDTH` by `FRAME_HEIGHT`
+(16 by 9). A custom `{ width, height, center }` frame may be passed to edge and
+corner placement. Readonly tuples such as `as const` are accepted by the
+TypeScript API.
+
+Bounds are exact for 2D circles, rectangles, lines/arrows, polylines, Bezier
+paths, trace-path geometry, raster corners, point clouds with world-space
+radii, and nested groups. Text shaping, parsed SVG viewport geometry,
+camera-projected 3D nodes, billboards, screen-space point radii, path
+references, and unknown retained node kinds deliberately throw instead of
+guessing. Query a containing `Group` when a node uses an explicit retained
+`parent` id so the parent transform is available.
 
 Animations passed to one `Scene.play(...)` start together. Compositions make the relationship explicit, and `runTime` rescales the complete schedule rather than changing only one track:
 
@@ -261,4 +309,4 @@ left.destroy(); // right keeps rendering
 
 This is a Manim-compatible browser runtime, not a drop-in execution environment for arbitrary Python Manim code. It accepts retained scene JSON emitted by the project's compatibility compiler and includes the lightweight JavaScript builder shown above. Playback, seeking, signals, text, SVG, raster media, 3D scene data, custom shaders, masks, patterns, audio metadata, and deterministic evaluation stay in the Rust runtime.
 
-Version 0.4 requires a WebGPU browser and a server that serves `.wasm` as `application/wasm`. Call `destroy()` when a player is no longer needed so its animation loop and GPU resources are released deterministically. Registered-family fallback is deterministic, but complete RTL and complex-script golden parity, color emoji, unusual SVG filters, third-party Python renderer hooks, and some native 3D optimizations are not yet equivalent to desktop Manim.
+Version 0.5 requires a WebGPU browser and a server that serves `.wasm` as `application/wasm`. Call `destroy()` when a player is no longer needed so its animation loop and GPU resources are released deterministically. Native UAX #9 bidi layout, Arabic joining, Hebrew, and grapheme-safe registered-family fallback are deterministic. Color emoji, exhaustive complex-script golden parity, unusual SVG filters, third-party Python renderer hooks, and native SVG/custom-shader rendering are not yet equivalent to desktop Manim.

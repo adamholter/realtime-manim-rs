@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 import { resolve } from "node:path";
-import { chromium } from "playwright";
+import { chromium } from "playwright-core";
 
-const [requestedUrl = "http://127.0.0.1:8921/benchmarks/compat/public-cdn-v040.html", output = "benchmarks/compat/public-cdn-v040.png"] = process.argv.slice(2);
+const [requestedUrl = "http://127.0.0.1:8921/benchmarks/compat/public-cdn-v050.html", output = "benchmarks/compat/public-cdn-v050.png"] = process.argv.slice(2);
 const outputPath = resolve(output);
 const browser = await chromium.launch({
   headless: true,

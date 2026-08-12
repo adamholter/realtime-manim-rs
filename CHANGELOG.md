@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.5.0 — 2026-08-12
+
+- Added Manim-style retained spatial layout and exact nested 2D bounds,
+  including Bezier extrema, hierarchy-safe `copy()`, `nextTo`, `alignTo`,
+  `toEdge`, `toCorner`, and `Group.arrange`.
+- Changed `Mobject.moveTo(...)` from setting the retained transform origin to
+  Manim-compatible center/critical-point alignment. Use `node.transform.x/y`
+  directly only when raw retained-origin placement is intentionally required.
+- Added native UAX #9 bidirectional layout, explicit script shaping, joined
+  Arabic, Hebrew, mixed LTR/RTL text, and bundled portable vector fallbacks.
+- Expanded the native Metal renderer with raster images, Path3d, lit/color and
+  dual-textured meshes, patch surfaces, depth/culling/clipping, and all six
+  image reconstruction modes used by the browser renderer.
+- Corrected transparent 3D compositing in both renderers with opaque-first
+  depth, global far-to-near triangle ordering, and depth-tested blending.
+- Reused WebGPU frame-geometry allocations and added a headless WebGPU corpus
+  sweep that records per-frame hashes and machine-readable benchmark receipts.
+- Added synchronous text-resource validation so unsupported vector glyphs fail
+  scene loading with an explicit error instead of producing a blank frame.
+
 ## 0.4.0 — 2026-08-12
 
 - Added retained `NumberLine`, `Axes`, `NumberPlane`, `FunctionGraph`, and

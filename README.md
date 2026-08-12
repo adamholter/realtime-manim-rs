@@ -24,13 +24,16 @@ The repository now contains:
 - versioned retained 2D scene IR and deterministic explicit-time evaluator
 - general batched Rust/Wasm/WebGPU vector renderer
 - installable `realtime-manim` browser package with a typed JavaScript scene API
+- Manim-style retained JavaScript layout, exact nested 2D bounds, and
+  hierarchy-safe object copying
 - multisampled GPU depth for opaque 3D geometry plus near/far-plane triangle clipping
 - local OpenRouter Agent SDK server with streamed GPT-5.6 Terra Manim generation
 - regular Manim Community compatibility compiler for Scene/Mobject/Animation,
   updater, moving-camera, and projected ThreeDScene semantics
 - network-denied and write-isolated sandbox for generated Python
 - shaped vector text with real bold/italic faces, runtime OpenType family
-  registration, deterministic grapheme-safe family fallback, and mixed-style spans,
+  registration, UAX #9 bidi ordering, joined Arabic/Hebrew vector fallbacks,
+  deterministic grapheme-safe family fallback, and mixed-style spans,
   real MathTex-to-SVG, and styled SVG ingestion with native multistop linear
   and focal radial gradients, pad/repeat/reflect spread modes, and intersected
   vector clip paths plus fractional, recursively nested alpha/luminance masks
@@ -192,6 +195,7 @@ JavaScript scene builder and the release Rust/Wasm runtime. Build and verify it 
 ```sh
 npm run build:package
 npm run test:package
+npm run test:browser-package # with a repository static server on port 8921
 ```
 
 The public package is installable with `npm install realtime-manim`. The package

@@ -2,7 +2,7 @@
 
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { chromium } from "playwright";
+import { chromium } from "playwright-core";
 
 const [scenePath, outputPath] = process.argv.slice(2);
 if (!scenePath || !outputPath) {

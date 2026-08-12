@@ -9,7 +9,10 @@ license.workspace = true
 [dependencies]
 lyon = "1.0.16"
 rustybuzz.workspace = true
+rwml-fonts = "0.1.1"
 ttf-noto-sans.workspace = true
+unicode-bidi.workspace = true
+unicode-script.workspace = true
 unicode-segmentation.workspace = true
 
 [lints]

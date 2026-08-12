@@ -10,18 +10,20 @@
     "test:device-recovery": "node scripts/test-device-recovery.mjs",
     "test:multi-player": "node scripts/test-multi-player.mjs",
     "test:browser-package": "node scripts/test-browser-package.mjs",
+    "test:package-tarball": "node scripts/test-package-tarball.mjs",
     "capture:scene": "node scripts/capture-scene.mjs",
     "capture:svg-reference": "node scripts/capture-svg-reference.mjs",
     "test:public-package": "node scripts/test-public-package.mjs",
     "build:package": "./scripts/build-web-package.sh",
     "typecheck:package": "tsc --noEmit --strict --skipLibCheck --target ES2022 --module ESNext --moduleResolution Bundler --lib ES2022,DOM packages/manim-web/test/types.test.ts",
-    "test:package": "npm test --prefix packages/manim-web && npm run typecheck:package && npm run pack:check --prefix packages/manim-web"
+    "test:package": "npm test --prefix packages/manim-web && npm run typecheck:package && npm run pack:check --prefix packages/manim-web && npm run test:package-tarball"
   },
   "dependencies": {
     "@openrouter/agent": "0.8.0",
     "webm-muxer": "^5.1.4"
   },
   "devDependencies": {
+    "playwright-core": "1.62.1",
     "typescript": "5.9.3"
   },
   "engines": {

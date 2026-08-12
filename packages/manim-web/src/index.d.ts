@@ -7,6 +7,25 @@ export type FontSlant = "normal" | "italic";
 export type ImageResampling = "nearest" | "box" | "bilinear" | "hamming" | "bicubic" | "lanczos";
 export type StrokeCap = "butt" | "square" | "round";
 export type StrokeJoin = "miter" | "miterClip" | "round" | "bevel";
+export interface MobjectBounds {
+  readonly minX: number;
+  readonly minY: number;
+  readonly maxX: number;
+  readonly maxY: number;
+  readonly width: number;
+  readonly height: number;
+  readonly center: Point;
+}
+export interface LayoutFrame {
+  readonly width?: number;
+  readonly height?: number;
+  readonly center?: Point;
+}
+export interface ArrangeOptions {
+  readonly buff?: number;
+  readonly alignedEdge?: Point;
+  readonly center?: boolean;
+}
 export type RgbaPixels = string | ArrayBuffer | Uint8Array | Uint8ClampedArray;
 export type RgbaTexture =
   | { pixels: RgbaPixels; data?: never; width: number; height: number }
@@ -325,6 +344,14 @@ export const UP: Point;
 export const DOWN: Point;
 export const LEFT: Point;
 export const RIGHT: Point;
+export const UL: Point;
+export const UR: Point;
+export const DL: Point;
+export const DR: Point;
+export const FRAME_WIDTH: number;
+export const FRAME_HEIGHT: number;
+export const DEFAULT_MOBJECT_TO_EDGE_BUFFER: number;
+export const DEFAULT_MOBJECT_TO_MOBJECT_BUFFER: number;
 export const pathCommand: {
   moveTo(point: Point): PathCommand;
   lineTo(point: Point): PathCommand;
@@ -344,10 +371,27 @@ export class Mobject<TNode extends BaseNode = BaseNode> {
   readonly id: string;
   readonly node: TNode;
   constructor(type: string, options?: MobjectOptions);
-  moveTo(point: Point): this;
+  copy(): this;
+  getBounds(): MobjectBounds;
+  getCenter(): Point;
+  getWidth(): number;
+  getHeight(): number;
+  getLeft(): Point;
+  getRight(): Point;
+  getTop(): Point;
+  getBottom(): Point;
+  getCriticalPoint(direction: Point): Point;
+  center(): this;
+  moveTo(target: Mobject | Point, alignedEdge?: Point): this;
   moveTo(x: number, y: number): this;
   shift(offset: Point): this;
   shift(dx: number, dy: number): this;
+  setX(value: number): this;
+  setY(value: number): this;
+  alignTo(target: Mobject | Point, direction?: Point): this;
+  nextTo(target: Mobject | Point, direction?: Point, buff?: number, alignedEdge?: Point): this;
+  toEdge(direction?: Point, buff?: number, frame?: LayoutFrame): this;
+  toCorner(direction?: Point, buff?: number, frame?: LayoutFrame): this;
   scale(value: number): this;
   rotate(radians: number): this;
   rotateX(radians: number): this;
@@ -358,7 +402,7 @@ export class Mobject<TNode extends BaseNode = BaseNode> {
   strokeGradient(gradient: LinearGradient | null, width?: number): this;
   strokeCap(value: StrokeCap): this;
   strokeJoin(value: StrokeJoin): this;
-  dash(pattern?: number[], offset?: number): this;
+  dash(pattern?: readonly number[], offset?: number): this;
   opacity(value: number): this;
   zIndex(value: number): this;
   setParent(parent: Mobject | string | null): this;
@@ -412,17 +456,18 @@ export class RetainedNode<TNode extends BaseNode = BaseNode> extends Mobject<TNo
 export class Billboard extends Mobject<BillboardNode> { constructor(anchor: Point3D, base?: Point, options?: MobjectOptions); }
 export class PathReference extends Mobject<PathReferenceNode> { constructor(source: Path | string, options?: MobjectOptions); }
 export class Group extends Mobject<GroupNode> {
-  constructor(...items: Array<Mobject | Mobject[] | MobjectOptions>);
-  readonly members: Mobject[];
-  add(...items: Array<Mobject | Mobject[]>): this;
+  constructor(...items: Array<Mobject | readonly Mobject[] | MobjectOptions>);
+  readonly members: readonly Mobject[];
+  add(...items: Array<Mobject | readonly Mobject[]>): this;
   fill(color: string | null): this;
   fillGradient(gradient: LinearGradient | null): this;
   stroke(color: string | null, width?: number): this;
   strokeGradient(gradient: LinearGradient | null, width?: number): this;
   strokeCap(value: StrokeCap): this;
   strokeJoin(value: StrokeJoin): this;
-  dash(pattern?: number[], offset?: number): this;
+  dash(pattern?: readonly number[], offset?: number): this;
   opacity(value: number): this;
+  arrange(direction?: Point, options?: ArrangeOptions): this;
 }
 export class VGroup extends Group {}
 

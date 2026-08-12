@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { chromium } from "playwright";
+import { chromium } from "playwright-core";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { readFile, readdir } from "node:fs/promises";
