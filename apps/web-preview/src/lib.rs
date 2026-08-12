@@ -17,6 +17,7 @@ mod web {
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
     use bytemuck::{Pod, Zeroable};
     use lyon::{
+        algorithms::measure::{PathMeasurements, SampleType},
         math::point,
         path::{Event as PathEvent, Path},
         tessellation::{
@@ -28,7 +29,7 @@ mod web {
         Camera, EvaluatedFrameView, EvaluatedLinearGradient, EvaluatedNodeView, FontSlant,
         FontWeight, GradientSpace, GradientSpread, ImageResampling, NodeKind, PathCommand,
         PathCommand3d, Scene, ShaderAttribute, ShaderPrimitive, ShaderUniform, ShaderUniformType,
-        ShaderVertexFormat, TextAlign, Transform, parse_color,
+        ShaderVertexFormat, StrokeCap, StrokeJoin, TextAlign, Transform, parse_color,
     };
     use realtime_manim_svg_engine::{
         SvgClip, SvgElementRef, SvgEngine, SvgFillRule, SvgGradientSpread, SvgImageResampling,
@@ -5322,14 +5323,21 @@ mod web {
         node: &EvaluatedNodeView<'_>,
         path: &Path,
     ) -> Result<(), String> {
-        append_path_with_options(
-            buffers,
-            gradient_stops,
-            frame,
-            node,
-            path,
-            PathRenderOptions::default(),
-        )
+        let options = PathRenderOptions {
+            line_cap: match node.style.stroke_cap {
+                StrokeCap::Butt => lyon::tessellation::LineCap::Butt,
+                StrokeCap::Square => lyon::tessellation::LineCap::Square,
+                StrokeCap::Round => lyon::tessellation::LineCap::Round,
+            },
+            line_join: match node.style.stroke_join {
+                StrokeJoin::Miter => lyon::tessellation::LineJoin::Miter,
+                StrokeJoin::MiterClip => lyon::tessellation::LineJoin::MiterClip,
+                StrokeJoin::Round => lyon::tessellation::LineJoin::Round,
+                StrokeJoin::Bevel => lyon::tessellation::LineJoin::Bevel,
+            },
+            ..PathRenderOptions::default()
+        };
+        append_path_with_options(buffers, gradient_stops, frame, node, path, options)
     }
 
     #[derive(Clone, Copy)]
@@ -5433,7 +5441,14 @@ mod web {
                     node.transform[5],
                 ))
             });
-            let stroke_path = transformed_path.as_ref().unwrap_or(path);
+            let base_stroke_path = transformed_path.as_ref().unwrap_or(path);
+            let dashed_path = build_dashed_path(
+                base_stroke_path,
+                &node.style.dash_array,
+                node.style.dash_offset,
+                tolerance,
+            )?;
+            let stroke_path = dashed_path.as_ref().unwrap_or(base_stroke_path);
             let stroke_matrix = if world_space_stroke {
                 [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]
             } else {
@@ -5471,6 +5486,90 @@ mod web {
                 .map_err(|error| format!("Stroke tessellation failed for {}: {error}.", node.id))?;
         }
         Ok(())
+    }
+
+    fn build_dashed_path(
+        path: &Path,
+        dash_array: &[f32],
+        dash_offset: f32,
+        tolerance: f32,
+    ) -> Result<Option<Path>, String> {
+        if dash_array.is_empty() {
+            return Ok(None);
+        }
+
+        // SVG repeats odd-length dash lists to produce an even on/off cycle.
+        let mut pattern = dash_array.to_vec();
+        if pattern.len() % 2 == 1 {
+            pattern.extend_from_slice(dash_array);
+        }
+        let cycle = pattern.iter().sum::<f32>();
+        if !cycle.is_finite() || cycle <= f32::EPSILON {
+            return Ok(None);
+        }
+
+        let mut output = Path::builder();
+        let minimum_segment = pattern.iter().copied().fold(f32::INFINITY, f32::min);
+        let mut source_builder = Path::builder();
+        let mut source_active = false;
+        let mut estimated_segments = 0.0f32;
+
+        for event in path.iter() {
+            match event {
+                PathEvent::Begin { at } => {
+                    source_builder.begin(at);
+                    source_active = true;
+                }
+                PathEvent::Line { to, .. } => {
+                    source_builder.line_to(to);
+                }
+                PathEvent::Quadratic { ctrl, to, .. } => {
+                    source_builder.quadratic_bezier_to(ctrl, to);
+                }
+                PathEvent::Cubic {
+                    ctrl1, ctrl2, to, ..
+                } => {
+                    source_builder.cubic_bezier_to(ctrl1, ctrl2, to);
+                }
+                PathEvent::End { close, .. } => {
+                    source_builder.end(close);
+                    let subpath = mem::replace(&mut source_builder, Path::builder()).build();
+                    source_active = false;
+                    let measurements = PathMeasurements::from_path(&subpath, tolerance);
+                    let length = measurements.length();
+                    estimated_segments += length / minimum_segment;
+                    if estimated_segments > 200_000.0 {
+                        return Err(
+                            "Dash pattern produces more than 200,000 path segments.".to_owned()
+                        );
+                    }
+
+                    // SVG restarts the dash pattern at the beginning of every subpath.
+                    let mut pattern_index = 0usize;
+                    let mut phase = dash_offset.rem_euclid(cycle);
+                    while phase >= pattern[pattern_index] {
+                        phase -= pattern[pattern_index];
+                        pattern_index = (pattern_index + 1) % pattern.len();
+                    }
+                    let mut remaining = pattern[pattern_index] - phase;
+                    let mut position = 0.0f32;
+                    let mut sampler = measurements.create_sampler(&subpath, SampleType::Distance);
+                    while position < length {
+                        let end = (position + remaining).min(length);
+                        if pattern_index % 2 == 0 && end > position {
+                            sampler.split_range(position..end, &mut output);
+                        }
+                        position = end;
+                        pattern_index = (pattern_index + 1) % pattern.len();
+                        remaining = pattern[pattern_index];
+                    }
+                }
+            }
+        }
+        if source_active {
+            return Err("Cannot dash an unterminated path.".to_owned());
+        }
+        Ok(Some(output.build()))
     }
 
     fn screen_space_curve_tolerance(frame: &EvaluatedFrameView<'_>, matrix: [f32; 6]) -> f32 {
@@ -5943,7 +6042,66 @@ mod web {
                 }
             }
         }
-        Ok(builder.build())
+        let path = builder.build();
+        if draw_start > 0.000_001 || draw_progress < 0.999_999 {
+            let start = draw_start.clamp(0.0, 1.0);
+            let end = draw_progress.clamp(start, 1.0);
+            let mut output = Path::builder();
+            if end > start + f32::EPSILON {
+                let measurements = PathMeasurements::from_path(&path, 0.001);
+                if measurements.length() > f32::EPSILON {
+                    measurements
+                        .create_sampler(&path, SampleType::Normalized)
+                        .split_range(start..end, &mut output);
+                }
+            }
+            return Ok(output.build());
+        }
+        Ok(path)
+    }
+
+    #[cfg(test)]
+    mod command_path_tests {
+        use lyon::path::Event as PathEvent;
+        use realtime_manim_scene_core::PathCommand;
+
+        use super::command_path;
+
+        #[test]
+        fn line_and_quadratic_paths_honor_draw_ranges() {
+            let line = [
+                PathCommand::MoveTo { x: 0.0, y: 0.0 },
+                PathCommand::LineTo { x: 10.0, y: 0.0 },
+            ];
+            let hidden = command_path(&line, 0.0, 0.0).expect("hidden line");
+            assert!(
+                !hidden
+                    .iter()
+                    .any(|event| matches!(event, PathEvent::Line { .. }))
+            );
+            let half = command_path(&line, 0.0, 0.5).expect("partial line");
+            let line_end = half.iter().find_map(|event| match event {
+                PathEvent::Line { to, .. } => Some(to),
+                _ => None,
+            });
+            assert!((line_end.expect("line segment").x - 5.0).abs() < 0.001);
+
+            let quadratic = [
+                PathCommand::MoveTo { x: 0.0, y: 0.0 },
+                PathCommand::QuadTo {
+                    cx: 5.0,
+                    cy: 5.0,
+                    x: 10.0,
+                    y: 0.0,
+                },
+            ];
+            let partial = command_path(&quadratic, 0.25, 0.75).expect("partial quadratic");
+            assert!(
+                partial
+                    .iter()
+                    .any(|event| matches!(event, PathEvent::Quadratic { .. }))
+            );
+        }
     }
 
     type CubicSubpath = ([f32; 2], Vec<[[f32; 2]; 3]>, bool);

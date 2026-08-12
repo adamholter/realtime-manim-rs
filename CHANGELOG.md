@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0 — 2026-08-12
+
+- Added retained `NumberLine`, `Axes`, `NumberPlane`, `FunctionGraph`, and
+  `ParametricFunction` browser authoring APIs with reversible coordinates.
+- Added native butt/square/round caps, miter/miter-clip/round/bevel joins, and
+  SVG-style curved-path dash patterns to the Rust/Wasm and Metal renderers.
+- Added deterministic grapheme-safe registered-font fallback with explicit
+  missing-vector-glyph errors instead of tofu or disappearing text.
+- Replaced the native preview scaffold with a real Metal player, strict GPU
+  smoke checker, and headless PNG renderer.
+- Added strict TypeScript checking to the package release gate.
+
 ## 0.3.0 — 2026-08-12
 
 - Published `realtime-manim` as a dependency-free typed ESM browser package.

@@ -13,6 +13,7 @@ use rustybuzz::{
     Face, UnicodeBuffer, shape,
     ttf_parser::{GlyphId, OutlineBuilder},
 };
+use unicode_segmentation::UnicodeSegmentation;
 
 /// Horizontal alignment of a shaped line around its text-node origin.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -72,6 +73,27 @@ struct ShapedLine {
     advance: f32,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct FontRun {
+    font_id: u32,
+    start: usize,
+    end: usize,
+}
+
+#[derive(Clone, Debug)]
+struct PendingRun {
+    font_id: u32,
+    scale: f32,
+    shaped: ShapedLine,
+}
+
+#[derive(Clone, Debug)]
+struct PendingLine {
+    runs: Vec<PendingRun>,
+    advance: f32,
+    glyph_count: usize,
+}
+
 /// Error returned when the bundled font or one of its glyphs is invalid.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TextError(String);
@@ -90,6 +112,7 @@ pub struct TextEngine {
     family_ids: HashMap<String, u32>,
     lines: HashMap<(u32, FontVariant, String), ShapedLine>,
     outlines: HashMap<(u32, FontVariant, u16), Option<Path>>,
+    coverage: HashMap<(u32, FontVariant, char), bool>,
 }
 
 enum FontBytes {
@@ -136,6 +159,7 @@ impl TextEngine {
             family_ids: HashMap::from([("noto sans".to_owned(), 0)]),
             lines: HashMap::new(),
             outlines: HashMap::new(),
+            coverage: HashMap::new(),
         })
     }
 
@@ -194,6 +218,7 @@ impl TextEngine {
         self.families[font_id as usize].variants[variant.index()] = Some(FontBytes::Owned(bytes));
         self.lines.retain(|(id, _, _), _| *id != font_id);
         self.outlines.retain(|(id, _, _), _| *id != font_id);
+        self.coverage.retain(|(id, _, _), _| *id != font_id);
         Ok(())
     }
 
@@ -259,6 +284,36 @@ impl TextEngine {
         letter_spacing: f32,
         selection: FontSelection<'_>,
     ) -> Result<TextLayout, TextError> {
+        self.layout_family_chain_variant(
+            text,
+            font_size,
+            align,
+            line_height,
+            letter_spacing,
+            selection,
+            &[],
+        )
+    }
+
+    /// Shapes text with a deterministic registered-font fallback chain.
+    ///
+    /// The selected family is always tried first. With an explicit chain, its
+    /// families follow in supplied order. With an empty chain, every uploaded
+    /// family follows in registration order. Bundled Noto Sans is the final
+    /// last resort in both cases. Adjacent grapheme clusters that resolve to
+    /// the same face are shaped together so kerning, ligatures, and
+    /// complex-script substitutions remain intact within each resolved run.
+    #[allow(clippy::too_many_arguments)]
+    pub fn layout_family_chain_variant(
+        &mut self,
+        text: &str,
+        font_size: f32,
+        align: TextAlign,
+        line_height: f32,
+        letter_spacing: f32,
+        selection: FontSelection<'_>,
+        fallback_families: &[&str],
+    ) -> Result<TextLayout, TextError> {
         if !font_size.is_finite() || font_size <= 0.0 {
             return Err(TextError(
                 "Font size must be positive and finite.".to_owned(),
@@ -273,22 +328,53 @@ impl TextEngine {
             return Err(TextError("Letter spacing must be finite.".to_owned()));
         }
 
-        let font_id = self
-            .family_ids
-            .get(&selection.family.trim().to_lowercase())
-            .copied()
-            .ok_or_else(|| {
-                TextError(format!(
-                    "Font family {} is not registered.",
-                    selection.family
-                ))
-            })?;
-        let face = self.face(font_id, selection.variant)?;
-        let units_per_em = face.units_per_em() as f32;
-        let scale = font_size / units_per_em;
-        let ascender = face.ascender() as f32 * scale;
-        let descender = face.descender() as f32 * scale;
+        let font_chain = self.resolve_font_chain(selection.family, fallback_families)?;
+        let primary_font_id = font_chain[0];
         let lines: Vec<&str> = text.split('\n').collect();
+        let mut pending_lines = Vec::with_capacity(lines.len());
+        let mut ascender = f32::NEG_INFINITY;
+        let mut descender = f32::INFINITY;
+        for text_line in &lines {
+            let font_runs =
+                self.font_runs(text_line, &font_chain, selection.variant, selection.family)?;
+            let mut pending_runs = Vec::with_capacity(font_runs.len());
+            let mut advance = 0.0_f32;
+            let mut glyph_count = 0usize;
+
+            if font_runs.is_empty() {
+                let face = self.face(primary_font_id, selection.variant)?;
+                let scale = font_size / face.units_per_em() as f32;
+                ascender = ascender.max(face.ascender() as f32 * scale);
+                descender = descender.min(face.descender() as f32 * scale);
+            }
+
+            for font_run in font_runs {
+                let face = self.face(font_run.font_id, selection.variant)?;
+                let scale = font_size / face.units_per_em() as f32;
+                ascender = ascender.max(face.ascender() as f32 * scale);
+                descender = descender.min(face.descender() as f32 * scale);
+                let shaped = self
+                    .shape_line(
+                        &text_line[font_run.start..font_run.end],
+                        font_run.font_id,
+                        selection.variant,
+                    )?
+                    .clone();
+                advance += shaped.advance * scale;
+                glyph_count = glyph_count.saturating_add(shaped.glyphs.len());
+                pending_runs.push(PendingRun {
+                    font_id: font_run.font_id,
+                    scale,
+                    shaped,
+                });
+            }
+            pending_lines.push(PendingLine {
+                runs: pending_runs,
+                advance,
+                glyph_count,
+            });
+        }
+
         let line_advance = font_size * line_height;
         let block_height = if lines.is_empty() {
             0.0
@@ -300,12 +386,9 @@ impl TextEngine {
 
         let mut glyphs = Vec::new();
         let mut width = 0.0_f32;
-        for (line_index, text_line) in lines.into_iter().enumerate() {
-            let shaped = self
-                .shape_line(text_line, font_id, selection.variant)?
-                .clone();
-            let spacing_total = letter_spacing * shaped.glyphs.len().saturating_sub(1) as f32;
-            let line_width = shaped.advance * scale + spacing_total;
+        for (line_index, line) in pending_lines.into_iter().enumerate() {
+            let spacing_total = letter_spacing * line.glyph_count.saturating_sub(1) as f32;
+            let line_width = line.advance + spacing_total;
             width = width.max(line_width);
             let start_x = match align {
                 TextAlign::Left => 0.0,
@@ -313,15 +396,21 @@ impl TextEngine {
                 TextAlign::Right => -line_width,
             };
             let baseline = first_baseline - line_index as f32 * line_advance;
-            for (glyph_index, glyph) in shaped.glyphs.iter().enumerate() {
-                glyphs.push(PositionedGlyph {
-                    font_id,
-                    glyph_id: glyph.glyph_id,
-                    variant: selection.variant,
-                    x: start_x + glyph.x * scale + glyph_index as f32 * letter_spacing,
-                    y: baseline + glyph.y * scale,
-                    scale,
-                });
+            let mut run_x = start_x;
+            let mut glyph_index = 0usize;
+            for run in line.runs {
+                for glyph in &run.shaped.glyphs {
+                    glyphs.push(PositionedGlyph {
+                        font_id: run.font_id,
+                        glyph_id: glyph.glyph_id,
+                        variant: selection.variant,
+                        x: run_x + glyph.x * run.scale + glyph_index as f32 * letter_spacing,
+                        y: baseline + glyph.y * run.scale,
+                        scale: run.scale,
+                    });
+                    glyph_index += 1;
+                }
+                run_x += run.shaped.advance * run.scale;
             }
         }
 
@@ -370,6 +459,133 @@ impl TextEngine {
         (self.lines.len(), self.outlines.len())
     }
 
+    fn resolve_font_chain(
+        &self,
+        primary_family: &str,
+        explicit_fallbacks: &[&str],
+    ) -> Result<Vec<u32>, TextError> {
+        let family_id = |family: &str| {
+            self.family_ids
+                .get(&family.trim().to_lowercase())
+                .copied()
+                .ok_or_else(|| TextError(format!("Font family {family} is not registered.")))
+        };
+        let primary_id = family_id(primary_family)?;
+        let mut chain = vec![primary_id];
+        for family in explicit_fallbacks {
+            let font_id = family_id(family)?;
+            if !chain.contains(&font_id) {
+                chain.push(font_id);
+            }
+        }
+
+        // With no explicit chain, uploaded faces are deterministic fallbacks
+        // in registration order. With an explicit chain, do not silently add
+        // unrelated faces; only the portable bundled last resort is appended.
+        if explicit_fallbacks.is_empty() {
+            for font_id in 1..self.families.len() as u32 {
+                if !chain.contains(&font_id) {
+                    chain.push(font_id);
+                }
+            }
+        }
+        if !chain.contains(&0) {
+            chain.push(0);
+        }
+        Ok(chain)
+    }
+
+    fn font_runs(
+        &mut self,
+        text: &str,
+        font_chain: &[u32],
+        variant: FontVariant,
+        primary_family: &str,
+    ) -> Result<Vec<FontRun>, TextError> {
+        let mut runs: Vec<FontRun> = Vec::new();
+        for (start, grapheme) in text.grapheme_indices(true) {
+            let font_id = if grapheme.chars().all(is_default_ignorable) {
+                font_chain[0]
+            } else {
+                let mut selected = None;
+                for font_id in font_chain {
+                    if self.font_covers_grapheme(*font_id, variant, grapheme)? {
+                        selected = Some(*font_id);
+                        break;
+                    }
+                }
+                selected.ok_or_else(|| {
+                    let codepoints = grapheme
+                        .chars()
+                        .filter(|character| !is_default_ignorable(*character))
+                        .map(|character| format!("U+{:04X}", character as u32))
+                        .collect::<Vec<_>>()
+                        .join(" ");
+                    let families = font_chain
+                        .iter()
+                        .filter_map(|font_id| self.families.get(*font_id as usize))
+                        .map(|family| family.name.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    TextError(format!(
+                        "No registered vector font covers {codepoints} for {primary_family}. Fallback order: {families}."
+                    ))
+                })?
+            };
+            let end = start + grapheme.len();
+            if let Some(run) = runs.last_mut()
+                && run.font_id == font_id
+            {
+                run.end = end;
+            } else {
+                runs.push(FontRun {
+                    font_id,
+                    start,
+                    end,
+                });
+            }
+        }
+        Ok(runs)
+    }
+
+    fn font_covers_grapheme(
+        &mut self,
+        font_id: u32,
+        variant: FontVariant,
+        grapheme: &str,
+    ) -> Result<bool, TextError> {
+        for character in grapheme.chars() {
+            if is_default_ignorable(character) {
+                continue;
+            }
+            if !self.supports_character(font_id, variant, character)? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
+    fn supports_character(
+        &mut self,
+        font_id: u32,
+        variant: FontVariant,
+        character: char,
+    ) -> Result<bool, TextError> {
+        let key = (font_id, variant, character);
+        if let Some(supported) = self.coverage.get(&key).copied() {
+            return Ok(supported);
+        }
+        let supported = {
+            let face = self.face(font_id, variant)?;
+            preferred_glyph_index(&face, character).is_some_and(|glyph_id| {
+                character.is_whitespace()
+                    || face.outline_glyph(glyph_id, &mut OutlineProbe).is_some()
+            })
+        };
+        self.coverage.insert(key, supported);
+        Ok(supported)
+    }
+
     fn shape_line(
         &mut self,
         text: &str,
@@ -379,6 +595,7 @@ impl TextEngine {
         let key = (font_id, variant, text.to_owned());
         if !self.lines.contains_key(&key) {
             let shaped_line = {
+                let family_name = self.families[font_id as usize].name.clone();
                 let face = self.face(font_id, variant)?;
                 let mut buffer = UnicodeBuffer::new();
                 buffer.push_str(text);
@@ -386,21 +603,43 @@ impl TextEngine {
                 let shaped = shape(&face, &[], buffer);
                 let mut cursor_x = 0.0_f32;
                 let mut cursor_y = 0.0_f32;
-                let glyphs = shaped
-                    .glyph_infos()
-                    .iter()
-                    .zip(shaped.glyph_positions())
-                    .map(|(info, position)| {
-                        let glyph = ShapedGlyph {
-                            glyph_id: info.glyph_id as u16,
-                            x: cursor_x + position.x_offset as f32,
-                            y: cursor_y + position.y_offset as f32,
-                        };
-                        cursor_x += position.x_advance as f32;
-                        cursor_y += position.y_advance as f32;
-                        glyph
-                    })
-                    .collect();
+                let mut glyphs = Vec::with_capacity(shaped.len());
+                for (info, position) in shaped.glyph_infos().iter().zip(shaped.glyph_positions()) {
+                    let source_character = text
+                        .get(info.cluster as usize..)
+                        .and_then(|cluster| cluster.chars().next());
+                    cursor_x += position.x_advance as f32;
+                    cursor_y += position.y_advance as f32;
+                    if info.glyph_id == 0 {
+                        if source_character.is_some_and(is_default_ignorable) {
+                            continue;
+                        }
+                        let codepoint = source_character
+                            .map(|character| format!("U+{:04X}", character as u32))
+                            .unwrap_or_else(|| "an invalid cluster".to_owned());
+                        return Err(TextError(format!(
+                            "Font family {family_name} produced a missing glyph for {codepoint}."
+                        )));
+                    }
+                    let glyph_id = info.glyph_id as u16;
+                    if source_character.is_some_and(|character| {
+                        !character.is_whitespace() && !is_default_ignorable(character)
+                    }) && face
+                        .outline_glyph(GlyphId(glyph_id), &mut OutlineProbe)
+                        .is_none()
+                    {
+                        let character = source_character.expect("visible source character");
+                        return Err(TextError(format!(
+                            "Font family {family_name} has no vector outline for U+{:04X}.",
+                            character as u32
+                        )));
+                    }
+                    glyphs.push(ShapedGlyph {
+                        glyph_id,
+                        x: cursor_x - position.x_advance as f32 + position.x_offset as f32,
+                        y: cursor_y - position.y_advance as f32 + position.y_offset as f32,
+                    });
+                }
                 ShapedLine {
                     glyphs,
                     advance: cursor_x.abs(),
@@ -441,6 +680,56 @@ impl Default for TextEngine {
     fn default() -> Self {
         Self::new().expect("the compile-time Noto Sans font must be valid")
     }
+}
+
+fn preferred_glyph_index(face: &Face<'_>, character: char) -> Option<GlyphId> {
+    let face: &rustybuzz::ttf_parser::Face<'_> = face.as_ref();
+    let cmap = face.tables().cmap?;
+    let codepoint = character as u32;
+    for subtable in cmap.subtables {
+        if subtable.is_unicode()
+            && let Some(glyph_id) = subtable.glyph_index(codepoint)
+        {
+            return Some(glyph_id);
+        }
+    }
+    None
+}
+
+fn is_default_ignorable(character: char) -> bool {
+    matches!(
+        character as u32,
+        0x00AD
+            | 0x034F
+            | 0x061C
+            | 0x115F..=0x1160
+            | 0x17B4..=0x17B5
+            | 0x180B..=0x180F
+            | 0x200B..=0x200F
+            | 0x202A..=0x202E
+            | 0x2060..=0x206F
+            | 0x3164
+            | 0xFE00..=0xFE0F
+            | 0xFEFF
+            | 0xFFA0
+            | 0x1BCA0..=0x1BCA3
+            | 0x1D173..=0x1D17A
+            | 0xE0000..=0xE0FFF
+    )
+}
+
+struct OutlineProbe;
+
+impl OutlineBuilder for OutlineProbe {
+    fn move_to(&mut self, _x: f32, _y: f32) {}
+
+    fn line_to(&mut self, _x: f32, _y: f32) {}
+
+    fn quad_to(&mut self, _cx: f32, _cy: f32, _x: f32, _y: f32) {}
+
+    fn curve_to(&mut self, _c1x: f32, _c1y: f32, _c2x: f32, _c2y: f32, _x: f32, _y: f32) {}
+
+    fn close(&mut self) {}
 }
 
 #[derive(Clone, Debug)]
@@ -519,7 +808,18 @@ impl OutlineBuilder for OutlineCollector {
 
 #[cfg(test)]
 mod tests {
+    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+
     use super::{FontSelection, FontVariant, TextAlign, TextEngine};
+
+    // The 400-byte A-only outline font from ttf-parser's Apache-2.0/MIT test
+    // corpus. Keeping the fixture inline makes fallback tests reproducible on
+    // native and Wasm hosts without relying on system fonts.
+    const A_ONLY_FONT: &str = "AAEAAAAHAEAAAgAwY21hcAAJAHYAAAEAAAAALGdseWbxy2aYAAABNAAAAFxoZWFk8jXd+AAAAHwAAAA2aGhlYQZhAMoAAAC0AAAAJGhtdHgEdABqAAAA+AAAAAhsb2NhAC4AFAAAASwAAAAGbWF4cAAFAAsAAADYAAAAIAABAAAAAQAA9ZwpRF8PPPUAAgPoAAAAALSS9AAAAAAA3C+mXAAGAAACWAK8AAAAAwACAAAAAAAAAAEAAAQA/nAAAAJYAAb//wJYAAEAAAAAAAAAAAAAAAAAAAACAAEAAAACAAsAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAACWABkAhwABgAAAAEAAAADAAAADAAEACAAAAAEAAQAAQAAAEH//wAAAEH////AAAEAAAAAAAAAFAAuAAAAAgBkAAACWAK8AAMABwAAMxEhESUhESFkAfT+NAGk/lwCvP1EKAJsAAIABgAAAh0CkAACAAoAABMzAwETMxMjJyMHrcRj/vjaYN1ZPu9CAQsBQP21ApD9cMjIAA==";
+
+    fn a_only_font() -> Vec<u8> {
+        BASE64.decode(A_ONLY_FONT).expect("embedded test font")
+    }
 
     #[test]
     fn uses_proportional_shaped_metrics() {
@@ -688,5 +988,92 @@ mod tests {
         assert!(engine.has_family("Noto Sans"));
         assert!(engine.has_family("  noto sans  "));
         assert!(!engine.has_family("Missing Sans"));
+    }
+
+    #[test]
+    fn resolves_mixed_font_runs_in_explicit_order() {
+        let mut engine = TextEngine::new().expect("font engine");
+        engine
+            .register_font("A Only", FontVariant::Regular, a_only_font())
+            .expect("partial primary font");
+        engine
+            .register_font(
+                "Greek First",
+                FontVariant::Regular,
+                ttf_noto_sans::BOLD.to_vec(),
+            )
+            .expect("first fallback");
+        engine
+            .register_font(
+                "Greek Second",
+                FontVariant::Regular,
+                ttf_noto_sans::REGULAR.to_vec(),
+            )
+            .expect("second fallback");
+
+        let layout = engine
+            .layout_family_chain_variant(
+                "AΩA",
+                1.0,
+                TextAlign::Left,
+                1.2,
+                0.0,
+                FontSelection {
+                    family: "A Only",
+                    variant: FontVariant::Regular,
+                },
+                &["Greek First", "Greek Second"],
+            )
+            .expect("mixed-font layout");
+
+        assert_eq!(
+            layout
+                .glyphs
+                .iter()
+                .map(|glyph| glyph.font_id)
+                .collect::<Vec<_>>(),
+            [1, 2, 1]
+        );
+        assert!(layout.glyphs.iter().all(|glyph| glyph.glyph_id != 0));
+    }
+
+    #[test]
+    fn keeps_a_combining_grapheme_in_one_fallback_run() {
+        let mut engine = TextEngine::new().expect("font engine");
+        engine
+            .register_font("A Only", FontVariant::Regular, a_only_font())
+            .expect("partial primary font");
+
+        let layout = engine
+            .layout_family_variant(
+                "A\u{301}",
+                1.0,
+                TextAlign::Left,
+                1.2,
+                0.0,
+                FontSelection {
+                    family: "A Only",
+                    variant: FontVariant::Regular,
+                },
+            )
+            .expect("combined grapheme fallback");
+
+        assert!(!layout.glyphs.is_empty());
+        assert!(layout.glyphs.iter().all(|glyph| glyph.font_id == 0));
+        assert!(layout.glyphs.iter().all(|glyph| glyph.glyph_id != 0));
+    }
+
+    #[test]
+    fn rejects_uncovered_text_instead_of_emitting_notdef() {
+        let mut engine = TextEngine::new().expect("font engine");
+        let error = engine
+            .layout("😀", 1.0, TextAlign::Left, 1.2, 0.0)
+            .expect_err("bundled Noto Sans intentionally has no emoji outline");
+        assert!(error.to_string().contains("U+1F600"));
+        assert!(
+            error
+                .to_string()
+                .contains("No registered vector font covers")
+        );
     }
 }

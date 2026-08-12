@@ -600,6 +600,14 @@ pub struct Style {
     pub stroke_gradient: Option<LinearGradient>,
     #[serde(default = "default_stroke_width")]
     pub stroke_width: f32,
+    #[serde(default)]
+    pub stroke_cap: StrokeCap,
+    #[serde(default)]
+    pub stroke_join: StrokeJoin,
+    #[serde(default)]
+    pub dash_array: Vec<f32>,
+    #[serde(default)]
+    pub dash_offset: f32,
     #[serde(default = "one")]
     pub opacity: f32,
     #[serde(default)]
@@ -616,11 +624,34 @@ impl Default for Style {
             stroke: default_stroke(),
             stroke_gradient: None,
             stroke_width: default_stroke_width(),
+            stroke_cap: StrokeCap::default(),
+            stroke_join: StrokeJoin::default(),
+            dash_array: Vec::new(),
+            dash_offset: 0.0,
             opacity: 1.0,
             draw_start: 0.0,
             draw_progress: 1.0,
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StrokeCap {
+    #[default]
+    Butt,
+    Square,
+    Round,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum StrokeJoin {
+    #[default]
+    Miter,
+    MiterClip,
+    Round,
+    Bevel,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -744,6 +775,7 @@ pub enum Property {
     ScaleZ,
     Opacity,
     StrokeWidth,
+    DashOffset,
     DrawStart,
     DrawProgress,
     DrawRange,
@@ -943,6 +975,10 @@ pub struct EvaluatedStyle {
     pub stroke: Option<[f32; 4]>,
     pub stroke_gradient: Option<EvaluatedLinearGradient>,
     pub stroke_width: f32,
+    pub stroke_cap: StrokeCap,
+    pub stroke_join: StrokeJoin,
+    pub dash_array: Vec<f32>,
+    pub dash_offset: f32,
     pub opacity: f32,
     pub draw_start: f32,
     pub draw_progress: f32,
@@ -971,6 +1007,7 @@ struct NodeState {
     affine_2d: Option<[f32; 6]>,
     opacity: f32,
     stroke_width: f32,
+    dash_offset: f32,
     draw_start: f32,
     draw_progress: f32,
     radius: Option<f32>,
@@ -1489,6 +1526,7 @@ impl Scene {
                             affine_2d: None,
                             opacity: node.style.opacity,
                             stroke_width: node.style.stroke_width,
+                            dash_offset: node.style.dash_offset,
                             draw_start: node.style.draw_start,
                             draw_progress: node.style.draw_progress,
                             radius: match node.kind {
@@ -1821,6 +1859,10 @@ impl Scene {
                     stroke,
                     stroke_gradient,
                     stroke_width: state.stroke_width.max(0.0),
+                    stroke_cap: node.style.stroke_cap,
+                    stroke_join: node.style.stroke_join,
+                    dash_array: node.style.dash_array.clone(),
+                    dash_offset: state.dash_offset,
                     opacity: state.opacity.clamp(0.0, 1.0),
                     draw_start: state.draw_start.clamp(0.0, 1.0),
                     draw_progress: state.draw_progress.clamp(0.0, 1.0),
@@ -1910,6 +1952,13 @@ impl Node {
         }
         if !self.style.stroke_width.is_finite()
             || !(0.0..=10.0).contains(&self.style.stroke_width)
+            || !self.style.dash_offset.is_finite()
+            || self.style.dash_array.len() > 64
+            || self
+                .style
+                .dash_array
+                .iter()
+                .any(|value| !value.is_finite() || !(0.000_01..=100_000.0).contains(value))
             || !(0.0..=1.0).contains(&self.style.opacity)
             || !(0.0..=1.0).contains(&self.style.draw_start)
             || !(0.0..=1.0).contains(&self.style.draw_progress)
@@ -2897,6 +2946,7 @@ fn apply_value<'a>(
                 Property::ScaleZ => state.transform.scale_z = value,
                 Property::Opacity => state.opacity = value.clamp(0.0, 1.0),
                 Property::StrokeWidth => state.stroke_width = value.max(0.0),
+                Property::DashOffset => state.dash_offset = value,
                 Property::DrawStart => state.draw_start = value.clamp(0.0, 1.0),
                 Property::DrawProgress => state.draw_progress = value.clamp(0.0, 1.0),
                 Property::Radius => state.radius = Some(value.max(0.0)),
@@ -4070,6 +4120,86 @@ mod tests {
             .expect("circle should exist");
         assert!((circle.style.draw_start - 0.4).abs() < 0.001);
         assert!((circle.style.draw_progress - 0.6).abs() < 0.001);
+    }
+
+    #[test]
+    fn retains_stroke_cap_join_and_dash_style() {
+        let scene = Scene::from_json(
+            r##"{
+              "version": 2,
+              "title": "Stroke semantics",
+              "duration": 1,
+              "nodes": [{
+                "id": "curve",
+                "type": "line",
+                "from": [-2, 0],
+                "to": [2, 0],
+                "style": {
+                  "fill": null,
+                  "stroke": "#38bdf8",
+                  "strokeWidth": 0.2,
+                  "strokeCap": "round",
+                  "strokeJoin": "bevel",
+                  "dashArray": [0.5, 0.25, 0.1],
+                  "dashOffset": -0.125
+                }
+              }]
+            }"##,
+        )
+        .expect("stroke semantics should validate");
+        let frame = scene.evaluate_view(0.0).expect("style should evaluate");
+        let style = &frame.nodes[0].style;
+        assert_eq!(style.stroke_cap, StrokeCap::Round);
+        assert_eq!(style.stroke_join, StrokeJoin::Bevel);
+        assert_eq!(style.dash_array, [0.5, 0.25, 0.1]);
+        assert!((style.dash_offset + 0.125).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn animates_dash_offset_at_explicit_time() {
+        let scene = Scene::from_json(
+            r##"{
+              "version": 2,
+              "title": "Animated dash offset",
+              "duration": 2,
+              "nodes": [{
+                "id": "line",
+                "type": "line",
+                "from": [-2, 0],
+                "to": [2, 0],
+                "style": {"dashArray": [0.5, 0.25], "dashOffset": 0}
+              }],
+              "tracks": [{
+                "target": "line",
+                "property": "dashOffset",
+                "keyframes": [{"at": 0, "value": 0}, {"at": 2, "value": 1}]
+              }]
+            }"##,
+        )
+        .expect("dash-offset track should validate");
+        let frame = scene.evaluate_view(1.0).expect("track should evaluate");
+        assert!((frame.nodes[0].style.dash_offset - 0.5).abs() < 0.001);
+    }
+
+    #[test]
+    fn rejects_unsafe_dash_patterns() {
+        for dash_array in ["[0, 0.2]", "[-0.1, 0.2]", "[0.000001, 0.2]"] {
+            let json = format!(
+                r##"{{
+                  "version": 2,
+                  "title": "Invalid dash",
+                  "duration": 1,
+                  "nodes": [{{
+                    "id": "line",
+                    "type": "line",
+                    "from": [0, 0],
+                    "to": [1, 0],
+                    "style": {{"dashArray": {dash_array}}}
+                  }}]
+                }}"##
+            );
+            assert!(Scene::from_json(&json).is_err(), "accepted {dash_array}");
+        }
     }
 
     #[test]

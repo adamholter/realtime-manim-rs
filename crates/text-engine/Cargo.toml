@@ -10,6 +10,10 @@ license.workspace = true
 lyon = "1.0.16"
 rustybuzz.workspace = true
 ttf-noto-sans.workspace = true
+unicode-segmentation.workspace = true
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+base64.workspace = true

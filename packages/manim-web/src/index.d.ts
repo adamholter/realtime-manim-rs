@@ -1,17 +1,19 @@
-export type Point = [number, number];
-export type Point3D = [number, number, number];
+export type Point = readonly [number, number];
+export type Point3D = readonly [number, number, number];
 export type Easing = "linear" | "smooth" | "easeIn" | "easeOut" | "easeInOut" | "thereAndBack" | "bounce";
 export type TextAlign = "left" | "center" | "right";
 export type FontWeight = "normal" | "bold";
 export type FontSlant = "normal" | "italic";
 export type ImageResampling = "nearest" | "box" | "bilinear" | "hamming" | "bicubic" | "lanczos";
+export type StrokeCap = "butt" | "square" | "round";
+export type StrokeJoin = "miter" | "miterClip" | "round" | "bevel";
 export type RgbaPixels = string | ArrayBuffer | Uint8Array | Uint8ClampedArray;
 export type RgbaTexture =
   | { pixels: RgbaPixels; data?: never; width: number; height: number }
   | { data: RgbaPixels; pixels?: never; width: number; height: number };
 export type Property =
   | "x" | "y" | "z" | "rotation" | "rotationX" | "rotationY"
-  | "scaleX" | "scaleY" | "scaleZ" | "opacity" | "strokeWidth"
+  | "scaleX" | "scaleY" | "scaleZ" | "opacity" | "strokeWidth" | "dashOffset"
   | "drawStart" | "drawProgress" | "drawRange" | "fill" | "fillGradient"
   | "stroke" | "strokeGradient" | "radius" | "points" | "vertices"
   | "normals" | "colors" | "surfaceColors" | "strokeRadii" | "lightPosition"
@@ -45,6 +47,10 @@ export interface Style {
   stroke: string | null;
   strokeGradient: LinearGradient | null;
   strokeWidth: number;
+  strokeCap: StrokeCap;
+  strokeJoin: StrokeJoin;
+  dashArray: number[];
+  dashOffset: number;
   opacity: number;
   drawStart: number;
   drawProgress: number;
@@ -246,11 +252,79 @@ export interface MathTexTypesetOptions extends MathTexOptions {
   signal?: AbortSignal;
 }
 
-export const ORIGIN: Readonly<Point>;
-export const UP: Readonly<Point>;
-export const DOWN: Readonly<Point>;
-export const LEFT: Readonly<Point>;
-export const RIGHT: Readonly<Point>;
+export type NumericRange = readonly [number, number] | readonly [number, number, number];
+export interface NumberLabelOptions {
+  fontSize?: number;
+  fontFamily?: string;
+  align?: TextAlign;
+  weight?: FontWeight;
+  slant?: FontSlant;
+  style?: Partial<Style>;
+  zIndex?: number;
+}
+export interface NumberLineOptions extends BaseMobjectOptions {
+  xRange?: NumericRange;
+  length?: number;
+  direction?: Point;
+  includeTicks?: boolean;
+  tickSize?: number;
+  includeTip?: boolean;
+  tipSize?: number;
+  includeNumbers?: boolean;
+  numbersToInclude?: number[];
+  numbersToExclude?: number[];
+  numberLabelOptions?: NumberLabelOptions;
+  labelDirection?: Point;
+  labelBuff?: number;
+  decimalPlaces?: number;
+  numberFormatter?: (value: number) => string;
+  axisStyle?: Partial<Style>;
+  tickStyle?: Partial<Style>;
+}
+export type AxisConfig = Omit<NumberLineOptions, "id" | "parent" | "transform" | "xRange" | "length" | "direction">;
+export interface AxesOptions extends BaseMobjectOptions {
+  xRange?: NumericRange;
+  yRange?: NumericRange;
+  xLength?: number;
+  yLength?: number;
+  axisConfig?: AxisConfig;
+  xAxisConfig?: AxisConfig;
+  yAxisConfig?: AxisConfig;
+  includeNumbers?: boolean;
+  includeTips?: boolean;
+  xLabel?: string | false | null;
+  yLabel?: string | false | null;
+  axisLabelOptions?: NumberLabelOptions;
+  axisLabelBuff?: number;
+}
+export interface NumberPlaneOptions extends AxesOptions {
+  backgroundLineStyle?: Partial<Style>;
+  fadedLineStyle?: Partial<Style>;
+  gridSubdivisions?: number;
+}
+export interface CoordinateSystem2D {
+  coordsToPoint(point: Point): Point;
+  coordsToPoint(x: number, y: number): Point;
+  pointToCoords(point: Point): Point;
+}
+export interface ParametricFunctionOptions extends BaseMobjectOptions {
+  tRange?: NumericRange;
+  samples?: number;
+  discontinuities?: number[];
+  discontinuityThreshold?: number;
+  coordinateSystem?: CoordinateSystem2D;
+}
+export interface FunctionGraphOptions extends Omit<ParametricFunctionOptions, "tRange"> {
+  xRange?: NumericRange;
+}
+export type AxesPlotOptions = Omit<FunctionGraphOptions, "coordinateSystem">;
+export type AxesParametricPlotOptions = Omit<ParametricFunctionOptions, "coordinateSystem">;
+
+export const ORIGIN: Point;
+export const UP: Point;
+export const DOWN: Point;
+export const LEFT: Point;
+export const RIGHT: Point;
 export const pathCommand: {
   moveTo(point: Point): PathCommand;
   lineTo(point: Point): PathCommand;
@@ -282,6 +356,9 @@ export class Mobject<TNode extends BaseNode = BaseNode> {
   fillGradient(gradient: LinearGradient | null): this;
   stroke(color: string | null, width?: number): this;
   strokeGradient(gradient: LinearGradient | null, width?: number): this;
+  strokeCap(value: StrokeCap): this;
+  strokeJoin(value: StrokeJoin): this;
+  dash(pattern?: number[], offset?: number): this;
   opacity(value: number): this;
   zIndex(value: number): this;
   setParent(parent: Mobject | string | null): this;
@@ -342,9 +419,75 @@ export class Group extends Mobject<GroupNode> {
   fillGradient(gradient: LinearGradient | null): this;
   stroke(color: string | null, width?: number): this;
   strokeGradient(gradient: LinearGradient | null, width?: number): this;
+  strokeCap(value: StrokeCap): this;
+  strokeJoin(value: StrokeJoin): this;
+  dash(pattern?: number[], offset?: number): this;
   opacity(value: number): this;
 }
 export class VGroup extends Group {}
+
+export class NumberLine extends VGroup {
+  readonly axis: Line | Arrow;
+  readonly ticks: VGroup;
+  readonly numbers: VGroup;
+  readonly xRange: Readonly<[number, number, number]>;
+  readonly length: number;
+  readonly unitSize: number;
+  readonly direction: Readonly<Point>;
+  constructor(options?: NumberLineOptions);
+  getTickValues(): number[];
+  numberToPoint(value: number): Point;
+  n2p(value: number): Point;
+  pointToNumber(point: Point): number;
+  p2n(point: Point): number;
+}
+
+export class ParametricFunction extends Path {
+  readonly function: (parameter: number) => Point;
+  readonly tRange: Readonly<NumericRange>;
+  readonly sampleCount: number;
+  readonly segments: ReadonlyArray<ReadonlyArray<Readonly<Point>>>;
+  readonly discontinuities: ReadonlyArray<number>;
+  readonly coordinateSystem?: CoordinateSystem2D;
+  constructor(fn: (parameter: number) => Point, options?: ParametricFunctionOptions);
+  constructor(fn: (parameter: number) => Point, tRange: NumericRange, options?: Omit<ParametricFunctionOptions, "tRange">);
+  pointAt(parameter: number): Point;
+}
+
+export class FunctionGraph extends ParametricFunction {
+  readonly underlyingFunction: (x: number) => number;
+  readonly xRange: Readonly<NumericRange>;
+  constructor(fn: (x: number) => number, options?: FunctionGraphOptions);
+  constructor(fn: (x: number) => number, xRange: NumericRange, options?: Omit<FunctionGraphOptions, "xRange">);
+  valueAt(x: number): number;
+}
+
+export class Axes extends VGroup implements CoordinateSystem2D {
+  readonly xAxis: NumberLine;
+  readonly yAxis: NumberLine;
+  readonly axisLabels: VGroup;
+  readonly xRange: Readonly<[number, number, number]>;
+  readonly yRange: Readonly<[number, number, number]>;
+  readonly xLength: number;
+  readonly yLength: number;
+  constructor(options?: AxesOptions);
+  coordsToPoint(point: Point): Point;
+  coordsToPoint(x: number, y: number): Point;
+  c2p(point: Point): Point;
+  c2p(x: number, y: number): Point;
+  pointToCoords(point: Point): Point;
+  p2c(point: Point): Point;
+  getOrigin(): Point;
+  plot(fn: (x: number) => number, options?: AxesPlotOptions): FunctionGraph;
+  plot(fn: (x: number) => number, xRange: NumericRange, options?: Omit<AxesPlotOptions, "xRange">): FunctionGraph;
+  plotParametric(fn: (parameter: number) => Point, options?: AxesParametricPlotOptions): ParametricFunction;
+  plotParametric(fn: (parameter: number) => Point, tRange: NumericRange, options?: Omit<AxesParametricPlotOptions, "tRange">): ParametricFunction;
+}
+
+export class NumberPlane extends Axes {
+  readonly gridLines: VGroup;
+  constructor(options?: NumberPlaneOptions);
+}
 
 export interface AnimationOptions { start?: number; duration?: number; easing?: Easing }
 export interface CameraAnimationOptions extends AnimationOptions { from?: Camera2D }
@@ -440,7 +583,6 @@ export interface CreateManimPlayerOptions {
   scene?: Scene | SceneData | string;
   autoplay?: boolean;
   wasmUrl?: URL | string;
-  timeoutMs?: number;
   fonts?: BrowserFontFace[];
 }
 

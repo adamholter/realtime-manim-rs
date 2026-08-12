@@ -38,9 +38,11 @@ jobs:
       - name: Test
         run: cargo test --workspace
       - name: Native smoke
-        run: cargo run -p realtime-manim-native-preview
+        run: cargo run -p realtime-manim-native-preview -- smoke --strict --width 640 --height 360
       - name: Wasm smoke
         run: cargo check -p realtime-manim-web-preview --target wasm32-unknown-unknown
+      - name: Wasm clippy
+        run: cargo clippy -p realtime-manim-web-preview --target wasm32-unknown-unknown -- -D warnings
       - name: Install matching wasm-bindgen CLI
         run: cargo install wasm-bindgen-cli --version 0.2.126 --locked
       - name: Build distributable browser package

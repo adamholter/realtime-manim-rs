@@ -28,11 +28,13 @@ const FONT_SLANTS = new Set(["normal", "italic"]);
 const GRADIENT_SPREADS = new Set(["pad", "repeat", "reflect"]);
 const GRADIENT_SPACES = new Set(["local", "world"]);
 const IMAGE_RESAMPLING = new Set(["nearest", "box", "bilinear", "hamming", "bicubic", "lanczos"]);
+const STROKE_CAPS = new Set(["butt", "square", "round"]);
+const STROKE_JOINS = new Set(["miter", "miterClip", "round", "bevel"]);
 const BASE_NODE_OPTION_KEYS = new Set([
   "id", "style", "transform", "parent", "zIndex", "appearAt", "disappearAt",
 ]);
 const GROUP_STYLE_PROPERTIES = new Set([
-  "opacity", "strokeWidth", "drawStart", "drawProgress", "fill", "fillGradient", "stroke", "strokeGradient",
+  "opacity", "strokeWidth", "dashOffset", "drawStart", "drawProgress", "fill", "fillGradient", "stroke", "strokeGradient",
 ]);
 const ANIMATION_EVENTS = Symbol("realtime-manim.animation-events");
 const TRANSFORM_DEFAULTS = Object.freeze({
@@ -52,9 +54,15 @@ const STYLE_DEFAULTS = Object.freeze({
   stroke: "#f8fafc",
   strokeGradient: null,
   strokeWidth: 0.04,
+  dashOffset: 0,
   opacity: 1,
   drawStart: 0,
   drawProgress: 1,
+});
+const STATIC_STROKE_DEFAULTS = Object.freeze({
+  strokeCap: "butt",
+  strokeJoin: "miter",
+  dashArray: Object.freeze([]),
 });
 const DIRECT_TRACK_PROPERTIES = new Map([
   ["radius", "radius"],
@@ -418,7 +426,10 @@ export class Mobject {
       if (key.startsWith("scale") && Math.abs(normalized) > 1_000) throw new RangeError(`${key} is outside the supported range.`);
       normalizedTransform[key] = normalized;
     }
-    const styleKeys = new Set(["fill", "fillGradient", "stroke", "strokeGradient", "strokeWidth", "opacity", "drawStart", "drawProgress"]);
+    const styleKeys = new Set([
+      "fill", "fillGradient", "stroke", "strokeGradient", "strokeWidth", "strokeCap",
+      "strokeJoin", "dashArray", "dashOffset", "opacity", "drawStart", "drawProgress",
+    ]);
     for (const key of Object.keys(style)) if (!styleKeys.has(key)) throw new TypeError(`Unknown style property: ${key}.`);
     const normalizedStyle = { ...style };
     for (const key of ["fill", "stroke"]) {
@@ -430,6 +441,27 @@ export class Mobject {
     if ("strokeWidth" in normalizedStyle) {
       const width = assertNonNegative(normalizedStyle.strokeWidth, "style.strokeWidth");
       if (width > 10) throw new RangeError("style.strokeWidth must not exceed 10.");
+    }
+    if ("strokeCap" in normalizedStyle && !STROKE_CAPS.has(normalizedStyle.strokeCap)) {
+      throw new TypeError("style.strokeCap must be butt, square, or round.");
+    }
+    if ("strokeJoin" in normalizedStyle && !STROKE_JOINS.has(normalizedStyle.strokeJoin)) {
+      throw new TypeError("style.strokeJoin must be miter, miterClip, round, or bevel.");
+    }
+    if ("dashArray" in normalizedStyle) {
+      if (!Array.isArray(normalizedStyle.dashArray) || normalizedStyle.dashArray.length > 64) {
+        throw new TypeError("style.dashArray must be an array with at most 64 entries.");
+      }
+      normalizedStyle.dashArray = normalizedStyle.dashArray.map((entry, index) => {
+        const value = assertFinite(entry, `style.dashArray[${index}]`);
+        if (value < 0.000_01 || value > 100_000) {
+          throw new RangeError(`style.dashArray[${index}] must be between 0.00001 and 100000.`);
+        }
+        return value;
+      });
+    }
+    if ("dashOffset" in normalizedStyle) {
+      normalizedStyle.dashOffset = assertFinite(normalizedStyle.dashOffset, "style.dashOffset");
     }
     for (const key of ["opacity", "drawStart", "drawProgress"]) {
       if (key in normalizedStyle) assertUnitInterval(normalizedStyle[key], `style.${key}`);
@@ -473,6 +505,30 @@ export class Mobject {
     if (normalizedWidth > 10) throw new RangeError("stroke width must not exceed 10.");
     this.node.style.strokeGradient = gradient === null ? null : assertGradient(gradient, "stroke gradient");
     this.node.style.strokeWidth = normalizedWidth;
+    return this;
+  }
+  strokeCap(value) {
+    if (!STROKE_CAPS.has(value)) throw new TypeError("stroke cap must be butt, square, or round.");
+    this.node.style.strokeCap = value;
+    return this;
+  }
+  strokeJoin(value) {
+    if (!STROKE_JOINS.has(value)) throw new TypeError("stroke join must be miter, miterClip, round, or bevel.");
+    this.node.style.strokeJoin = value;
+    return this;
+  }
+  dash(pattern = [], offset = 0) {
+    if (!Array.isArray(pattern) || pattern.length > 64) {
+      throw new TypeError("dash pattern must be an array with at most 64 entries.");
+    }
+    this.node.style.dashArray = pattern.map((entry, index) => {
+      const value = assertFinite(entry, `dash pattern[${index}]`);
+      if (value < 0.000_01 || value > 100_000) {
+        throw new RangeError(`dash pattern[${index}] must be between 0.00001 and 100000.`);
+      }
+      return value;
+    });
+    this.node.style.dashOffset = assertFinite(offset, "dash offset");
     return this;
   }
   opacity(value) { this.node.style.opacity = assertUnitInterval(value, "opacity"); return this; }
@@ -1031,10 +1087,543 @@ export class Group extends Mobject {
   fillGradient(gradient) { super.fillGradient(gradient); for (const member of this._members) member.fillGradient(gradient); return this; }
   stroke(color, width) { super.stroke(color, width); for (const member of this._members) member.stroke(color, width); return this; }
   strokeGradient(gradient, width) { super.strokeGradient(gradient, width); for (const member of this._members) member.strokeGradient(gradient, width); return this; }
+  strokeCap(value) { super.strokeCap(value); for (const member of this._members) member.strokeCap(value); return this; }
+  strokeJoin(value) { super.strokeJoin(value); for (const member of this._members) member.strokeJoin(value); return this; }
+  dash(pattern, offset) { super.dash(pattern, offset); for (const member of this._members) member.dash(pattern, offset); return this; }
   opacity(value) { super.opacity(value); for (const member of this._members) member.opacity(value); return this; }
 }
 
 export class VGroup extends Group {}
+
+const MAX_GRAPH_SAMPLES = 49_999;
+const NUMBER_LINE_OPTION_KEYS = new Set([
+  "xRange", "length", "direction", "includeTicks", "tickSize", "includeTip", "tipSize",
+  "includeNumbers", "numbersToInclude", "numbersToExclude", "numberLabelOptions",
+  "labelDirection", "labelBuff", "decimalPlaces", "numberFormatter", "axisStyle", "tickStyle",
+]);
+
+function normalizeNumericRange(value, label, fallback) {
+  const source = value ?? fallback;
+  if (!Array.isArray(source) || (source.length !== 2 && source.length !== 3)) {
+    throw new TypeError(`${label} must be [min, max] or [min, max, step].`);
+  }
+  const min = assertFinite(source[0], `${label} minimum`);
+  const max = assertFinite(source[1], `${label} maximum`);
+  if (max <= min) throw new RangeError(`${label} maximum must be greater than its minimum.`);
+  const step = source.length === 3 ? assertPositive(source[2], `${label} step`) : undefined;
+  return step === undefined ? [min, max] : [min, max, step];
+}
+
+function normalizedDirection(value, label) {
+  const [x, y] = assertPoint(value, label);
+  const length = Math.hypot(x, y);
+  if (length <= Number.EPSILON) throw new RangeError(`${label} must not be the zero vector.`);
+  return [x / length, y / length];
+}
+
+function applyMobjectTransform(point, transform = {}) {
+  const scaleX = transform.scaleX ?? 1;
+  const scaleY = transform.scaleY ?? 1;
+  const rotation = transform.rotation ?? 0;
+  const x = point[0] * scaleX;
+  const y = point[1] * scaleY;
+  const cosine = Math.cos(rotation);
+  const sine = Math.sin(rotation);
+  return [
+    x * cosine - y * sine + (transform.x ?? 0),
+    x * sine + y * cosine + (transform.y ?? 0),
+  ];
+}
+
+function invertMobjectTransform(point, transform = {}) {
+  const scaleX = transform.scaleX ?? 1;
+  const scaleY = transform.scaleY ?? 1;
+  if (Math.abs(scaleX) <= Number.EPSILON || Math.abs(scaleY) <= Number.EPSILON) {
+    throw new RangeError("Coordinate conversion is undefined for a zero-scale coordinate system.");
+  }
+  const x = point[0] - (transform.x ?? 0);
+  const y = point[1] - (transform.y ?? 0);
+  const rotation = -(transform.rotation ?? 0);
+  const cosine = Math.cos(rotation);
+  const sine = Math.sin(rotation);
+  return [
+    (x * cosine - y * sine) / scaleX,
+    (x * sine + y * cosine) / scaleY,
+  ];
+}
+
+function numericValues(range, maximum, label) {
+  const [min, max, step = 1] = range;
+  const count = Math.floor((max - min) / step + 1e-10) + 1;
+  if (count > maximum) throw new RangeError(`${label} would create more than ${maximum.toLocaleString("en-US")} values.`);
+  return Array.from({ length: count }, (_, index) => {
+    const value = min + index * step;
+    return Math.abs(value) <= step * 1e-12 ? 0 : value;
+  });
+}
+
+function normalizedNumberList(value, label, range) {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length > 2_000) throw new RangeError(`${label} must contain at most 2,000 numbers.`);
+  const result = [];
+  for (let index = 0; index < value.length; index += 1) {
+    let number = assertFinite(value[index], `${label}[${index}]`);
+    if (number < range[0] - 1e-10 || number > range[1] + 1e-10) {
+      throw new RangeError(`${label}[${index}] is outside the number-line range.`);
+    }
+    if (Math.abs(number) <= 1e-12) number = 0;
+    if (!result.some((candidate) => Math.abs(candidate - number) <= 1e-10)) result.push(number);
+  }
+  return result;
+}
+
+function defaultNumberFormatter(step, decimalPlaces) {
+  let inferredPlaces = 10;
+  for (let places = 0; places <= 10; places += 1) {
+    const scaled = step * 10 ** places;
+    if (Math.abs(scaled - Math.round(scaled)) <= Math.max(1, Math.abs(scaled)) * 1e-10) {
+      inferredPlaces = places;
+      break;
+    }
+  }
+  const places = decimalPlaces ?? inferredPlaces;
+  return (value) => {
+    const normalized = Math.abs(value) <= step * 1e-10 ? 0 : value;
+    const formatted = normalized.toFixed(places);
+    return formatted.includes(".") ? formatted.replace(/0+$/, "").replace(/\.$/, "") : formatted;
+  };
+}
+
+function normalizeLabelOptions(value, label) {
+  const options = value ?? {};
+  assertObject(options, label);
+  const allowed = new Set(["fontSize", "fontFamily", "align", "weight", "slant", "style", "zIndex"]);
+  for (const key of Object.keys(options)) if (!allowed.has(key)) throw new TypeError(`Unknown ${label} property: ${key}.`);
+  return { ...options };
+}
+
+function normalizeAxisConfig(value, label) {
+  const config = value ?? {};
+  assertObject(config, label);
+  for (const key of ["id", "parent", "transform", "xRange", "length", "direction"]) {
+    if (key in config) throw new TypeError(`${label}.${key} is controlled by Axes.`);
+  }
+  return { ...config };
+}
+
+/** A retained number line assembled from native line, arrow, tick, and text nodes. */
+export class NumberLine extends VGroup {
+  constructor(options = {}) {
+    const { nodeOptions, kindOptions } = partitionNodeOptions(options, NUMBER_LINE_OPTION_KEYS, "NumberLine");
+    const rootId = nodeOptions.id ?? `number-line-${nextObjectId++}`;
+    const range = normalizeNumericRange(kindOptions.xRange, "NumberLine xRange", [-5, 5, 1]);
+    const normalizedRange = range.length === 2 ? [range[0], range[1], 1] : range;
+    const length = assertPositive(kindOptions.length ?? 10, "NumberLine length");
+    const direction = normalizedDirection(kindOptions.direction ?? RIGHT, "NumberLine direction");
+    const includeTicks = assertBoolean(kindOptions.includeTicks ?? true, "NumberLine includeTicks");
+    const includeTip = assertBoolean(kindOptions.includeTip ?? false, "NumberLine includeTip");
+    const tickSize = assertPositive(kindOptions.tickSize ?? 0.16, "NumberLine tickSize");
+    const tipSize = assertPositive(kindOptions.tipSize ?? 0.24, "NumberLine tipSize");
+    const unitSize = length / (normalizedRange[1] - normalizedRange[0]);
+    const midpoint = (normalizedRange[0] + normalizedRange[1]) / 2;
+    const localPoint = (value) => [
+      direction[0] * (value - midpoint) * unitSize,
+      direction[1] * (value - midpoint) * unitSize,
+    ];
+    const start = localPoint(normalizedRange[0]);
+    const end = localPoint(normalizedRange[1]);
+    const axisStyle = kindOptions.axisStyle ?? {};
+    assertObject(axisStyle, "NumberLine axisStyle");
+    const tickStyle = kindOptions.tickStyle ?? axisStyle;
+    assertObject(tickStyle, "NumberLine tickStyle");
+    const axis = includeTip
+      ? new Arrow(start, end, { id: `${rootId}.axis`, tipSize, style: axisStyle })
+      : new Line(start, end, { id: `${rootId}.axis`, style: axisStyle });
+
+    const tickValues = numericValues(normalizedRange, 2_000, "NumberLine ticks");
+    const perpendicular = [-direction[1], direction[0]];
+    const ticks = new VGroup({ id: `${rootId}.ticks` });
+    if (includeTicks) {
+      tickValues.forEach((value, index) => {
+        const center = localPoint(value);
+        const offset = [perpendicular[0] * tickSize / 2, perpendicular[1] * tickSize / 2];
+        ticks.add(new Line(
+          [center[0] - offset[0], center[1] - offset[1]],
+          [center[0] + offset[0], center[1] + offset[1]],
+          { id: `${rootId}.tick-${index}`, style: tickStyle },
+        ));
+      });
+    }
+
+    const numbersToInclude = normalizedNumberList(kindOptions.numbersToInclude, "NumberLine numbersToInclude", normalizedRange);
+    const numbersToExclude = normalizedNumberList(kindOptions.numbersToExclude, "NumberLine numbersToExclude", normalizedRange) ?? [];
+    const includeNumbers = assertBoolean(kindOptions.includeNumbers ?? numbersToInclude !== undefined, "NumberLine includeNumbers");
+    const decimalPlaces = kindOptions.decimalPlaces === undefined
+      ? undefined
+      : assertIntegerRange(kindOptions.decimalPlaces, "NumberLine decimalPlaces", 0, 10);
+    const formatter = kindOptions.numberFormatter ?? defaultNumberFormatter(normalizedRange[2], decimalPlaces);
+    if (typeof formatter !== "function") throw new TypeError("NumberLine numberFormatter must be a function.");
+    const numberLabelOptions = normalizeLabelOptions(kindOptions.numberLabelOptions, "NumberLine numberLabelOptions");
+    const labelDirection = normalizedDirection(
+      kindOptions.labelDirection ?? [direction[1], -direction[0]],
+      "NumberLine labelDirection",
+    );
+    const labelBuff = assertNonNegative(kindOptions.labelBuff ?? 0.18, "NumberLine labelBuff");
+    const labelValues = numbersToInclude ?? tickValues;
+    const numbers = new VGroup({ id: `${rootId}.numbers` });
+    if (includeNumbers) {
+      labelValues
+        .filter((value) => !numbersToExclude.some((excluded) => Math.abs(excluded - value) <= 1e-10))
+        .forEach((value, index) => {
+          const center = localPoint(value);
+          const distance = tickSize / 2 + labelBuff;
+          const text = assertString(formatter(value), `NumberLine label for ${value}`, { max: 120 });
+          numbers.add(new Text(text, {
+            ...numberLabelOptions,
+            id: `${rootId}.number-${index}`,
+            transform: {
+              x: center[0] + labelDirection[0] * distance,
+              y: center[1] + labelDirection[1] * distance,
+            },
+          }));
+        });
+    }
+
+    super(axis, ticks, numbers, { ...nodeOptions, id: rootId });
+    this.axis = axis;
+    this.ticks = ticks;
+    this.numbers = numbers;
+    this.xRange = Object.freeze([...normalizedRange]);
+    this.length = length;
+    this.unitSize = unitSize;
+    this.direction = Object.freeze([...direction]);
+    this._midpoint = midpoint;
+    this._tickValues = Object.freeze([...tickValues]);
+  }
+
+  getTickValues() { return [...this._tickValues]; }
+  numberToPoint(value) {
+    const number = assertFinite(value, "number-line value");
+    return applyMobjectTransform(
+      [
+        this.direction[0] * (number - this._midpoint) * this.unitSize,
+        this.direction[1] * (number - this._midpoint) * this.unitSize,
+      ],
+      this.node.transform,
+    );
+  }
+  n2p(value) { return this.numberToPoint(value); }
+  pointToNumber(point) {
+    const local = invertMobjectTransform(assertPoint(point, "number-line point"), this.node.transform);
+    return (local[0] * this.direction[0] + local[1] * this.direction[1]) / this.unitSize + this._midpoint;
+  }
+  p2n(point) { return this.pointToNumber(point); }
+}
+
+function normalizeDiscontinuities(value, range, label) {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > 10_000) throw new RangeError(`${label} must contain at most 10,000 values.`);
+  return value
+    .map((entry, index) => assertFinite(entry, `${label}[${index}]`))
+    .filter((entry) => entry >= range[0] && entry <= range[1])
+    .sort((left, right) => left - right);
+}
+
+function evaluateParametricPoint(fn, parameter, coordinateSystem, label) {
+  const result = fn(parameter);
+  if (!Array.isArray(result) || result.length !== 2) throw new TypeError(`${label} must return a [x, y] pair.`);
+  if (typeof result[0] !== "number" || typeof result[1] !== "number") throw new TypeError(`${label} must return numeric coordinates.`);
+  if (!Number.isFinite(result[0]) || !Number.isFinite(result[1])) return null;
+  const point = coordinateSystem === undefined
+    ? [result[0], result[1]]
+    : coordinateSystem.coordsToPoint(result[0], result[1]);
+  return Number.isFinite(point[0]) && Number.isFinite(point[1]) ? point : null;
+}
+
+function sampleParametricFunction(fn, range, options, label) {
+  if (typeof fn !== "function") throw new TypeError(`${label} requires a function.`);
+  const coordinateSystem = options.coordinateSystem;
+  if (coordinateSystem !== undefined && (typeof coordinateSystem !== "object" || typeof coordinateSystem.coordsToPoint !== "function")) {
+    throw new TypeError(`${label} coordinateSystem must provide coordsToPoint(x, y).`);
+  }
+  const sampleCount = options.samples ?? (range[2] === undefined
+    ? 301
+    : Math.ceil((range[1] - range[0]) / range[2]) + 1);
+  assertIntegerRange(sampleCount, `${label} samples`, 2, MAX_GRAPH_SAMPLES);
+  const discontinuities = normalizeDiscontinuities(options.discontinuities, range, `${label} discontinuities`);
+  const threshold = options.discontinuityThreshold === undefined
+    ? 16
+    : assertPositive(options.discontinuityThreshold, `${label} discontinuityThreshold`);
+  const segments = [];
+  let segment = [];
+  let previousParameter;
+  const finishSegment = () => {
+    if (segment.length >= 2) segments.push(segment);
+    segment = [];
+  };
+  for (let index = 0; index < sampleCount; index += 1) {
+    const parameter = index === sampleCount - 1
+      ? range[1]
+      : range[0] + ((range[1] - range[0]) * index) / (sampleCount - 1);
+    const epsilon = Math.max(1, Math.abs(parameter)) * 1e-12;
+    const exactlyDiscontinuous = discontinuities.some((value) => Math.abs(value - parameter) <= epsilon);
+    const crossesDiscontinuity = previousParameter !== undefined && discontinuities.some(
+      (value) => value > previousParameter + epsilon && value < parameter - epsilon,
+    );
+    if (crossesDiscontinuity || exactlyDiscontinuous) finishSegment();
+    const point = exactlyDiscontinuous ? null : evaluateParametricPoint(fn, parameter, coordinateSystem, label);
+    if (point === null) {
+      finishSegment();
+    } else if (segment.length > 0 && Math.hypot(point[0] - segment.at(-1)[0], point[1] - segment.at(-1)[1]) > threshold) {
+      finishSegment();
+      segment.push(point);
+    } else {
+      segment.push(point);
+    }
+    previousParameter = parameter;
+  }
+  finishSegment();
+  if (segments.length === 0) throw new RangeError(`${label} did not produce a finite curve with at least two points.`);
+  return { segments, sampleCount, discontinuities, threshold, coordinateSystem };
+}
+
+/** A sampled retained path with separate subpaths for non-finite values and discontinuities. */
+export class ParametricFunction extends Path {
+  constructor(fn, rangeOrOptions = {}, maybeOptions = {}) {
+    const options = Array.isArray(rangeOrOptions)
+      ? { ...maybeOptions, tRange: rangeOrOptions }
+      : rangeOrOptions;
+    const { nodeOptions, kindOptions } = partitionNodeOptions(
+      options,
+      new Set(["tRange", "samples", "discontinuities", "discontinuityThreshold", "coordinateSystem"]),
+      "ParametricFunction",
+    );
+    const range = normalizeNumericRange(kindOptions.tRange, "ParametricFunction tRange", [0, 1]);
+    const sampled = sampleParametricFunction(fn, range, kindOptions, "ParametricFunction");
+    const commands = sampled.segments.flatMap((segment) => [
+      pathCommand.moveTo(segment[0]),
+      ...segment.slice(1).map((point) => pathCommand.lineTo(point)),
+    ]);
+    super(commands, nodeOptions);
+    this.function = fn;
+    this.tRange = Object.freeze([...range]);
+    this.sampleCount = sampled.sampleCount;
+    this.segments = Object.freeze(sampled.segments.map((segment) => Object.freeze(segment.map((point) => Object.freeze([...point])))));
+    this.discontinuities = Object.freeze([...sampled.discontinuities]);
+    this.coordinateSystem = sampled.coordinateSystem;
+  }
+
+  pointAt(parameter) {
+    const value = assertFinite(parameter, "parameter");
+    const point = evaluateParametricPoint(this.function, value, this.coordinateSystem, "ParametricFunction");
+    if (point === null) throw new RangeError(`ParametricFunction is non-finite at ${value}.`);
+    return applyMobjectTransform(point, this.node.transform);
+  }
+}
+
+/** A sampled y = f(x) graph, optionally lowered through an Axes coordinate transform. */
+export class FunctionGraph extends ParametricFunction {
+  constructor(fn, rangeOrOptions = {}, maybeOptions = {}) {
+    if (typeof fn !== "function") throw new TypeError("FunctionGraph requires a function.");
+    const options = Array.isArray(rangeOrOptions)
+      ? { ...maybeOptions, xRange: rangeOrOptions }
+      : rangeOrOptions;
+    assertObject(options, "FunctionGraph options");
+    const { xRange, ...parametricOptions } = options;
+    const range = normalizeNumericRange(xRange, "FunctionGraph xRange", [-1, 1]);
+    const graphFunction = (x) => {
+      const y = fn(x);
+      if (typeof y !== "number") throw new TypeError("FunctionGraph function must return a number.");
+      return [x, y];
+    };
+    super(graphFunction, range, parametricOptions);
+    this.underlyingFunction = fn;
+    this.xRange = this.tRange;
+  }
+
+  valueAt(x) {
+    const value = this.underlyingFunction(assertFinite(x, "x"));
+    if (typeof value !== "number" || !Number.isFinite(value)) throw new RangeError(`FunctionGraph is non-finite at ${x}.`);
+    return value;
+  }
+}
+
+const AXES_OPTION_KEYS = new Set([
+  "xRange", "yRange", "xLength", "yLength", "axisConfig", "xAxisConfig", "yAxisConfig",
+  "includeNumbers", "includeTips", "xLabel", "yLabel", "axisLabelOptions", "axisLabelBuff",
+]);
+
+/** Two retained NumberLines with Manim-style coordinate conversion and plotting helpers. */
+export class Axes extends VGroup {
+  constructor(options = {}) {
+    const { nodeOptions, kindOptions } = partitionNodeOptions(options, AXES_OPTION_KEYS, "Axes");
+    const rootId = nodeOptions.id ?? `axes-${nextObjectId++}`;
+    const xRange = normalizeNumericRange(kindOptions.xRange, "Axes xRange", [-6, 6, 1]);
+    const yRange = normalizeNumericRange(kindOptions.yRange, "Axes yRange", [-4, 4, 1]);
+    const normalizedXRange = xRange.length === 2 ? [xRange[0], xRange[1], 1] : xRange;
+    const normalizedYRange = yRange.length === 2 ? [yRange[0], yRange[1], 1] : yRange;
+    const xLength = assertPositive(kindOptions.xLength ?? 12, "Axes xLength");
+    const yLength = assertPositive(kindOptions.yLength ?? 8, "Axes yLength");
+    const axisConfig = normalizeAxisConfig(kindOptions.axisConfig, "Axes axisConfig");
+    const xAxisConfig = { ...axisConfig, ...normalizeAxisConfig(kindOptions.xAxisConfig, "Axes xAxisConfig") };
+    const yAxisConfig = { ...axisConfig, ...normalizeAxisConfig(kindOptions.yAxisConfig, "Axes yAxisConfig") };
+    const includeNumbers = assertBoolean(kindOptions.includeNumbers ?? false, "Axes includeNumbers");
+    const includeTips = assertBoolean(kindOptions.includeTips ?? false, "Axes includeTips");
+    const xIncludeNumbers = xAxisConfig.includeNumbers ?? includeNumbers;
+    const yIncludeNumbers = yAxisConfig.includeNumbers ?? includeNumbers;
+    const xAxis = new NumberLine({
+      ...xAxisConfig,
+      id: `${rootId}.x-axis`,
+      xRange: normalizedXRange,
+      length: xLength,
+      direction: RIGHT,
+      includeNumbers: xIncludeNumbers,
+      includeTip: xAxisConfig.includeTip ?? includeTips,
+      labelDirection: xAxisConfig.labelDirection ?? DOWN,
+    });
+    const yAxis = new NumberLine({
+      ...yAxisConfig,
+      id: `${rootId}.y-axis`,
+      xRange: normalizedYRange,
+      length: yLength,
+      direction: UP,
+      includeNumbers: yIncludeNumbers,
+      includeTip: yAxisConfig.includeTip ?? includeTips,
+      labelDirection: yAxisConfig.labelDirection ?? LEFT,
+      numbersToExclude: yAxisConfig.numbersToExclude ?? (yIncludeNumbers ? [0] : undefined),
+    });
+    const xMidpoint = (normalizedXRange[0] + normalizedXRange[1]) / 2;
+    const yMidpoint = (normalizedYRange[0] + normalizedYRange[1]) / 2;
+    const xOrigin = -xMidpoint * xAxis.unitSize;
+    const yOrigin = -yMidpoint * yAxis.unitSize;
+    xAxis.shift([0, yOrigin]);
+    yAxis.shift([xOrigin, 0]);
+    const axisLabelOptions = normalizeLabelOptions(kindOptions.axisLabelOptions, "Axes axisLabelOptions");
+    const axisLabelBuff = assertNonNegative(kindOptions.axisLabelBuff ?? 0.28, "Axes axisLabelBuff");
+    const axisLabels = new VGroup({ id: `${rootId}.labels` });
+    const xLabel = kindOptions.xLabel ?? false;
+    const yLabel = kindOptions.yLabel ?? false;
+    if (xLabel !== false && xLabel !== null) {
+      const text = assertString(xLabel, "Axes xLabel", { max: 120 });
+      axisLabels.add(new Text(text, {
+        ...axisLabelOptions,
+        id: `${rootId}.x-label`,
+        transform: { x: xLength / 2 + axisLabelBuff, y: yOrigin - axisLabelBuff },
+      }));
+    }
+    if (yLabel !== false && yLabel !== null) {
+      const text = assertString(yLabel, "Axes yLabel", { max: 120 });
+      axisLabels.add(new Text(text, {
+        ...axisLabelOptions,
+        id: `${rootId}.y-label`,
+        transform: { x: xOrigin + axisLabelBuff, y: yLength / 2 + axisLabelBuff },
+      }));
+    }
+    super(xAxis, yAxis, axisLabels, { ...nodeOptions, id: rootId });
+    this.xAxis = xAxis;
+    this.yAxis = yAxis;
+    this.axisLabels = axisLabels;
+    this.xRange = Object.freeze([...normalizedXRange]);
+    this.yRange = Object.freeze([...normalizedYRange]);
+    this.xLength = xLength;
+    this.yLength = yLength;
+    this._xMidpoint = xMidpoint;
+    this._yMidpoint = yMidpoint;
+  }
+
+  coordsToPoint(x, y) {
+    const coordinates = Array.isArray(x)
+      ? assertPoint(x, "axes coordinates")
+      : [assertFinite(x, "axes x coordinate"), assertFinite(y, "axes y coordinate")];
+    return applyMobjectTransform(
+      [
+        (coordinates[0] - this._xMidpoint) * this.xAxis.unitSize,
+        (coordinates[1] - this._yMidpoint) * this.yAxis.unitSize,
+      ],
+      this.node.transform,
+    );
+  }
+  c2p(x, y) { return this.coordsToPoint(x, y); }
+  pointToCoords(point) {
+    const local = invertMobjectTransform(assertPoint(point, "scene point"), this.node.transform);
+    return [
+      local[0] / this.xAxis.unitSize + this._xMidpoint,
+      local[1] / this.yAxis.unitSize + this._yMidpoint,
+    ];
+  }
+  p2c(point) { return this.pointToCoords(point); }
+  getOrigin() { return this.coordsToPoint(0, 0); }
+
+  plot(fn, rangeOrOptions = {}, maybeOptions = {}) {
+    const options = Array.isArray(rangeOrOptions)
+      ? { ...maybeOptions, xRange: rangeOrOptions }
+      : { ...rangeOrOptions };
+    if (options.xRange === undefined) options.xRange = [this.xRange[0], this.xRange[1]];
+    options.coordinateSystem = this;
+    options.discontinuityThreshold ??= Math.hypot(this.xLength, this.yLength) * 2;
+    return new FunctionGraph(fn, options);
+  }
+
+  plotParametric(fn, rangeOrOptions = {}, maybeOptions = {}) {
+    const options = Array.isArray(rangeOrOptions)
+      ? { ...maybeOptions, tRange: rangeOrOptions }
+      : { ...rangeOrOptions };
+    options.coordinateSystem = this;
+    options.discontinuityThreshold ??= Math.hypot(this.xLength, this.yLength) * 2;
+    return new ParametricFunction(fn, options);
+  }
+}
+
+/** Axes plus retained major and subdivided background grid lines. */
+export class NumberPlane extends Axes {
+  constructor(options = {}) {
+    assertObject(options, "NumberPlane options");
+    const {
+      backgroundLineStyle = { stroke: "#33415588", strokeWidth: 0.02 },
+      fadedLineStyle = { stroke: "#33415544", strokeWidth: 0.01 },
+      gridSubdivisions = 1,
+      ...axesOptions
+    } = options;
+    assertObject(backgroundLineStyle, "NumberPlane backgroundLineStyle");
+    assertObject(fadedLineStyle, "NumberPlane fadedLineStyle");
+    const subdivisions = assertIntegerRange(gridSubdivisions, "NumberPlane gridSubdivisions", 1, 10);
+    super(axesOptions);
+    const xValues = numericValues(
+      [this.xRange[0], this.xRange[1], this.xRange[2] / subdivisions],
+      5_000,
+      "NumberPlane vertical grid",
+    );
+    const yValues = numericValues(
+      [this.yRange[0], this.yRange[1], this.yRange[2] / subdivisions],
+      5_000,
+      "NumberPlane horizontal grid",
+    );
+    const xStart = -this.xLength / 2;
+    const xEnd = this.xLength / 2;
+    const yStart = -this.yLength / 2;
+    const yEnd = this.yLength / 2;
+    const isMajor = (value, range) => Math.abs((value - range[0]) / range[2] - Math.round((value - range[0]) / range[2])) <= 1e-8;
+    const lines = [];
+    xValues.forEach((value, index) => {
+      if (Math.abs(value) <= 1e-10) return;
+      const x = (value - this._xMidpoint) * this.xAxis.unitSize;
+      lines.push(new Line([x, yStart], [x, yEnd], {
+        id: `${this.id}.grid-x-${index}`,
+        style: isMajor(value, this.xRange) ? backgroundLineStyle : fadedLineStyle,
+      }));
+    });
+    yValues.forEach((value, index) => {
+      if (Math.abs(value) <= 1e-10) return;
+      const y = (value - this._yMidpoint) * this.yAxis.unitSize;
+      lines.push(new Line([xStart, y], [xEnd, y], {
+        id: `${this.id}.grid-y-${index}`,
+        style: isMajor(value, this.yRange) ? backgroundLineStyle : fadedLineStyle,
+      }));
+    });
+    this.gridLines = new VGroup(lines, { id: `${this.id}.grid` });
+    this._members.unshift(this.gridLines);
+  }
+}
 
 export function animate(target, property, from, to, options = {}) {
   if (typeof property !== "string" || property.length === 0) throw new TypeError("Animation property is required.");
@@ -1153,7 +1742,7 @@ function transformPairs(source, target, result = []) {
   return result;
 }
 
-function transformPairTracks(source, target, options) {
+function transformPairTracks(source, target, options, allowDiscrete = false) {
   const fromNode = source.node;
   const toNode = target.node;
   const tracks = [];
@@ -1175,6 +1764,15 @@ function transformPairTracks(source, target, options) {
   }
   for (const [property, fallback] of Object.entries(STYLE_DEFAULTS)) {
     addTrack(property, fromNode.style?.[property] ?? fallback, toNode.style?.[property] ?? fallback);
+  }
+  for (const [property, fallback] of Object.entries(STATIC_STROKE_DEFAULTS)) {
+    const from = fromNode.style?.[property] ?? fallback;
+    const to = toNode.style?.[property] ?? fallback;
+    if (!allowDiscrete && !trackValuesEqual(from, to)) {
+      throw new RangeError(
+        `Transform property ${property} is discrete; source and target must match. Use ReplacementTransform for an exact retained-tree swap.`,
+      );
+    }
   }
 
   const recognized = new Set(["id", "type", "transform", "style"]);
@@ -1222,7 +1820,11 @@ export function Transform(source, target, options = {}) {
 /** Transform the source, then swap its retained hierarchy for the target hierarchy. */
 export function ReplacementTransform(source, target, options = {}) {
   if (source.id === target.id) throw new RangeError("ReplacementTransform source and target need distinct ids.");
-  const tracks = Transform(source, target, options);
+  const tracks = transformPairs(source, target)
+    .flatMap(([from, to]) => transformPairTracks(from, to, options, true));
+  if (tracks.length === 0) {
+    tracks.push(animate(source, "opacity", source.node.style?.opacity ?? 1, source.node.style?.opacity ?? 1, options));
+  }
   return attachAnimationEvents(tracks, [{ type: "replace", at: animationEnd(tracks), source: source.id, target }]);
 }
 

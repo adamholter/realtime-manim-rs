@@ -9,8 +9,8 @@
     <canvas id="fourth" width="640" height="360"></canvas>
     <script type="module">
       import {
-        Arc, Circle, Create, DotCloud, Group, MarkupText, Path3D, Polygon, Scene,
-        createManimPlayer, pathCommand3D,
+        Arc, Axes, Circle, Create, DotCloud, Group, MarkupText, Path, Path3D, Polygon, Scene,
+        createManimPlayer, pathCommand, pathCommand3D,
       } from "../src/index.js";
 
       const makeScene = (color) => {
@@ -18,8 +18,10 @@
         return new Scene({ background: "#070910" }).add(circle).play(Create(circle, { duration: 0.25 }));
       };
 
-      const makeGeometryScene = () => new Scene({ background: "#070910" })
-        .add(
+      const makeGeometryScene = () => {
+        const axes = new Axes({ id: "axes", xRange: [-3, 3, 1], yRange: [-2, 2, 1] });
+        const graph = axes.plot((x) => Math.sin(x), [-3, 3], { id: "function-graph", samples: 121 });
+        return new Scene({ background: "#070910" }).add(
           new Group([
             new Polygon([[-2, -1], [0, 2], [2, -1]], { id: "polygon" }).fill("#58c4dd88"),
             new Arc({ id: "arc", radius: 2.5, angle: Math.PI }).stroke("#ffffffff", 0.08),
@@ -30,8 +32,15 @@
             pathCommand3D.moveTo([0, 0, 0]),
             pathCommand3D.lineTo([1, 1, 1]),
           ], { id: "path-3d" }),
-        )
-        .setCamera3D({ position: [0, 0, 8], target: [0, 0, 0] });
+          new Path([
+            pathCommand.moveTo([-3, -2.5]),
+            pathCommand.lineTo([0, -1.8]),
+            pathCommand.lineTo([3, -2.5]),
+          ], { id: "dashed-path" }).stroke("#fc6255ff", 0.16).strokeCap("round").strokeJoin("bevel").dash([0.45, 0.2, 0.1], -0.1),
+          axes,
+          graph,
+        ).setCamera3D({ position: [0, 0, 8], target: [0, 0, 0] });
+      };
 
       const testFont = Uint8Array.from(
         atob(globalThis.__MANIM_TEST_FONT_BASE64__ ?? ""),
@@ -53,7 +62,9 @@
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         const validatedGeometry = first.validate(makeGeometryScene());
         const geometryValid = validatedGeometry.nodes.some(({ type }) => type === "path3d")
-          && validatedGeometry.nodes.some(({ type }) => type === "markupText");
+          && validatedGeometry.nodes.some(({ type }) => type === "markupText")
+          && validatedGeometry.nodes.some(({ id, style }) => id === "dashed-path" && style.strokeCap === "round" && style.dashArray.length === 3)
+          && validatedGeometry.nodes.some(({ id, type }) => id === "function-graph" && type === "path");
         first.load(makeGeometryScene());
         first.seek(0.2);
         first.destroy();

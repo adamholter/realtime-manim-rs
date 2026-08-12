@@ -32,6 +32,7 @@ const PROPERTIES = new Set([
   "scaleZ",
   "opacity",
   "strokeWidth",
+  "dashOffset",
   "drawStart",
   "drawProgress",
   "drawRange",
@@ -65,6 +66,8 @@ const PROPERTIES = new Set([
   "shaderVertexData",
   "shaderUniformValues",
 ]);
+const STROKE_CAPS = new Set(["butt", "square", "round"]);
+const STROKE_JOINS = new Set(["miter", "miterClip", "round", "bevel"]);
 const CAMERA_PROPERTIES = new Set([
   "cameraX",
   "cameraY",
@@ -246,12 +249,22 @@ function transform(value = {}, name = "transform") {
 
 function style(value = {}, name = "style") {
   object(value, name);
+  const strokeCap = value.strokeCap ?? "butt";
+  assert(STROKE_CAPS.has(strokeCap), `${name}.strokeCap must be butt, square, or round.`);
+  const strokeJoin = value.strokeJoin ?? "miter";
+  assert(STROKE_JOINS.has(strokeJoin), `${name}.strokeJoin must be miter, miterClip, round, or bevel.`);
+  const dashArray = value.dashArray ?? [];
+  assert(Array.isArray(dashArray) && dashArray.length <= 64, `${name}.dashArray must contain at most 64 values.`);
   return {
     fill: optionalColor(value.fill ?? null, `${name}.fill`),
     fillGradient: linearGradient(value.fillGradient ?? null, `${name}.fillGradient`),
     stroke: optionalColor(value.stroke === undefined ? "#f8fafc" : value.stroke, `${name}.stroke`),
     strokeGradient: linearGradient(value.strokeGradient ?? null, `${name}.strokeGradient`),
     strokeWidth: number(value.strokeWidth ?? 0.04, `${name}.strokeWidth`, 0, 10),
+    strokeCap,
+    strokeJoin,
+    dashArray: dashArray.map((entry, index) => number(entry, `${name}.dashArray[${index}]`, 0.000_01, 100_000)),
+    dashOffset: number(value.dashOffset ?? 0, `${name}.dashOffset`),
     opacity: number(value.opacity ?? 1, `${name}.opacity`, 0, 1),
     drawStart: number(value.drawStart ?? 0, `${name}.drawStart`, 0, 1),
     drawProgress: number(value.drawProgress ?? 1, `${name}.drawProgress`, 0, 1),

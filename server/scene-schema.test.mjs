@@ -565,6 +565,32 @@ test("cubic paths expose an independently animated visible draw range", () => {
   assert.equal(parsed.tracks.at(-1).property, "drawStart");
 });
 
+test("native stroke cap join dash and animated offset validate", () => {
+  const scene = structuredClone(DEFAULT_SCENE);
+  scene.nodes[1].style.strokeCap = "round";
+  scene.nodes[1].style.strokeJoin = "bevel";
+  scene.nodes[1].style.dashArray = [0.5, 0.2, 0.1];
+  scene.nodes[1].style.dashOffset = -0.25;
+  scene.tracks.push({
+    target: "ring",
+    property: "dashOffset",
+    keyframes: [
+      { at: 0, value: -0.25 },
+      { at: 6, value: 1.5 },
+    ],
+  });
+  const parsed = parseSceneCode(formatSceneCode(scene));
+  assert.equal(parsed.nodes[1].style.strokeCap, "round");
+  assert.equal(parsed.nodes[1].style.strokeJoin, "bevel");
+  assert.deepEqual(parsed.nodes[1].style.dashArray, [0.5, 0.2, 0.1]);
+  assert.equal(parsed.tracks.at(-1).property, "dashOffset");
+  assert.throws(() => {
+    const invalid = structuredClone(scene);
+    invalid.nodes[1].style.dashArray = [0];
+    parseSceneCode(formatSceneCode(invalid));
+  }, /dashArray/);
+});
+
 test("cubic paths accept one atomic draw-window track", () => {
   const scene = structuredClone(DEFAULT_SCENE);
   scene.tracks.push({

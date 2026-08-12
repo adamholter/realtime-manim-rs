@@ -1,24 +1,32 @@
 import {
   AnimationGroup,
   Arc,
+  Axes,
   Billboard,
   Circle,
   Create,
   DotCloud,
+  FunctionGraph,
   Group,
   Image,
   MarkupText,
   LaggedStart,
+  Line,
   MathTex,
   Mesh,
   MoveCamera,
   MoveTo,
+  NumberLine,
+  NumberPlane,
+  ORIGIN,
   OrbitCamera,
   Path,
   Path3D,
+  ParametricFunction,
   Polygon,
   RegularPolygon,
   ReplacementTransform,
+  RIGHT,
   RetainedNode,
   Scene,
   Surface,
@@ -33,11 +41,15 @@ import {
   type Expression,
   type ImageNode,
   type MeshNode,
+  type NumericRange,
+  type Point,
+  type NumberLineOptions,
   type SurfaceNode,
   type SceneData,
 } from "../src/index.js";
 
 const circle = new Circle({ id: "typed", radius: 1 }).fill("#58c4ddff");
+circle.strokeCap("round").strokeJoin("bevel").dash([0.4, 0.2], -0.1);
 const customText = new MarkupText([{ text: "Typed" }], { fontFamily: "Uploaded Sans" });
 const signal: Expression = { op: "signal", id: "radius" };
 const scene = new Scene({ title: "Typed scene" })
@@ -116,6 +128,44 @@ new Scene().add(image, browserImage, mesh, surface, trace, retained, equation, c
 void imageNode;
 void meshNode;
 void surfaceNode;
+
+const tickRange: NumericRange = [-3, 3, 0.5];
+const numberLineOptions: NumberLineOptions = {
+  xRange: tickRange,
+  includeNumbers: true,
+  numberFormatter: (value) => value.toFixed(1),
+};
+const numberLine = new NumberLine(numberLineOptions);
+const numberPoint: Point = numberLine.n2p(1.5);
+const numberValue: number = numberLine.p2n(numberPoint);
+const axes = new Axes({
+  xRange: [-4, 4, 1],
+  yRange: [-2, 2, 0.5],
+  includeNumbers: true,
+  xLabel: "x",
+  yLabel: "y",
+});
+const graph: FunctionGraph = axes.plot((x) => Math.sin(x), [-Math.PI, Math.PI], {
+  samples: 257,
+  discontinuities: [],
+});
+const parametric: ParametricFunction = axes.plotParametric(
+  (t) => [Math.cos(t), Math.sin(t)],
+  { tRange: [0, Math.PI * 2], samples: 257 },
+);
+const plane = new NumberPlane({ gridSubdivisions: 2 });
+const coordinate: Point = plane.c2p([1, 2]);
+new NumberLine({ direction: RIGHT, xRange: numberLine.xRange });
+new Line(ORIGIN, RIGHT);
+axes.c2p(ORIGIN);
+axes.plot((x) => x, axes.xRange);
+new Scene().add(numberLine, axes, graph, parametric, plane).play(Create(graph));
+// @ts-expect-error graphing constructors reject unknown options
+new Axes({ unknownGraphOption: true });
+// @ts-expect-error coordinates are always a two-number point
+plane.c2p([1, 2, 3]);
+void numberValue;
+void coordinate;
 
 declare const canvas: HTMLCanvasElement;
 const uploadedFont: BrowserFontFace = {

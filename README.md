@@ -20,7 +20,7 @@ The repository now contains:
 - Cargo workspace and fixed Rust/Wasm toolchain
 - versioned benchmark receipt schema with round-trip tests
 - privacy-safe environment capture
-- renderer-free native smoke target
+- native Metal player plus strict GPU smoke and headless PNG renderer
 - versioned retained 2D scene IR and deterministic explicit-time evaluator
 - general batched Rust/Wasm/WebGPU vector renderer
 - installable `realtime-manim` browser package with a typed JavaScript scene API
@@ -30,7 +30,7 @@ The repository now contains:
   updater, moving-camera, and projected ThreeDScene semantics
 - network-denied and write-isolated sandbox for generated Python
 - shaped vector text with real bold/italic faces, runtime OpenType family
-  registration, and mixed-style spans,
+  registration, deterministic grapheme-safe family fallback, and mixed-style spans,
   real MathTex-to-SVG, and styled SVG ingestion with native multistop linear
   and focal radial gradients, pad/repeat/reflect spread modes, and intersected
   vector clip paths plus fractional, recursively nested alpha/luminance masks
@@ -55,7 +55,10 @@ lifetimes, transforms/styles, property and camera tracks, reusable signals, and
 computed bindings with browser sliders. Rust validates and evaluates the graph at explicit time `t`,
 tessellates generic geometry through lyon, batches it into one WebGPU vertex/index
 stream, and owns animation timing, uploads, command encoding, submission, and
-presentation.
+presentation. Native path styles include butt/square/round caps,
+miter/miter-clip/round/bevel joins, and signed SVG-style dash patterns. The public
+JavaScript API also includes retained NumberLine, Axes, NumberPlane, function,
+and parametric graph constructors with reversible coordinate transforms.
 
 The renderer remains an experimental lyon + wgpu backend, not the frozen final
 renderer choice. Text uses Rustybuzz/OpenType outlines instead of a bitmap font;
@@ -67,8 +70,10 @@ smooth lit surfaces, and perspective-textured OpenGL images. The 20-scene retain
 compatibility corpus currently compiles without diagnostics and has full isolated
 browser differential output. This is still not a full-Manim completion claim:
 complete SVG filter edge cases, third-party renderer hooks that bypass
-ShaderWrapper, compact semantic 3D/depth, broader
-native-node font fallback, and the native interactive host remain open. Normal
+ShaderWrapper, compact semantic 3D/depth, and complete complex-script and
+color-emoji coverage remain open. A native Metal host now provides interactive
+playback, strict GPU validation, and headless PNG rendering; it intentionally
+errors on retained node families it has not implemented yet. Normal
 Manim ShaderWrapper vertex/geometry/fragment programs now translate to WebGPU,
 including typed arrays and attributes, textures, programmable-size points, and
 dynamic shader/topology replacement.
@@ -217,18 +222,14 @@ cargo fmt --check
 cargo check --workspace --all-targets
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
-cargo run -p realtime-manim-native-preview
+cargo run -p realtime-manim-native-preview -- smoke --strict --width 640 --height 360
 cargo check -p realtime-manim-web-preview --target wasm32-unknown-unknown
 cargo clippy -p realtime-manim-web-preview --target wasm32-unknown-unknown -- -D warnings
 cargo run -p realtime-manim-env-capture
 ```
 
-Expected smoke output:
-
-```text
-realtime-manim native preview scaffold
-renderer: unselected
-```
+Use `cargo run -p realtime-manim-native-preview -- --help` for interactive
+`play`, CI-safe `check`, GPU `smoke`, and headless PNG `render` commands.
 
 Browser proof evidence is recorded in `docs/receipts/P-12.md`.
 The Manim authoring decision and compatibility evidence are recorded in

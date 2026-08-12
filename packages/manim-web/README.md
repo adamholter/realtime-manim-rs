@@ -49,7 +49,7 @@ For a plain HTML file, import the module from a CDN. Pin the version in producti
 <script type="module">
   import {
     Circle, Create, Scene, createManimPlayer,
-  } from "https://cdn.jsdelivr.net/npm/realtime-manim@0.3.0/src/index.js";
+  } from "https://cdn.jsdelivr.net/npm/realtime-manim@0.4.0/src/index.js";
 
   const circle = new Circle().fill("#58c4ddcc");
   const scene = new Scene().add(circle).play(Create(circle));
@@ -64,6 +64,7 @@ Do not open the HTML as `file://`; serve it locally (for example, `npx serve .`)
 Objects use chainable transforms and styles. The authored API includes:
 
 - Geometry: `Circle`, `Dot`, `Ellipse`, `Rectangle`, `RoundedRectangle`, `Square`, `Line`, `Arrow`, `Polyline`, `Polygon`, `RegularPolygon`, and `Triangle`.
+- Coordinate systems and graphs: `NumberLine`, `Axes`, `NumberPlane`, `FunctionGraph`, and `ParametricFunction`.
 - Curves: `Path`, `Path3D`, `TracePath`, `Arc`, `QuadraticBezier`, and `CubicBezier`, with typed `pathCommand` and `pathCommand3D` builders.
 - Composition and retained media: `Group`, `VGroup`, `Text`, `MarkupText`, `MathTex`, `SVG`, `Image`, `PointCloud`, `DotCloud`, `Mesh`, `Surface`, `Billboard`, and `PathReference`.
 - Animation: `Create`, `FadeIn`, `FadeOut`, `MoveTo`, `Rotate`, `Transform`, `ReplacementTransform`, `MoveCamera`, `OrbitCamera`, and lower-level `animate(...)` tracks.
@@ -117,7 +118,67 @@ Build arbitrary native paths without writing retained JSON by hand:
 const curve = new Path([
   pathCommand.moveTo([-3, 0]),
   pathCommand.quadTo([0, 3], [3, 0]),
-]);
+])
+  .stroke("#58c4ddff", 0.12)
+  .strokeCap("round")
+  .strokeJoin("round")
+  .dash([0.45, 0.18], -0.1);
+```
+
+Stroke caps (`butt`, `square`, `round`), joins (`miter`, `miterClip`, `round`,
+`bevel`), signed dash offsets, and odd-length SVG-style dash patterns are
+tessellated natively in Rust on straight or curved paths.
+
+Build reusable coordinate systems from retained primitives. Ranges are
+`[minimum, maximum, tickStep]`; `c2p`/`p2c` and `n2p`/`p2n` remain reversible
+after moving, rotating, or scaling the coordinate system:
+
+```js
+const axes = new Axes({
+  xRange: [-6, 6, 1],
+  yRange: [-3, 3, 1],
+  xLength: 12,
+  yLength: 6,
+  includeNumbers: true,
+  xLabel: "x",
+  yLabel: "f(x)",
+});
+
+const graph = axes.plot((x) => Math.sin(x), [-Math.PI * 2, Math.PI * 2], {
+  samples: 401,
+  id: "sine",
+});
+
+const scene = new Scene()
+  .add(axes, graph)
+  .play(Create(axes), Create(graph));
+
+const scenePoint = axes.c2p(Math.PI, 0);
+const [x, y] = axes.p2c(scenePoint);
+```
+
+Plots are ordinary retained `Path` nodes, not special-case demo scenes.
+Non-finite samples create separate subpaths; pass known discontinuities to
+prevent interpolation across asymptotes. `ParametricFunction` and
+`axes.plotParametric(...)` accept functions returning `[x, y]`:
+
+```js
+const reciprocal = axes.plot((x) => 1 / x, [-4, 4], {
+  discontinuities: [0],
+  samples: 501,
+});
+
+const circle = axes.plotParametric(
+  (t) => [Math.cos(t), Math.sin(t)],
+  [0, Math.PI * 2],
+  { samples: 257 },
+);
+
+const plane = new NumberPlane({
+  xRange: [-8, 8, 1],
+  yRange: [-4, 4, 1],
+  gridSubdivisions: 2,
+});
 ```
 
 Raster and 3D constructors serialize directly to the Rust retained schema. `Image` accepts exact RGBA bytes (or canonical base64); `Image.fromSource(...)` decodes a URL, canvas, bitmap, image, or video through the browser. `Mesh` supports per-vertex color/normal data and optional RGBA textures, while `Surface` preserves arbitrary polygon patches:
@@ -161,8 +222,10 @@ player.registerFont("Example Sans", boldFontData, { weight: "bold" });
 ```
 
 Register regular, bold, italic, and bold-italic faces separately when available.
-If a selected variant is missing, the runtime falls back to another face in the
-same registered family; it does not silently switch to a different family.
+If the selected face lacks a grapheme, the runtime resolves registered families
+in deterministic registration order and shapes contiguous fallback runs without
+splitting combining sequences. Missing vector coverage is an explicit load/render
+error instead of tofu or disappearing glyphs.
 
 `RetainedNode.from(node)` is the typed, mutation-isolated escape hatch for newer retained node kinds such as custom shaders. Its payload is still checked by the Rust scene validator when the player loads it; the higher-level constructors validate Image, Mesh, Surface, and TracePath topology immediately in JavaScript.
 
@@ -198,4 +261,4 @@ left.destroy(); // right keeps rendering
 
 This is a Manim-compatible browser runtime, not a drop-in execution environment for arbitrary Python Manim code. It accepts retained scene JSON emitted by the project's compatibility compiler and includes the lightweight JavaScript builder shown above. Playback, seeking, signals, text, SVG, raster media, 3D scene data, custom shaders, masks, patterns, audio metadata, and deterministic evaluation stay in the Rust runtime.
 
-Version 0.3 requires a WebGPU browser and a server that serves `.wasm` as `application/wasm`. Call `destroy()` when a player is no longer needed so its animation loop and GPU resources are released deterministically. Automatic cross-family Unicode fallback, complex-script fallback chains, color emoji, unusual SVG filters, third-party Python renderer hooks, and some native 3D optimizations are not yet equivalent to desktop Manim.
+Version 0.4 requires a WebGPU browser and a server that serves `.wasm` as `application/wasm`. Call `destroy()` when a player is no longer needed so its animation loop and GPU resources are released deterministically. Registered-family fallback is deterministic, but complete RTL and complex-script golden parity, color emoji, unusual SVG filters, third-party Python renderer hooks, and some native 3D optimizations are not yet equivalent to desktop Manim.

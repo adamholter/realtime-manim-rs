@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   AnimationGroup,
   Arc,
+  Axes,
   Billboard,
   Circle,
   Create,
@@ -10,6 +11,7 @@ import {
   DotCloud,
   FadeIn,
   FadeOut,
+  FunctionGraph,
   Group,
   Image,
   MarkupText,
@@ -18,9 +20,12 @@ import {
   Mesh,
   MoveCamera,
   MoveTo,
+  NumberLine,
+  NumberPlane,
   OrbitCamera,
   Path,
   Path3D,
+  ParametricFunction,
   Polygon,
   RegularPolygon,
   ReplacementTransform,
@@ -171,6 +176,44 @@ test("validates geometry before it reaches Wasm", () => {
   assert.throws(() => new Scene().setCamera3D({ near: 10, far: 1 }), /greater than/);
   const group = new Group();
   assert.throws(() => group.add(group), /cannot contain itself/);
+});
+
+test("authors native stroke caps, joins, and dash patterns", () => {
+  const line = new Path([
+    pathCommand.moveTo([-2, 0]),
+    pathCommand.lineTo([0, 1]),
+    pathCommand.lineTo([2, 0]),
+  ], { id: "styled-stroke" })
+    .stroke("#58c4ddff", 0.2)
+    .strokeCap("round")
+    .strokeJoin("bevel")
+    .dash([0.5, 0.2, 0.1], -0.125);
+  assert.deepEqual(line.toJSON().style, {
+    stroke: "#58c4ddff",
+    strokeWidth: 0.2,
+    strokeCap: "round",
+    strokeJoin: "bevel",
+    dashArray: [0.5, 0.2, 0.1],
+    dashOffset: -0.125,
+  });
+  assert.throws(() => line.dash([0]), /between 0.00001 and 100000/);
+  assert.throws(() => line.strokeCap("triangle"), /butt, square, or round/);
+  assert.throws(
+    () => Transform(line, new Path(line.toJSON().commands).strokeCap("square")),
+    /strokeCap is discrete/,
+  );
+  assert.doesNotThrow(() => ReplacementTransform(
+    line,
+    new Path(line.toJSON().commands, { id: "replacement-stroke" }).strokeCap("square"),
+  ));
+  const offsetTarget = new Path(line.toJSON().commands, { id: "offset-stroke" })
+    .strokeCap("round")
+    .strokeJoin("bevel")
+    .dash([0.5, 0.2, 0.1], 0.75);
+  const offsetTracks = Transform(line, offsetTarget);
+  assert.equal(offsetTracks.find(({ property }) => property === "dashOffset")?.keyframes.at(-1).value, 0.75);
+  const scene = new Scene().add(line).play(animate(line, "dashOffset", -0.125, 0.75));
+  assert.equal(scene.toJSON().tracks[0].property, "dashOffset");
 });
 
 test("group style helpers affect descendants without flattening transforms", () => {
@@ -406,4 +449,118 @@ test("retains explicit portable font families for plain and markup text", () => 
   assert.equal(data.nodes[1].fontFamily, "Uploaded Sans");
   assert.throws(() => new Text("Bad", { fontFamily: "   " }), /visible characters/);
   assert.throws(() => new Text("Bad", { unknownTextOption: true }), /Unknown Text option/);
+});
+
+test("authors retained NumberLine ticks and labels with reversible coordinates", () => {
+  const line = new NumberLine({
+    id: "number-line",
+    xRange: [-2, 2, 0.5],
+    length: 8,
+    includeNumbers: true,
+    numbersToExclude: [0],
+    decimalPlaces: 1,
+    direction: [1, 1],
+  }).shift([1, -1]);
+  assert.equal(line.getTickValues().length, 9);
+  assert.equal(line.ticks.members.length, 9);
+  assert.equal(line.numbers.members.length, 8);
+  assert.deepEqual(line.n2p(0), [1, -1]);
+  assert.ok(Math.abs(line.p2n(line.n2p(1.5)) - 1.5) < 1e-12);
+  const nodes = new Scene().add(line).play(Create(line)).toJSON();
+  assert.equal(nodes.nodes.find(({ id }) => id === "number-line.axis").type, "line");
+  assert.equal(nodes.tracks.length, 18);
+  assert.deepEqual(
+    new NumberLine({ xRange: [-5, 5, 2.5], includeNumbers: true }).numbers.members.map(({ node }) => node.text),
+    ["-5", "-2.5", "0", "2.5", "5"],
+  );
+  const positive = new NumberLine({ xRange: [0, 10, 1], length: 10 });
+  assert.deepEqual(positive.n2p(0), [-5, 0]);
+  assert.deepEqual(positive.n2p(10), [5, 0]);
+  assert.equal(positive.p2n([-5, 0]), 0);
+  assert.throws(() => new NumberLine({ xRange: [2, -2, 1] }), /greater than its minimum/);
+  assert.throws(() => new NumberLine({ direction: [0, 0] }), /zero vector/);
+  assert.throws(() => new NumberLine({ mystery: true }), /Unknown NumberLine option/);
+});
+
+test("Axes converts coordinates and produces animation-compatible retained graphs", () => {
+  const axes = new Axes({
+    id: "plot-axes",
+    xRange: [-2, 4, 1],
+    yRange: [-1, 3, 1],
+    xLength: 6,
+    yLength: 4,
+    includeNumbers: true,
+    xLabel: "x",
+    yLabel: "f(x)",
+  }).shift([1, 2]);
+  const point = axes.c2p(2, 1);
+  assert.deepEqual(point, [2, 2]);
+  assert.deepEqual(axes.p2c(point), [2, 1]);
+  assert.deepEqual(axes.getOrigin(), [0, 1]);
+  assert.equal(axes.xAxis.numbers.members.length, 7);
+  assert.equal(axes.yAxis.numbers.members.length, 4);
+  assert.equal(axes.axisLabels.members.length, 2);
+
+  const reciprocal = axes.plot((x) => 1 / x, [-2, 2], {
+    id: "reciprocal",
+    samples: 101,
+    discontinuities: [0],
+  });
+  assert.ok(reciprocal instanceof FunctionGraph);
+  assert.equal(reciprocal.segments.length, 2);
+  assert.equal(reciprocal.node.commands.filter(({ op }) => op === "moveTo").length, 2);
+  assert.ok(reciprocal.node.commands.every((command) => Object.values(command).every((value) => typeof value !== "number" || Number.isFinite(value))));
+  assert.equal(reciprocal.valueAt(2), 0.5);
+
+  const shifted = axes.plot((x) => 1 / x + 1, [-2, 2], {
+    id: "shifted-reciprocal",
+    samples: 101,
+    discontinuities: [0],
+  });
+  const morph = Transform(reciprocal, shifted);
+  assert.deepEqual(morph.map(({ property }) => property), ["commands"]);
+  const scene = new Scene().add(axes, reciprocal).play(Create(axes), Create(reciprocal));
+  assert.ok(scene.toJSON().tracks.some(({ target }) => target === "reciprocal"));
+
+  const positive = new Axes({ xRange: [0, 10, 1], yRange: [0, 5, 1], xLength: 10, yLength: 6 });
+  assert.deepEqual(positive.c2p(0, 0), [-5, -3]);
+  assert.deepEqual(positive.c2p(10, 5), [5, 3]);
+  assert.deepEqual(positive.p2c([-5, -3]), [0, 0]);
+  assert.deepEqual(positive.xAxis.node.transform, { x: 0, y: -3 });
+  assert.deepEqual(positive.yAxis.node.transform, { x: -5, y: 0 });
+});
+
+test("ParametricFunction and NumberPlane lower to general retained paths and lines", () => {
+  const curve = new ParametricFunction(
+    (t) => [Math.cos(t), Math.sin(t)],
+    [0, Math.PI * 2],
+    { id: "unit-circle", samples: 65 },
+  );
+  assert.equal(curve.sampleCount, 65);
+  assert.equal(curve.node.type, "path");
+  assert.ok(Math.abs(curve.pointAt(Math.PI / 2)[1] - 1) < 1e-12);
+
+  const plane = new NumberPlane({
+    id: "plane",
+    xRange: [-2, 2, 1],
+    yRange: [-1, 1, 1],
+    xLength: 8,
+    yLength: 4,
+    gridSubdivisions: 2,
+  });
+  assert.equal(plane.gridLines.members.length, 12);
+  const parametric = plane.plotParametric((t) => [t, t * t], [-1, 1], { samples: 41, id: "parabola" });
+  assert.ok(parametric instanceof ParametricFunction);
+  assert.deepEqual(parametric.pointAt(1), [2, 2]);
+  const data = new Scene().add(plane, parametric).toJSON();
+  assert.equal(data.nodes.find(({ id }) => id === "plane.grid-x-0").type, "line");
+  const positivePlane = new NumberPlane({
+    id: "positive-plane", xRange: [0, 2, 1], yRange: [0, 2, 1], xLength: 4, yLength: 4,
+  });
+  const firstVertical = positivePlane.gridLines.members.find(({ id }) => id === "positive-plane.grid-x-1");
+  assert.deepEqual(firstVertical.node.from, [0, -2]);
+  assert.deepEqual(firstVertical.node.to, [0, 2]);
+  assert.throws(() => new ParametricFunction(() => [Number.NaN, 0]), /did not produce a finite curve/);
+  assert.throws(() => new FunctionGraph(() => "wrong"), /must return a number/);
+  assert.throws(() => new NumberPlane({ gridSubdivisions: 0 }), /at least 1/);
 });

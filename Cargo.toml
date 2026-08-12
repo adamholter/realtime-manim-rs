@@ -27,6 +27,7 @@ serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 rustybuzz = "0.20.1"
 ttf-noto-sans = { version = "0.1.2", default-features = false, features = ["regular", "bold", "italic", "bold_italic"] }
+unicode-segmentation = "1.13.3"
 tiny-skia-path = "0.12.0"
 usvg = { version = "0.47.0", default-features = false }
 wasm-bindgen = "0.2.126"

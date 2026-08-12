@@ -91,6 +91,112 @@ def finite(value: float) -> float:
     return round(value, 6) if math.isfinite(value) else 0.0
 
 
+def enum_member_name(value: Any) -> str:
+    """Return a stable enum member name without importing optional backends."""
+
+    return str(getattr(value, "name", value)).rsplit(".", 1)[-1].upper()
+
+
+def retained_stroke_cap(mobject: Any) -> str | None:
+    """Map ManimCE cap styles to the retained scene vocabulary.
+
+    Cairo's untouched line-cap default is BUTT. OpenGLVMobject does not expose
+    cap_style in ManimCE 0.20, so the same retained default applies there.
+    """
+
+    return {
+        "AUTO": "butt",
+        "BUTT": "butt",
+        "SQUARE": "square",
+        "ROUND": "round",
+    }.get(enum_member_name(getattr(mobject, "cap_style", "AUTO")))
+
+
+def retained_stroke_join(mobject: Any) -> str | None:
+    """Map ManimCE joint styles to the retained scene vocabulary.
+
+    Manim's Cairo renderer leaves AUTO at Cairo's MITER default. The retained
+    renderer has no backend-specific AUTO mode, so MITER is also the stable
+    cross-backend fallback for OpenGLVMobject.
+    """
+
+    return {
+        "AUTO": "miter",
+        "MITER": "miter",
+        "ROUND": "round",
+        "BEVEL": "bevel",
+    }.get(enum_member_name(getattr(mobject, "joint_type", "AUTO")))
+
+
+def retained_dash_style(mobject: Any) -> tuple[list[float], float]:
+    """Read an explicit dash style attached to a VMobject.
+
+    ManimCE's DashedVMobject and DashedLine are already expanded into visible
+    child subpaths; those children intentionally return the empty native dash
+    style so they are not dashed a second time. The attribute aliases below
+    preserve dash metadata attached by SVG/plugin/custom VMobject adapters.
+    Values use Manim scene units and are projected alongside the path below.
+    """
+
+    raw_array: Any = None
+    for attribute in (
+        "dash_array",
+        "stroke_dash_array",
+        "stroke_dasharray",
+    ):
+        if hasattr(mobject, attribute):
+            raw_array = getattr(mobject, attribute)
+            break
+    if raw_array is None:
+        return [], 0.0
+    if isinstance(raw_array, str):
+        raw_values: Any = [
+            part for part in re.split(r"[\s,]+", raw_array.strip()) if part
+        ]
+    elif np.isscalar(raw_array):
+        raw_values = [raw_array]
+    else:
+        raw_values = list(raw_array)
+    if len(raw_values) > 64:
+        raise ValueError("dash array has more than 64 entries")
+    values = [float(value) for value in raw_values]
+    if any(
+        not math.isfinite(value) or value < 0.00001 or value > 100_000
+        for value in values
+    ):
+        raise ValueError("dash array entries must be finite positive lengths")
+    if not values:
+        return [], 0.0
+    raw_offset: Any = 0.0
+    for attribute in (
+        "dash_offset",
+        "stroke_dash_offset",
+        "stroke_dashoffset",
+    ):
+        if hasattr(mobject, attribute):
+            raw_offset = getattr(mobject, attribute)
+            break
+    offset = float(raw_offset)
+    if not math.isfinite(offset):
+        raise ValueError("dash offset must be finite")
+    return [finite(value) for value in values], finite(offset)
+
+
+def projected_dash_scale(camera: Any, mobject: Any) -> float:
+    """Return the scene-unit to retained-output-unit scale for dash lengths."""
+
+    if isinstance(camera, OpenGLCamera):
+        frame_width, _frame_height = camera.get_shape()
+        uniforms = getattr(mobject, "uniforms", {})
+        if bool(uniforms.get("is_fixed_in_frame", 0.0)) and not bool(
+            uniforms.get("is_fixed_orientation", 0.0)
+        ):
+            frame_width = 8 * 16 / 9
+    else:
+        frame_width = float(camera.frame_width)
+    return OUTPUT_WIDTH / max(float(frame_width), 1e-9)
+
+
 def shader_field_layout(field_dtype: np.dtype[Any]) -> tuple[str, int] | None:
     base_dtype, shape = (
         field_dtype.subdtype
@@ -682,6 +788,10 @@ class Snapshot:
     stroke_gradient: dict[str, Any] | None
     stroke_width: float
     z_index: int
+    stroke_cap: str = "butt"
+    stroke_join: str = "miter"
+    dash_array: list[float] = field(default_factory=list)
+    dash_offset: float = 0.0
     commands_3d: list[dict[str, Any]] = field(default_factory=list)
     semantic_base_commands: list[dict[str, Any]] = field(
         default_factory=list
@@ -690,6 +800,8 @@ class Snapshot:
     draw_end: float = 1.0
     world_commands_2d: list[dict[str, Any]] = field(default_factory=list)
     world_stroke_width: float = 0.0
+    world_dash_array: list[float] = field(default_factory=list)
+    world_dash_offset: float = 0.0
     world_fill_gradient: dict[str, Any] | None = None
     world_stroke_gradient: dict[str, Any] | None = None
     fixed_orientation_center: list[float] = field(default_factory=list)
@@ -1335,6 +1447,35 @@ class CompatibilityRenderer:
                 else paint(self.camera, mobject, "stroke")
             )
             stroke_width = float(np.max(mobject.get_stroke_width()))
+            stroke_cap = retained_stroke_cap(mobject)
+            if stroke_cap is None:
+                self.diagnostics.add("unsupported-stroke-cap")
+                stroke_cap = "butt"
+            stroke_join = retained_stroke_join(mobject)
+            if stroke_join is None:
+                self.diagnostics.add("unsupported-stroke-join")
+                stroke_join = "miter"
+            try:
+                world_dash_array, world_dash_offset = retained_dash_style(
+                    mobject
+                )
+                dash_scale = projected_dash_scale(self.camera, mobject)
+                dash_array = [
+                    finite(value * dash_scale)
+                    for value in world_dash_array
+                ]
+                dash_offset = finite(world_dash_offset * dash_scale)
+                if any(
+                    value < 0.00001 or value > 100_000
+                    for value in dash_array
+                ):
+                    raise ValueError("projected dash length is out of range")
+            except (TypeError, ValueError, OverflowError):
+                self.diagnostics.add("unsupported-stroke-dash-style")
+                dash_array = []
+                dash_offset = 0.0
+                world_dash_array = []
+                world_dash_offset = 0.0
             fixed_orientation_center: list[float] = []
             fixed_orientation_base: list[float] = []
             if (
@@ -1373,6 +1514,10 @@ class CompatibilityRenderer:
                     )
                 ),
                 z_index=int(getattr(mobject, "z_index", 0)) * 10_000 + order,
+                stroke_cap=stroke_cap,
+                stroke_join=stroke_join,
+                dash_array=dash_array,
+                dash_offset=dash_offset,
                 commands_3d=commands_3d,
                 semantic_base_commands=semantic_base_commands,
                 draw_start=draw_start,
@@ -1390,6 +1535,8 @@ class CompatibilityRenderer:
                     and not is_opengl
                     else 0.0
                 ),
+                world_dash_array=world_dash_array,
+                world_dash_offset=world_dash_offset,
                 world_fill_gradient=(
                     world_gradient(self.camera, mobject, "fill")
                     if isinstance(self.camera, ManimMovingCamera)
@@ -1405,6 +1552,46 @@ class CompatibilityRenderer:
                 fixed_orientation_center=fixed_orientation_center,
                 fixed_orientation_base=fixed_orientation_base,
             )
+            previous_snapshot = (
+                track.snapshots[-1] if track.snapshots else None
+            )
+            native_dash_style_changed = previous_snapshot is not None and (
+                previous_snapshot.world_dash_array
+                != snapshot.world_dash_array
+                or previous_snapshot.world_dash_offset
+                != snapshot.world_dash_offset
+            )
+            projected_dash_style_changed = previous_snapshot is not None and (
+                previous_snapshot.dash_array != snapshot.dash_array
+                or previous_snapshot.dash_offset != snapshot.dash_offset
+            )
+            if previous_snapshot is not None and (
+                previous_snapshot.stroke_cap != snapshot.stroke_cap
+                or previous_snapshot.stroke_join != snapshot.stroke_join
+                or (
+                    native_dash_style_changed
+                    if isinstance(self.camera, ManimMovingCamera)
+                    and not is_opengl
+                    else projected_dash_style_changed
+                )
+            ):
+                # These are static retained-style fields rather than track
+                # properties. Preserve updater-driven changes by starting a
+                # new lifetime at the exact sampled transition instead of
+                # silently freezing the first value.
+                track.disappear_at = at
+                key = self._new_lifetime_key(
+                    mobject,
+                    self.object_active,
+                    self.object_generations,
+                )
+                track = ObjectTrack(
+                    node_id=f"manim-{len(self.object_tracks):05d}",
+                    first_seen=at,
+                    last_seen=at,
+                    is_traced_path=isinstance(mobject, TracedPath),
+                )
+                self.object_tracks[key] = track
             semantic_base = next(
                 (
                     prior.semantic_base_commands
@@ -3587,6 +3774,8 @@ float realtime_manim_strip_value = 0.0;
                         snapshot,
                         commands=snapshot.world_commands_2d,
                         stroke_width=snapshot.world_stroke_width,
+                        dash_array=snapshot.world_dash_array,
+                        dash_offset=snapshot.world_dash_offset,
                         fill_gradient=snapshot.world_fill_gradient,
                         stroke_gradient=snapshot.world_stroke_gradient,
                         semantic_base_commands=[],
@@ -3642,6 +3831,10 @@ float realtime_manim_strip_value = 0.0;
                 "stroke": initial.stroke,
                 "strokeGradient": initial.stroke_gradient,
                 "strokeWidth": initial.stroke_width,
+                "strokeCap": initial.stroke_cap,
+                "strokeJoin": initial.stroke_join,
+                "dashArray": initial.dash_array,
+                "dashOffset": initial.dash_offset,
             }
             if draw_range_trace is not None:
                 node_style["drawStart"] = draw_range_trace[1][0]
