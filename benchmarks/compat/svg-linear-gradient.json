@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "title": "Native SVG linear gradients",
+  "duration": 1,
+  "background": "#09090b",
+  "nodes": [
+    {
+      "id": "gradient-svg",
+      "type": "svg",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"240\" height=\"120\"><defs><linearGradient id=\"pad\" gradientUnits=\"userSpaceOnUse\" x1=\"0\" y1=\"0\" x2=\"100\" y2=\"0\"><stop offset=\"0\" stop-color=\"#38bdf8\"/><stop offset=\"0.5\" stop-color=\"#a78bfa\"/><stop offset=\"1\" stop-color=\"#fb7185\"/></linearGradient><linearGradient id=\"reflect\" gradientUnits=\"userSpaceOnUse\" x1=\"0\" y1=\"0\" x2=\"30\" y2=\"0\" spreadMethod=\"reflect\"><stop offset=\"0\" stop-color=\"#facc15\"/><stop offset=\"1\" stop-color=\"#22c55e\"/></linearGradient></defs><rect x=\"10\" y=\"10\" width=\"220\" height=\"42\" rx=\"12\" fill=\"url(#pad)\"/><rect x=\"10\" y=\"68\" width=\"220\" height=\"42\" rx=\"12\" fill=\"url(#reflect)\"/></svg>",
+      "height": 5,
+      "preserveStyles": true,
+      "style": {
+        "fill": null,
+        "stroke": null
+      }
+    }
+  ]
+}

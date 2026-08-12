@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "title": "Native SVG masked pattern children",
+  "duration": 1,
+  "background": "#09090b",
+  "nodes": [
+    {
+      "id": "pattern-mask-svg",
+      "type": "svg",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"300\" height=\"140\" viewBox=\"0 0 300 140\"><defs><linearGradient id=\"tileInk\" gradientUnits=\"userSpaceOnUse\" x1=\"0\" y1=\"0\" x2=\"80\" y2=\"60\"><stop offset=\"0\" stop-color=\"#22d3ee\"/><stop offset=\".52\" stop-color=\"#a78bfa\"/><stop offset=\"1\" stop-color=\"#fb7185\"/></linearGradient><radialGradient id=\"lumaFade\" gradientUnits=\"userSpaceOnUse\" cx=\"38\" cy=\"28\" r=\"34\"><stop offset=\"0\" stop-color=\"#fff\"/><stop offset=\".68\" stop-color=\"#d1d5db\"/><stop offset=\"1\" stop-color=\"#111827\"/></radialGradient><mask id=\"innerLuma\" mask-type=\"luminance\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"80\" height=\"60\"><rect x=\"0\" y=\"0\" width=\"80\" height=\"60\" fill=\"url(#lumaFade)\"/><circle cx=\"55\" cy=\"18\" r=\"8\" fill=\"#000\"/></mask><linearGradient id=\"alphaFade\" gradientUnits=\"userSpaceOnUse\" x1=\"0\" y1=\"0\" x2=\"80\" y2=\"0\"><stop offset=\"0\" stop-color=\"#fff\" stop-opacity=\".12\"/><stop offset=\".35\" stop-color=\"#fff\"/><stop offset=\"1\" stop-color=\"#fff\" stop-opacity=\".38\"/></linearGradient><mask id=\"outerAlpha\" mask-type=\"alpha\" maskUnits=\"userSpaceOnUse\" x=\"0\" y=\"0\" width=\"80\" height=\"60\"><g mask=\"url(#innerLuma)\"><rect x=\"0\" y=\"0\" width=\"80\" height=\"60\" fill=\"url(#alphaFade)\"/><path d=\"M9 52 L38 3 L72 52 Z\" fill=\"#fff\" fill-opacity=\".72\"/></g></mask><clipPath id=\"tileCut\"><rect x=\"4\" y=\"4\" width=\"72\" height=\"52\" rx=\"13\"/></clipPath><pattern id=\"maskedTiles\" patternUnits=\"userSpaceOnUse\" width=\"80\" height=\"60\" patternTransform=\"rotate(7 150 70)\"><rect width=\"80\" height=\"60\" fill=\"#111827\"/><path d=\"M-10 50 L28 -9 L91 13 L62 70 Z\" fill=\"url(#tileInk)\" clip-path=\"url(#tileCut)\" mask=\"url(#outerAlpha)\"/><circle cx=\"64\" cy=\"45\" r=\"7\" fill=\"#fef3c7\"/></pattern></defs><rect x=\"8\" y=\"6\" width=\"284\" height=\"128\" rx=\"30\" fill=\"url(#maskedTiles)\" stroke=\"#f8fafc\" stroke-width=\"4\"/></svg>",
+      "height": 5,
+      "preserveStyles": true,
+      "style": {
+        "fill": null,
+        "stroke": null
+      }
+    }
+  ]
+}

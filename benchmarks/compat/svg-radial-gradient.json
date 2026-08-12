@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "title": "Native SVG radial gradients",
+  "duration": 1,
+  "background": "#09090b",
+  "nodes": [
+    {
+      "id": "radial-gradient-svg",
+      "type": "svg",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"240\" height=\"120\"><defs><radialGradient id=\"focal\" gradientUnits=\"userSpaceOnUse\" cx=\"62\" cy=\"31\" r=\"52\" fx=\"45\" fy=\"21\" fr=\"3\"><stop offset=\"0\" stop-color=\"#fef3c7\"/><stop offset=\"0.42\" stop-color=\"#fb7185\"/><stop offset=\"1\" stop-color=\"#4c1d95\"/></radialGradient><radialGradient id=\"transformed\" gradientUnits=\"userSpaceOnUse\" cx=\"178\" cy=\"87\" r=\"22\" fx=\"169\" fy=\"81\" fr=\"3\" spreadMethod=\"reflect\" gradientTransform=\"rotate(-18 178 87) scale(1.7 .72)\"><stop offset=\"0\" stop-color=\"#ecfeff\"/><stop offset=\"0.55\" stop-color=\"#22d3ee\"/><stop offset=\"1\" stop-color=\"#0f172a\"/></radialGradient></defs><rect x=\"8\" y=\"8\" width=\"104\" height=\"104\" rx=\"18\" fill=\"url(#focal)\"/><rect x=\"126\" y=\"8\" width=\"106\" height=\"104\" rx=\"18\" fill=\"url(#transformed)\"/></svg>",
+      "height": 5,
+      "preserveStyles": true,
+      "style": {
+        "fill": null,
+        "stroke": null
+      }
+    }
+  ]
+}
