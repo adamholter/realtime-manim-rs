@@ -40,9 +40,11 @@ try {
     const app = await import("/app.js");
     await app.runScene(candidate, { record: false });
   }, scene);
-  await page.evaluate(async (at) => {
-    const renderer = await import("/pkg/realtime_manim_web_preview.js");
-    renderer.seek_scene(at);
+  await page.evaluate((at) => {
+    const timeline = document.querySelector("#timeline-control");
+    if (!(timeline instanceof HTMLInputElement)) throw new Error("Timeline control is unavailable.");
+    timeline.value = String(at);
+    timeline.dispatchEvent(new Event("input", { bubbles: true }));
     const canvas = document.querySelector("#viewport");
     canvas.style.position = "fixed";
     canvas.style.left = "0";
