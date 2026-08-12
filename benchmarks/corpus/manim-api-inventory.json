@@ -1,0 +1,2101 @@
+{
+  "manimVersion": "0.20.1",
+  "publicClasses": 296,
+  "categoryCounts": {
+    "animation": 74,
+    "composite-or-nonvisual": 4,
+    "image": 2,
+    "opengl-custom": 3,
+    "opengl-points": 5,
+    "opengl-surface": 4,
+    "opengl-vector": 32,
+    "other": 29,
+    "points": 6,
+    "scene": 7,
+    "vector": 130
+  },
+  "compilerPathCounts": {
+    "family-traversal": 4,
+    "manim-semantics": 81,
+    "manual-review": 29,
+    "retained-image": 2,
+    "retained-mesh": 4,
+    "retained-path": 162,
+    "retained-point-cloud": 11,
+    "shader-data-inspection": 3
+  },
+  "classes": [
+    {
+      "name": "Add",
+      "module": "manim.animation.animation",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "AddTextLetterByLetter",
+      "module": "manim.animation.creation",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "AddTextWordByWord",
+      "module": "manim.animation.creation",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "Angle",
+      "module": "manim.mobject.geometry.line",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "AnimatedBoundary",
+      "module": "manim.animation.changing",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Animation",
+      "module": "manim.animation.animation",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "AnimationGroup",
+      "module": "manim.animation.composition",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "AnnotationDot",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "AnnularSector",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Annulus",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "ApplyComplexFunction",
+      "module": "manim.animation.transform",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "ApplyFunction",
+      "module": "manim.animation.transform",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "ApplyMatrix",
+      "module": "manim.animation.transform",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "ApplyMethod",
+      "module": "manim.animation.transform",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "ApplyPointwiseFunction",
+      "module": "manim.animation.transform",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "ApplyPointwiseFunctionToCenter",
+      "module": "manim.animation.transform",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "ApplyWave",
+      "module": "manim.animation.indication",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "Arc",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "ArcBetweenPoints",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "ArcBrace",
+      "module": "manim.mobject.svg.brace",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "ArcPolygon",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "ArcPolygonFromArcs",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Arrow",
+      "module": "manim.mobject.geometry.line",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Arrow3D",
+      "module": "manim.mobject.three_d.three_dimensions",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "ArrowCircleFilledTip",
+      "module": "manim.mobject.geometry.tips",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "ArrowCircleTip",
+      "module": "manim.mobject.geometry.tips",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "ArrowSquareFilledTip",
+      "module": "manim.mobject.geometry.tips",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "ArrowSquareTip",
+      "module": "manim.mobject.geometry.tips",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "ArrowTip",
+      "module": "manim.mobject.geometry.tips",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "ArrowTriangleFilledTip",
+      "module": "manim.mobject.geometry.tips",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "ArrowTriangleTip",
+      "module": "manim.mobject.geometry.tips",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "ArrowVectorField",
+      "module": "manim.mobject.vector_field",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Axes",
+      "module": "manim.mobject.graphing.coordinate_systems",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "BackgroundColoredVMobjectDisplayer",
+      "module": "manim.camera.camera",
+      "category": "other",
+      "compilerPath": "manual-review",
+      "abstract": false
+    },
+    {
+      "name": "BackgroundRectangle",
+      "module": "manim.mobject.geometry.shape_matchers",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "BarChart",
+      "module": "manim.mobject.graphing.probability",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Blink",
+      "module": "manim.animation.indication",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "Brace",
+      "module": "manim.mobject.svg.brace",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "BraceBetweenPoints",
+      "module": "manim.mobject.svg.brace",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "BraceLabel",
+      "module": "manim.mobject.svg.brace",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "BraceText",
+      "module": "manim.mobject.svg.brace",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Broadcast",
+      "module": "manim.animation.specialized",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "BulletedList",
+      "module": "manim.mobject.text.tex_mobject",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "CairoRenderer",
+      "module": "manim.renderer.cairo_renderer",
+      "category": "other",
+      "compilerPath": "manual-review",
+      "abstract": false
+    },
+    {
+      "name": "Camera",
+      "module": "manim.camera.camera",
+      "category": "other",
+      "compilerPath": "manual-review",
+      "abstract": false
+    },
+    {
+      "name": "CapStyleType",
+      "module": "manim.constants",
+      "category": "other",
+      "compilerPath": "manual-review",
+      "abstract": false
+    },
+    {
+      "name": "ChangeDecimalToValue",
+      "module": "manim.animation.numbers",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "ChangeSpeed",
+      "module": "manim.animation.speedmodifier",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "ChangingDecimal",
+      "module": "manim.animation.numbers",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "Circle",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Circumscribe",
+      "module": "manim.animation.indication",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "ClockwiseTransform",
+      "module": "manim.animation.transform",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "Code",
+      "module": "manim.mobject.text.code_mobject",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "ComplexHomotopy",
+      "module": "manim.animation.movement",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "ComplexPlane",
+      "module": "manim.mobject.graphing.coordinate_systems",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "ComplexValueTracker",
+      "module": "manim.mobject.value_tracker",
+      "category": "composite-or-nonvisual",
+      "compilerPath": "family-traversal",
+      "abstract": false
+    },
+    {
+      "name": "Cone",
+      "module": "manim.mobject.three_d.three_dimensions",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "ConvertToOpenGL",
+      "module": "manim.mobject.opengl.opengl_compatibility",
+      "category": "other",
+      "compilerPath": "manual-review",
+      "abstract": false
+    },
+    {
+      "name": "ConvexHull",
+      "module": "manim.mobject.geometry.polygram",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "ConvexHull3D",
+      "module": "manim.mobject.three_d.polyhedra",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "CoordinateSystem",
+      "module": "manim.mobject.graphing.coordinate_systems",
+      "category": "other",
+      "compilerPath": "manual-review",
+      "abstract": false
+    },
+    {
+      "name": "CounterclockwiseTransform",
+      "module": "manim.animation.transform",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "Create",
+      "module": "manim.animation.creation",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "Cross",
+      "module": "manim.mobject.geometry.shape_matchers",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Cube",
+      "module": "manim.mobject.three_d.three_dimensions",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "CubicBezier",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "CurvedArrow",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "CurvedDoubleArrow",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "CurvesAsSubmobjects",
+      "module": "manim.mobject.types.vectorized_mobject",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Cutout",
+      "module": "manim.mobject.geometry.polygram",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "CyclicReplace",
+      "module": "manim.animation.transform",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "Cylinder",
+      "module": "manim.mobject.three_d.three_dimensions",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "DashedLine",
+      "module": "manim.mobject.geometry.line",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "DashedVMobject",
+      "module": "manim.mobject.types.vectorized_mobject",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "DecimalMatrix",
+      "module": "manim.mobject.matrix",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "DecimalNumber",
+      "module": "manim.mobject.text.numbers",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "DecimalTable",
+      "module": "manim.mobject.table",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "DefaultSectionType",
+      "module": "manim.scene.section",
+      "category": "other",
+      "compilerPath": "manual-review",
+      "abstract": false
+    },
+    {
+      "name": "DiGraph",
+      "module": "manim.mobject.graph",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "DictAsObject",
+      "module": "manim.utils.config_ops",
+      "category": "other",
+      "compilerPath": "manual-review",
+      "abstract": false
+    },
+    {
+      "name": "Difference",
+      "module": "manim.mobject.geometry.boolean_ops",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Dodecahedron",
+      "module": "manim.mobject.three_d.polyhedra",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Dot",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Dot3D",
+      "module": "manim.mobject.three_d.three_dimensions",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "DotCloud",
+      "module": "manim.mobject.opengl.dot_cloud",
+      "category": "opengl-points",
+      "compilerPath": "retained-point-cloud",
+      "abstract": false
+    },
+    {
+      "name": "DoubleArrow",
+      "module": "manim.mobject.geometry.line",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "DrawBorderThenFill",
+      "module": "manim.animation.creation",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "Elbow",
+      "module": "manim.mobject.geometry.line",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Ellipse",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Exclusion",
+      "module": "manim.mobject.geometry.boolean_ops",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "FadeIn",
+      "module": "manim.animation.fading",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "FadeOut",
+      "module": "manim.animation.fading",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "FadeToColor",
+      "module": "manim.animation.transform",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "FadeTransform",
+      "module": "manim.animation.transform",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "FadeTransformPieces",
+      "module": "manim.animation.transform",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "Flash",
+      "module": "manim.animation.indication",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "FocusOn",
+      "module": "manim.animation.indication",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "FullScreenRectangle",
+      "module": "manim.mobject.frame",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "FunctionGraph",
+      "module": "manim.mobject.graphing.functions",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Graph",
+      "module": "manim.mobject.graph",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Group",
+      "module": "manim.mobject.mobject",
+      "category": "composite-or-nonvisual",
+      "compilerPath": "family-traversal",
+      "abstract": false
+    },
+    {
+      "name": "GrowArrow",
+      "module": "manim.animation.growing",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "GrowFromCenter",
+      "module": "manim.animation.growing",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "GrowFromEdge",
+      "module": "manim.animation.growing",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "GrowFromPoint",
+      "module": "manim.animation.growing",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "HSV",
+      "module": "manim.utils.color.core",
+      "category": "other",
+      "compilerPath": "manual-review",
+      "abstract": false
+    },
+    {
+      "name": "Homotopy",
+      "module": "manim.animation.movement",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "Icosahedron",
+      "module": "manim.mobject.three_d.polyhedra",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "ImageMobject",
+      "module": "manim.mobject.types.image_mobject",
+      "category": "image",
+      "compilerPath": "retained-image",
+      "abstract": false
+    },
+    {
+      "name": "ImageMobjectFromCamera",
+      "module": "manim.mobject.types.image_mobject",
+      "category": "image",
+      "compilerPath": "retained-image",
+      "abstract": false
+    },
+    {
+      "name": "ImplicitFunction",
+      "module": "manim.mobject.graphing.functions",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Indicate",
+      "module": "manim.animation.indication",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "Integer",
+      "module": "manim.mobject.text.numbers",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "IntegerMatrix",
+      "module": "manim.mobject.matrix",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "IntegerTable",
+      "module": "manim.mobject.table",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Intersection",
+      "module": "manim.mobject.geometry.boolean_ops",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Label",
+      "module": "manim.mobject.geometry.labeled",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "LabeledArrow",
+      "module": "manim.mobject.geometry.labeled",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "LabeledDot",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "LabeledLine",
+      "module": "manim.mobject.geometry.labeled",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "LabeledPolygram",
+      "module": "manim.mobject.geometry.labeled",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "LaggedStart",
+      "module": "manim.animation.composition",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "LaggedStartMap",
+      "module": "manim.animation.composition",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "Line",
+      "module": "manim.mobject.geometry.line",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Line3D",
+      "module": "manim.mobject.three_d.three_dimensions",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "LineJointType",
+      "module": "manim.constants",
+      "category": "other",
+      "compilerPath": "manual-review",
+      "abstract": false
+    },
+    {
+      "name": "LinearBase",
+      "module": "manim.mobject.graphing.scale",
+      "category": "other",
+      "compilerPath": "manual-review",
+      "abstract": false
+    },
+    {
+      "name": "LinearTransformationScene",
+      "module": "manim.scene.vector_space_scene",
+      "category": "scene",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "LogBase",
+      "module": "manim.mobject.graphing.scale",
+      "category": "other",
+      "compilerPath": "manual-review",
+      "abstract": false
+    },
+    {
+      "name": "MaintainPositionRelativeTo",
+      "module": "manim.animation.updaters.update",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "ManimBanner",
+      "module": "manim.mobject.logo",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "ManimColor",
+      "module": "manim.utils.color.core",
+      "category": "other",
+      "compilerPath": "manual-review",
+      "abstract": false
+    },
+    {
+      "name": "ManimColorDType",
+      "module": "numpy",
+      "category": "other",
+      "compilerPath": "manual-review",
+      "abstract": false
+    },
+    {
+      "name": "MappingCamera",
+      "module": "manim.camera.mapping_camera",
+      "category": "other",
+      "compilerPath": "manual-review",
+      "abstract": false
+    },
+    {
+      "name": "MarkupText",
+      "module": "manim.mobject.text.text_mobject",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "MathTable",
+      "module": "manim.mobject.table",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "MathTex",
+      "module": "manim.mobject.text.tex_mobject",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Matrix",
+      "module": "manim.mobject.matrix",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Mobject",
+      "module": "manim.mobject.mobject",
+      "category": "composite-or-nonvisual",
+      "compilerPath": "family-traversal",
+      "abstract": false
+    },
+    {
+      "name": "Mobject1D",
+      "module": "manim.mobject.types.point_cloud_mobject",
+      "category": "points",
+      "compilerPath": "retained-point-cloud",
+      "abstract": false
+    },
+    {
+      "name": "Mobject2D",
+      "module": "manim.mobject.types.point_cloud_mobject",
+      "category": "points",
+      "compilerPath": "retained-point-cloud",
+      "abstract": false
+    },
+    {
+      "name": "MobjectMatrix",
+      "module": "manim.mobject.matrix",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "MobjectTable",
+      "module": "manim.mobject.table",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "MoveAlongPath",
+      "module": "manim.animation.movement",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "MoveToTarget",
+      "module": "manim.animation.transform",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "MovingCamera",
+      "module": "manim.camera.moving_camera",
+      "category": "other",
+      "compilerPath": "manual-review",
+      "abstract": false
+    },
+    {
+      "name": "MovingCameraScene",
+      "module": "manim.scene.moving_camera_scene",
+      "category": "scene",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "MultiCamera",
+      "module": "manim.camera.multi_camera",
+      "category": "other",
+      "compilerPath": "manual-review",
+      "abstract": false
+    },
+    {
+      "name": "NumberLine",
+      "module": "manim.mobject.graphing.number_line",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "NumberPlane",
+      "module": "manim.mobject.graphing.coordinate_systems",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Octahedron",
+      "module": "manim.mobject.three_d.polyhedra",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OldMultiCamera",
+      "module": "manim.camera.mapping_camera",
+      "category": "other",
+      "compilerPath": "manual-review",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLAnnularSector",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLAnnulus",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLArc",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLArcBetweenPoints",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLArrow",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLArrowTip",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLCircle",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLCubicBezier",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLCurvedArrow",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLCurvedDoubleArrow",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLCurvesAsSubmobjects",
+      "module": "manim.mobject.opengl.opengl_vectorized_mobject",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLDashedLine",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLDashedVMobject",
+      "module": "manim.mobject.opengl.opengl_vectorized_mobject",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLDot",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLDoubleArrow",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLElbow",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLEllipse",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLGroup",
+      "module": "manim.mobject.opengl.opengl_mobject",
+      "category": "opengl-custom",
+      "compilerPath": "shader-data-inspection",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLImageMobject",
+      "module": "manim.mobject.opengl.opengl_image_mobject",
+      "category": "opengl-surface",
+      "compilerPath": "retained-mesh",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLLine",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLMobject",
+      "module": "manim.mobject.opengl.opengl_mobject",
+      "category": "opengl-custom",
+      "compilerPath": "shader-data-inspection",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLPGroup",
+      "module": "manim.mobject.opengl.opengl_point_cloud_mobject",
+      "category": "opengl-points",
+      "compilerPath": "retained-point-cloud",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLPMPoint",
+      "module": "manim.mobject.opengl.opengl_point_cloud_mobject",
+      "category": "opengl-points",
+      "compilerPath": "retained-point-cloud",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLPMobject",
+      "module": "manim.mobject.opengl.opengl_point_cloud_mobject",
+      "category": "opengl-points",
+      "compilerPath": "retained-point-cloud",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLPoint",
+      "module": "manim.mobject.opengl.opengl_mobject",
+      "category": "opengl-custom",
+      "compilerPath": "shader-data-inspection",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLPolygon",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLRectangle",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLRegularPolygon",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLRoundedRectangle",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLSector",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLSquare",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLSurface",
+      "module": "manim.mobject.opengl.opengl_surface",
+      "category": "opengl-surface",
+      "compilerPath": "retained-mesh",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLSurfaceGroup",
+      "module": "manim.mobject.opengl.opengl_surface",
+      "category": "opengl-surface",
+      "compilerPath": "retained-mesh",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLSurfaceMesh",
+      "module": "manim.mobject.opengl.opengl_three_dimensions",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLTangentLine",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLTexturedSurface",
+      "module": "manim.mobject.opengl.opengl_surface",
+      "category": "opengl-surface",
+      "compilerPath": "retained-mesh",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLTipableVMobject",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLTriangle",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLVGroup",
+      "module": "manim.mobject.opengl.opengl_vectorized_mobject",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLVMobject",
+      "module": "manim.mobject.opengl.opengl_vectorized_mobject",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLVector",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "OpenGLVectorizedPoint",
+      "module": "manim.mobject.opengl.opengl_vectorized_mobject",
+      "category": "opengl-vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "PGroup",
+      "module": "manim.mobject.types.point_cloud_mobject",
+      "category": "points",
+      "compilerPath": "retained-point-cloud",
+      "abstract": false
+    },
+    {
+      "name": "PMobject",
+      "module": "manim.mobject.types.point_cloud_mobject",
+      "category": "points",
+      "compilerPath": "retained-point-cloud",
+      "abstract": false
+    },
+    {
+      "name": "PackageNotFoundError",
+      "module": "importlib.metadata",
+      "category": "other",
+      "compilerPath": "manual-review",
+      "abstract": false
+    },
+    {
+      "name": "Paragraph",
+      "module": "manim.mobject.text.text_mobject",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "ParametricFunction",
+      "module": "manim.mobject.graphing.functions",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "PhaseFlow",
+      "module": "manim.animation.movement",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "Point",
+      "module": "manim.mobject.types.point_cloud_mobject",
+      "category": "points",
+      "compilerPath": "retained-point-cloud",
+      "abstract": false
+    },
+    {
+      "name": "PointCloudDot",
+      "module": "manim.mobject.types.point_cloud_mobject",
+      "category": "points",
+      "compilerPath": "retained-point-cloud",
+      "abstract": false
+    },
+    {
+      "name": "PolarPlane",
+      "module": "manim.mobject.graphing.coordinate_systems",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Polygon",
+      "module": "manim.mobject.geometry.polygram",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Polygram",
+      "module": "manim.mobject.geometry.polygram",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Polyhedron",
+      "module": "manim.mobject.three_d.polyhedra",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Prism",
+      "module": "manim.mobject.three_d.three_dimensions",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "RGBA",
+      "module": "manim.utils.color.core",
+      "category": "other",
+      "compilerPath": "manual-review",
+      "abstract": false
+    },
+    {
+      "name": "RandomColorGenerator",
+      "module": "manim.utils.color.core",
+      "category": "other",
+      "compilerPath": "manual-review",
+      "abstract": false
+    },
+    {
+      "name": "Rectangle",
+      "module": "manim.mobject.geometry.polygram",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "RegularPolygon",
+      "module": "manim.mobject.geometry.polygram",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "RegularPolygram",
+      "module": "manim.mobject.geometry.polygram",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "RemoveTextLetterByLetter",
+      "module": "manim.animation.creation",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "RendererType",
+      "module": "manim.constants",
+      "category": "other",
+      "compilerPath": "manual-review",
+      "abstract": false
+    },
+    {
+      "name": "ReplacementTransform",
+      "module": "manim.animation.transform",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "Restore",
+      "module": "manim.animation.transform",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "RightAngle",
+      "module": "manim.mobject.geometry.line",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Rotate",
+      "module": "manim.animation.rotation",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "Rotating",
+      "module": "manim.animation.rotation",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "RoundedRectangle",
+      "module": "manim.mobject.geometry.polygram",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "SVGMobject",
+      "module": "manim.mobject.svg.svg_mobject",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "SampleSpace",
+      "module": "manim.mobject.graphing.probability",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "ScaleInPlace",
+      "module": "manim.animation.transform",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "Scene",
+      "module": "manim.scene.scene",
+      "category": "scene",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "SceneFileWriter",
+      "module": "manim.scene.scene_file_writer",
+      "category": "other",
+      "compilerPath": "manual-review",
+      "abstract": false
+    },
+    {
+      "name": "ScreenRectangle",
+      "module": "manim.mobject.frame",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Section",
+      "module": "manim.scene.section",
+      "category": "other",
+      "compilerPath": "manual-review",
+      "abstract": false
+    },
+    {
+      "name": "Sector",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "ShowIncreasingSubsets",
+      "module": "manim.animation.creation",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "ShowPartial",
+      "module": "manim.animation.creation",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "ShowPassingFlash",
+      "module": "manim.animation.indication",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "ShowPassingFlashWithThinningStrokeWidth",
+      "module": "manim.animation.indication",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "ShowSubmobjectsOneByOne",
+      "module": "manim.animation.creation",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "ShrinkToCenter",
+      "module": "manim.animation.transform",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "SingleStringMathTex",
+      "module": "manim.mobject.text.tex_mobject",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "SmoothedVectorizedHomotopy",
+      "module": "manim.animation.movement",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "SpecialThreeDScene",
+      "module": "manim.scene.three_d_scene",
+      "category": "scene",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "Sphere",
+      "module": "manim.mobject.three_d.three_dimensions",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "SpinInFromNothing",
+      "module": "manim.animation.growing",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "SpiralIn",
+      "module": "manim.animation.creation",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "SplitScreenCamera",
+      "module": "manim.camera.mapping_camera",
+      "category": "other",
+      "compilerPath": "manual-review",
+      "abstract": false
+    },
+    {
+      "name": "Square",
+      "module": "manim.mobject.geometry.polygram",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Star",
+      "module": "manim.mobject.geometry.polygram",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "StealthTip",
+      "module": "manim.mobject.geometry.tips",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "StreamLines",
+      "module": "manim.mobject.vector_field",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Succession",
+      "module": "manim.animation.composition",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "Surface",
+      "module": "manim.mobject.three_d.three_dimensions",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "SurroundingRectangle",
+      "module": "manim.mobject.geometry.shape_matchers",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Swap",
+      "module": "manim.animation.transform",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "Table",
+      "module": "manim.mobject.table",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "TangentLine",
+      "module": "manim.mobject.geometry.line",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "TangentialArc",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Tetrahedron",
+      "module": "manim.mobject.three_d.polyhedra",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Tex",
+      "module": "manim.mobject.text.tex_mobject",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "TexFontTemplates",
+      "module": "manim.utils.tex_templates",
+      "category": "other",
+      "compilerPath": "manual-review",
+      "abstract": false
+    },
+    {
+      "name": "TexTemplate",
+      "module": "manim.utils.tex",
+      "category": "other",
+      "compilerPath": "manual-review",
+      "abstract": false
+    },
+    {
+      "name": "TexTemplateLibrary",
+      "module": "manim.utils.tex_templates",
+      "category": "other",
+      "compilerPath": "manual-review",
+      "abstract": false
+    },
+    {
+      "name": "Text",
+      "module": "manim.mobject.text.text_mobject",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "ThreeDAxes",
+      "module": "manim.mobject.graphing.coordinate_systems",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "ThreeDCamera",
+      "module": "manim.camera.three_d_camera",
+      "category": "other",
+      "compilerPath": "manual-review",
+      "abstract": false
+    },
+    {
+      "name": "ThreeDScene",
+      "module": "manim.scene.three_d_scene",
+      "category": "scene",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "ThreeDVMobject",
+      "module": "manim.mobject.three_d.three_dimensions",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "TipableVMobject",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Title",
+      "module": "manim.mobject.text.tex_mobject",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Torus",
+      "module": "manim.mobject.three_d.three_dimensions",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "TracedPath",
+      "module": "manim.animation.changing",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Transform",
+      "module": "manim.animation.transform",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "TransformAnimations",
+      "module": "manim.animation.transform",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "TransformFromCopy",
+      "module": "manim.animation.transform",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "TransformMatchingShapes",
+      "module": "manim.animation.transform_matching_parts",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "TransformMatchingTex",
+      "module": "manim.animation.transform_matching_parts",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "Triangle",
+      "module": "manim.mobject.geometry.polygram",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "TrueDot",
+      "module": "manim.mobject.opengl.dot_cloud",
+      "category": "opengl-points",
+      "compilerPath": "retained-point-cloud",
+      "abstract": false
+    },
+    {
+      "name": "TypeWithCursor",
+      "module": "manim.animation.creation",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "Uncreate",
+      "module": "manim.animation.creation",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "Underline",
+      "module": "manim.mobject.geometry.shape_matchers",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Union",
+      "module": "manim.mobject.geometry.boolean_ops",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "UnitInterval",
+      "module": "manim.mobject.graphing.number_line",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "UntypeWithCursor",
+      "module": "manim.animation.creation",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "Unwrite",
+      "module": "manim.animation.creation",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "UpdateFromAlphaFunc",
+      "module": "manim.animation.updaters.update",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "UpdateFromFunc",
+      "module": "manim.animation.updaters.update",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "VDict",
+      "module": "manim.mobject.types.vectorized_mobject",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "VGroup",
+      "module": "manim.mobject.types.vectorized_mobject",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "VMobject",
+      "module": "manim.mobject.types.vectorized_mobject",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "VMobjectFromSVGPath",
+      "module": "manim.mobject.svg.svg_mobject",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "ValueTracker",
+      "module": "manim.mobject.value_tracker",
+      "category": "composite-or-nonvisual",
+      "compilerPath": "family-traversal",
+      "abstract": false
+    },
+    {
+      "name": "Variable",
+      "module": "manim.mobject.text.numbers",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Vector",
+      "module": "manim.mobject.geometry.line",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "VectorField",
+      "module": "manim.mobject.vector_field",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "VectorScene",
+      "module": "manim.scene.vector_space_scene",
+      "category": "scene",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "VectorizedPoint",
+      "module": "manim.mobject.types.vectorized_mobject",
+      "category": "vector",
+      "compilerPath": "retained-path",
+      "abstract": false
+    },
+    {
+      "name": "Wait",
+      "module": "manim.animation.animation",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "Wiggle",
+      "module": "manim.animation.indication",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "Write",
+      "module": "manim.animation.creation",
+      "category": "animation",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    },
+    {
+      "name": "ZoomedScene",
+      "module": "manim.scene.zoomed_scene",
+      "category": "scene",
+      "compilerPath": "manim-semantics",
+      "abstract": false
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "scenes": 7,
+  "compiled": 7,
+  "failed": 0,
+  "rows": [
+    {
+      "scene": "SceneCompatibility",
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/scene-subclasses/SceneCompatibility.json",
+      "stderr": ""
+    },
+    {
+      "scene": "MovingCameraSceneCompatibility",
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/scene-subclasses/MovingCameraSceneCompatibility.json",
+      "stderr": ""
+    },
+    {
+      "scene": "ThreeDSceneCompatibility",
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/scene-subclasses/ThreeDSceneCompatibility.json",
+      "stderr": ""
+    },
+    {
+      "scene": "SpecialThreeDSceneCompatibility",
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/scene-subclasses/SpecialThreeDSceneCompatibility.json",
+      "stderr": ""
+    },
+    {
+      "scene": "VectorSceneCompatibility",
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/scene-subclasses/VectorSceneCompatibility.json",
+      "stderr": ""
+    },
+    {
+      "scene": "LinearTransformationSceneCompatibility",
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/scene-subclasses/LinearTransformationSceneCompatibility.json",
+      "stderr": ""
+    },
+    {
+      "scene": "ZoomedSceneCompatibility",
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/scene-subclasses/ZoomedSceneCompatibility.json",
+      "stderr": ""
+    }
+  ]
+}

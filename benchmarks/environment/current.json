@@ -1,0 +1,43 @@
+{
+  "capture_version": 1,
+  "recorded_at_utc": "2026-07-28T22:08:48Z",
+  "os": {
+    "family": "macos",
+    "version": "15.6.1",
+    "architecture": "aarch64"
+  },
+  "hardware": {
+    "model_name": "Mac mini",
+    "model_identifier": "Mac16,10",
+    "chip": "Apple M4",
+    "logical_cpu_count": 10,
+    "memory_bytes": 17179869184
+  },
+  "graphics": [
+    {
+      "model": "Apple M4",
+      "core_count": 10,
+      "metal_support": "spdisplays_metal3",
+      "displays": [
+        {
+          "name": "ASUS PB278",
+          "resolution": "2560 x 1440 @ 60.00Hz",
+          "main": true,
+          "online": true
+        }
+      ]
+    }
+  ],
+  "toolchain": {
+    "rustc": "rustc 1.88.0 (6b00bc388 2025-06-23)",
+    "cargo": "cargo 1.88.0 (873a06493 2025-05-10)"
+  },
+  "background_load_profile": "chrome-slack-codex",
+  "privacy": {
+    "device_identifiers_collected": false,
+    "account_identifiers_collected": false,
+    "hostnames_collected": false,
+    "filesystem_paths_collected": false,
+    "process_list_collected": false
+  }
+}

@@ -1,0 +1,15 @@
+[package]
+name = "realtime-manim-text-engine"
+description = "OpenType shaping and cached vector glyph outlines for realtime-manim-rs"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+lyon = "1.0.16"
+rustybuzz.workspace = true
+ttf-noto-sans.workspace = true
+
+[lints]
+workspace = true

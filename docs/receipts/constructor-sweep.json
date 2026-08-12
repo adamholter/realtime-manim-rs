@@ -1,0 +1,348 @@
+{
+  "batches": 16,
+  "classes": 180,
+  "compiled": 16,
+  "failed": 0,
+  "rows": [
+    {
+      "scene": "CairoConstructorSweep00",
+      "renderer": "cairo",
+      "classes": [
+        "Angle",
+        "AnimatedBoundary",
+        "AnnotationDot",
+        "AnnularSector",
+        "Annulus",
+        "Arc",
+        "ArcBetweenPoints",
+        "ArcBrace",
+        "ArcPolygon",
+        "ArcPolygonFromArcs",
+        "Arrow",
+        "Arrow3D"
+      ],
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/constructor-sweep/CairoConstructorSweep00.json",
+      "stderr": ""
+    },
+    {
+      "scene": "CairoConstructorSweep01",
+      "renderer": "cairo",
+      "classes": [
+        "ArrowCircleFilledTip",
+        "ArrowCircleTip",
+        "ArrowSquareFilledTip",
+        "ArrowSquareTip",
+        "ArrowTriangleFilledTip",
+        "ArrowTriangleTip",
+        "ArrowVectorField",
+        "Axes",
+        "BackgroundRectangle",
+        "BarChart",
+        "Brace",
+        "BraceBetweenPoints"
+      ],
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/constructor-sweep/CairoConstructorSweep01.json",
+      "stderr": ""
+    },
+    {
+      "scene": "CairoConstructorSweep02",
+      "renderer": "cairo",
+      "classes": [
+        "BraceLabel",
+        "BraceText",
+        "BulletedList",
+        "Circle",
+        "Code",
+        "ComplexPlane",
+        "ComplexValueTracker",
+        "Cone",
+        "ConvexHull",
+        "ConvexHull3D",
+        "Cross",
+        "Cube"
+      ],
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/constructor-sweep/CairoConstructorSweep02.json",
+      "stderr": ""
+    },
+    {
+      "scene": "CairoConstructorSweep03",
+      "renderer": "cairo",
+      "classes": [
+        "CubicBezier",
+        "CurvedArrow",
+        "CurvedDoubleArrow",
+        "CurvesAsSubmobjects",
+        "Cutout",
+        "Cylinder",
+        "DashedLine",
+        "DashedVMobject",
+        "DecimalMatrix",
+        "DecimalNumber",
+        "DecimalTable",
+        "DiGraph"
+      ],
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/constructor-sweep/CairoConstructorSweep03.json",
+      "stderr": ""
+    },
+    {
+      "scene": "CairoConstructorSweep04",
+      "renderer": "cairo",
+      "classes": [
+        "Difference",
+        "Dodecahedron",
+        "Dot",
+        "Dot3D",
+        "DoubleArrow",
+        "Elbow",
+        "Ellipse",
+        "Exclusion",
+        "FullScreenRectangle",
+        "FunctionGraph",
+        "Graph",
+        "Group"
+      ],
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/constructor-sweep/CairoConstructorSweep04.json",
+      "stderr": ""
+    },
+    {
+      "scene": "CairoConstructorSweep05",
+      "renderer": "cairo",
+      "classes": [
+        "Icosahedron",
+        "ImageMobject",
+        "ImageMobjectFromCamera",
+        "ImplicitFunction",
+        "Integer",
+        "IntegerMatrix",
+        "IntegerTable",
+        "Intersection",
+        "Label",
+        "LabeledArrow",
+        "LabeledDot",
+        "LabeledLine"
+      ],
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/constructor-sweep/CairoConstructorSweep05.json",
+      "stderr": ""
+    },
+    {
+      "scene": "CairoConstructorSweep06",
+      "renderer": "cairo",
+      "classes": [
+        "LabeledPolygram",
+        "Line",
+        "Line3D",
+        "ManimBanner",
+        "MarkupText",
+        "MathTable",
+        "MathTex",
+        "Matrix",
+        "Mobject",
+        "Mobject1D",
+        "Mobject2D",
+        "MobjectMatrix"
+      ],
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/constructor-sweep/CairoConstructorSweep06.json",
+      "stderr": ""
+    },
+    {
+      "scene": "CairoConstructorSweep07",
+      "renderer": "cairo",
+      "classes": [
+        "MobjectTable",
+        "NumberLine",
+        "NumberPlane",
+        "Octahedron",
+        "PGroup",
+        "PMobject",
+        "Paragraph",
+        "ParametricFunction",
+        "Point",
+        "PointCloudDot",
+        "PolarPlane",
+        "Polygon"
+      ],
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/constructor-sweep/CairoConstructorSweep07.json",
+      "stderr": ""
+    },
+    {
+      "scene": "CairoConstructorSweep08",
+      "renderer": "cairo",
+      "classes": [
+        "Polygram",
+        "Polyhedron",
+        "Prism",
+        "Rectangle",
+        "RegularPolygon",
+        "RegularPolygram",
+        "RightAngle",
+        "RoundedRectangle",
+        "SVGMobject",
+        "SampleSpace",
+        "ScreenRectangle",
+        "Sector"
+      ],
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/constructor-sweep/CairoConstructorSweep08.json",
+      "stderr": ""
+    },
+    {
+      "scene": "CairoConstructorSweep09",
+      "renderer": "cairo",
+      "classes": [
+        "SingleStringMathTex",
+        "Sphere",
+        "Square",
+        "Star",
+        "StealthTip",
+        "StreamLines",
+        "Surface",
+        "SurroundingRectangle",
+        "Table",
+        "TangentLine",
+        "TangentialArc",
+        "Tetrahedron"
+      ],
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/constructor-sweep/CairoConstructorSweep09.json",
+      "stderr": ""
+    },
+    {
+      "scene": "CairoConstructorSweep10",
+      "renderer": "cairo",
+      "classes": [
+        "Tex",
+        "Text",
+        "ThreeDAxes",
+        "ThreeDVMobject",
+        "TipableVMobject",
+        "Title",
+        "Torus",
+        "TracedPath",
+        "Triangle",
+        "Underline",
+        "Union",
+        "UnitInterval"
+      ],
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/constructor-sweep/CairoConstructorSweep10.json",
+      "stderr": ""
+    },
+    {
+      "scene": "CairoConstructorSweep11",
+      "renderer": "cairo",
+      "classes": [
+        "VDict",
+        "VGroup",
+        "VMobject",
+        "VMobjectFromSVGPath",
+        "ValueTracker",
+        "Variable",
+        "Vector",
+        "VectorField"
+      ],
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/constructor-sweep/CairoConstructorSweep11.json",
+      "stderr": ""
+    },
+    {
+      "scene": "OpenGLConstructorSweep00",
+      "renderer": "opengl",
+      "classes": [
+        "DotCloud",
+        "OpenGLAnnularSector",
+        "OpenGLAnnulus",
+        "OpenGLArc",
+        "OpenGLArcBetweenPoints",
+        "OpenGLArrow",
+        "OpenGLArrowTip",
+        "OpenGLCircle",
+        "OpenGLCubicBezier",
+        "OpenGLCurvedArrow",
+        "OpenGLCurvedDoubleArrow",
+        "OpenGLCurvesAsSubmobjects"
+      ],
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/constructor-sweep/OpenGLConstructorSweep00.json",
+      "stderr": ""
+    },
+    {
+      "scene": "OpenGLConstructorSweep01",
+      "renderer": "opengl",
+      "classes": [
+        "OpenGLDashedLine",
+        "OpenGLDashedVMobject",
+        "OpenGLDot",
+        "OpenGLDoubleArrow",
+        "OpenGLEllipse",
+        "OpenGLGroup",
+        "OpenGLImageMobject",
+        "OpenGLLine",
+        "OpenGLMobject",
+        "OpenGLPGroup",
+        "OpenGLPMPoint",
+        "OpenGLPMobject"
+      ],
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/constructor-sweep/OpenGLConstructorSweep01.json",
+      "stderr": ""
+    },
+    {
+      "scene": "OpenGLConstructorSweep02",
+      "renderer": "opengl",
+      "classes": [
+        "OpenGLPolygon",
+        "OpenGLRectangle",
+        "OpenGLRegularPolygon",
+        "OpenGLSector",
+        "OpenGLSquare",
+        "OpenGLSurface",
+        "OpenGLSurfaceGroup",
+        "OpenGLSurfaceMesh",
+        "OpenGLTangentLine",
+        "OpenGLTexturedSurface",
+        "OpenGLTipableVMobject",
+        "OpenGLTriangle"
+      ],
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/constructor-sweep/OpenGLConstructorSweep02.json",
+      "stderr": ""
+    },
+    {
+      "scene": "OpenGLConstructorSweep03",
+      "renderer": "opengl",
+      "classes": [
+        "OpenGLVGroup",
+        "OpenGLVMobject",
+        "OpenGLVector",
+        "TrueDot"
+      ],
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/constructor-sweep/OpenGLConstructorSweep03.json",
+      "stderr": ""
+    }
+  ]
+}

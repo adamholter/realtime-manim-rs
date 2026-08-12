@@ -1,0 +1,157 @@
+{
+  "schemaVersion": 1,
+  "reference": {
+    "implementation": "Manim Community",
+    "version": "0.20.1",
+    "source": "benchmarks/corpus/manim_reference_scenes.py",
+    "resolution": [854, 480],
+    "fps": 15
+  },
+  "policy": {
+    "completionRule": "Every corpus scene must pass semantic assertions and visual comparison without a compatibility fallback to regular Manim.",
+    "visualThreshold": "Per-scene perceptual thresholds are recorded after the first paired render; no global threshold may hide a missing capability.",
+    "unsupportedBehavior": "Unsupported features must fail with a structured diagnostic naming the exact class, method, or renderer feature."
+  },
+  "scenes": [
+    {
+      "id": "primitive-gallery",
+      "class": "PrimitiveGallery",
+      "tier": "core-2d",
+      "capabilities": ["Circle", "Square", "Triangle", "RoundedRectangle", "Arc", "Annulus", "DashedLine", "Arrow", "Polygon", "VGroup.arrange", "Create", "FadeIn"],
+      "assertions": ["all primitive families visible", "stroke joins and arrow tips match", "group layout order preserved"]
+    },
+    {
+      "id": "text-and-math",
+      "class": "TextAndMath",
+      "tier": "typography",
+      "capabilities": ["Text", "MarkupText", "MathTex", "Tex", "font shaping", "LaTeX", "Write", "TransformMatchingTex"],
+      "assertions": ["kerning and baselines are stable", "fractions radicals integrals render as vectors", "matching TeX parts morph independently"]
+    },
+    {
+      "id": "axes-plots-area",
+      "class": "AxesPlotsAndArea",
+      "tier": "graphing",
+      "capabilities": ["Axes", "plot", "get_area", "get_graph_label", "ValueTracker", "always_redraw"],
+      "assertions": ["coordinate transforms invert", "area follows graph", "tracker-driven dot and label are seek deterministic"]
+    },
+    {
+      "id": "parametric-polar",
+      "class": "ParametricAndPolar",
+      "tier": "graphing",
+      "capabilities": ["NumberPlane", "ParametricFunction", "PolarPlane", "plot_polar_graph", "Create"],
+      "assertions": ["parametric sampling is continuous", "polar coordinates and labels align"]
+    },
+    {
+      "id": "transform-family",
+      "class": "TransformFamily",
+      "tier": "animation",
+      "capabilities": ["Transform", "ReplacementTransform", "TransformFromCopy", "MoveAlongPath", "Rotate", "animate chaining"],
+      "assertions": ["source and target lifetimes match Manim", "path motion is curved", "chained transforms share one timeline"]
+    },
+    {
+      "id": "creation-and-indication",
+      "class": "CreationAndIndication",
+      "tier": "animation",
+      "capabilities": ["DrawBorderThenFill", "GrowFromCenter", "SpiralIn", "Circumscribe", "Indicate", "Flash", "Wiggle", "Uncreate"],
+      "assertions": ["creation order follows subpaths", "temporary indication artifacts clean up"]
+    },
+    {
+      "id": "animation-composition",
+      "class": "AnimationComposition",
+      "tier": "animation",
+      "capabilities": ["AnimationGroup", "LaggedStart", "Succession", "there_and_back", "rate functions"],
+      "assertions": ["lag ratios and nested runtimes compose", "final object states are exact"]
+    },
+    {
+      "id": "updaters-and-traced-path",
+      "class": "UpdatersAndTracedPath",
+      "tier": "dynamic",
+      "capabilities": ["ValueTracker", "add_updater", "always_redraw", "TracedPath", "DecimalNumber"],
+      "assertions": ["explicit-time random seek matches sequential playback", "traced path is stable", "number formatting updates"]
+    },
+    {
+      "id": "moving-camera",
+      "class": "MovingCamera",
+      "tier": "camera",
+      "capabilities": ["MovingCameraScene", "camera.frame", "save_state", "Restore", "zoom", "pan"],
+      "assertions": ["camera transforms do not mutate world geometry", "restore returns exact initial frame"]
+    },
+    {
+      "id": "svg-and-image",
+      "class": "SvgAndImage",
+      "tier": "media",
+      "capabilities": ["SVGMobject", "ImageMobject", "set_resampling_algorithm", "group transforms"],
+      "assertions": ["SVG references and curves resolve", "image alpha and sampling match", "mixed media z order preserved"]
+    },
+    {
+      "id": "matrix-table-code",
+      "class": "MatrixTableAndCode",
+      "tier": "layout",
+      "capabilities": ["Matrix", "Table", "Code", "SurroundingRectangle", "Brace"],
+      "assertions": ["cell alignment and brackets match", "syntax-highlighted spans preserve color", "layout bounds include decorations"]
+    },
+    {
+      "id": "graph-network",
+      "class": "GraphNetwork",
+      "tier": "data-viz",
+      "capabilities": ["Graph", "DiGraph", "change_layout", "vertex labels", "edge configuration"],
+      "assertions": ["topology retained during layout animation", "directed tips and labels remain attached"]
+    },
+    {
+      "id": "vector-field-streamlines",
+      "class": "VectorFieldAndStreamLines",
+      "tier": "data-viz",
+      "capabilities": ["ArrowVectorField", "StreamLines", "start_animation", "end_animation"],
+      "assertions": ["field sampling and color mapping match", "streamline animation is deterministic at explicit time"]
+    },
+    {
+      "id": "charts-probability",
+      "class": "ChartsAndProbability",
+      "tier": "data-viz",
+      "capabilities": ["BarChart", "SampleSpace", "DecimalNumber", "ChangeDecimalToValue"],
+      "assertions": ["bar baselines and labels align", "probability regions partition exactly", "numeric tween is monotonic"]
+    },
+    {
+      "id": "boolean-geometry",
+      "class": "BooleanGeometry",
+      "tier": "geometry",
+      "capabilities": ["Union", "Intersection", "Difference", "Exclusion", "VMobject booleans"],
+      "assertions": ["fill rules and holes match", "resulting contours remain morphable"]
+    },
+    {
+      "id": "custom-vmobject",
+      "class": "CustomVMobject",
+      "tier": "geometry",
+      "capabilities": ["VMobject", "set_points_smoothly", "point_from_proportion", "become", "ApplyFunction"],
+      "assertions": ["Bezier handles round-trip", "point proportion uses arc length", "custom transforms preserve closure"]
+    },
+    {
+      "id": "three-d-surface",
+      "class": "ThreeDSurface",
+      "tier": "3d",
+      "capabilities": ["ThreeDScene", "ThreeDAxes", "Surface", "set_camera_orientation", "ambient camera rotation"],
+      "assertions": ["perspective projection and depth order match", "surface normals and shading are stable", "camera orbit is explicit-time deterministic"]
+    },
+    {
+      "id": "polyhedra-fixed-labels",
+      "class": "PolyhedraAndFixedLabels",
+      "tier": "3d",
+      "capabilities": ["Cube", "Dodecahedron", "add_fixed_in_frame_mobjects", "add_fixed_orientation_mobjects"],
+      "assertions": ["mesh faces depth test correctly", "fixed labels ignore camera rotation", "fixed orientation labels retain position"]
+    },
+    {
+      "id": "audio-timeline",
+      "class": "AudioTimeline",
+      "tier": "audio",
+      "capabilities": ["add_sound", "wait", "audio-video mux", "timeline offsets"],
+      "assertions": ["audio begins at requested scene time", "export duration and sync are sample accurate"]
+    },
+    {
+      "id": "unicode-color-accessibility",
+      "class": "UnicodeColorAndAccessibility",
+      "tier": "international",
+      "capabilities": ["Unicode Text", "RTL shaping", "grapheme clusters", "color gradients", "subcaptions"],
+      "assertions": ["complex scripts shape correctly", "emoji and combining marks do not split", "subcaption timing exports"]
+    }
+  ]
+}

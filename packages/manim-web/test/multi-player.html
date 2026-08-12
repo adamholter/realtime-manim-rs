@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <link rel="icon" href="data:,">
+    <title>realtime-manim multi-player smoke</title>
+    <style>
+      body { margin: 0; display: grid; grid-template-columns: 1fr 1fr; background: #05070b; }
+      canvas { width: 100%; aspect-ratio: 16 / 9; }
+    </style>
+  </head>
+  <body>
+    <canvas id="first" width="640" height="360"></canvas>
+    <canvas id="second" width="640" height="360"></canvas>
+    <script type="module">
+      import init, { create_player } from "../runtime/realtime_manim_web_preview.js";
+
+      const scene = (title, color, x) => JSON.stringify({
+        version: 2,
+        title,
+        width: 16,
+        height: 9,
+        duration: 2,
+        fps: 60,
+        background: "#05070b",
+        nodes: [{
+          id: `${title}-circle`,
+          type: "circle",
+          radius: 1.4,
+          transform: { x, y: 0 },
+          style: { fill: color, stroke: "#ffffffff", strokeWidth: 0.06 },
+        }, ...(title === "first" ? [{
+          id: "uploaded-label",
+          type: "text",
+          text: "Persistent font",
+          fontSize: 0.8,
+          fontFamily: "Uploaded Sans",
+          weight: "bold",
+          transform: { x: 0, y: 2.4 },
+          style: { fill: "#ffffffff" },
+        }] : [])],
+      });
+
+      try {
+        await init();
+        const first = await create_player(document.querySelector("#first"));
+        const second = await create_player(document.querySelector("#second"));
+        const testFont = Uint8Array.from(
+          atob(globalThis.__MANIM_TEST_FONT_BASE64__ ?? ""),
+          (character) => character.charCodeAt(0),
+        );
+        first.register_font("Uploaded Sans", "bold", "normal", testFont);
+        if (first.registered_font_count() !== 1) throw new Error("uploaded font did not register");
+        first.load_scene(scene("first", "#58c4ddff", -1));
+        second.load_scene(scene("second", "#ff6b6bff", 1));
+        first.set_paused(true);
+        second.set_paused(true);
+        first.seek(0.75);
+        second.seek(1.25);
+        first.simulate_device_loss();
+        const deadline = performance.now() + 15_000;
+        while (first.recovery_count() < 1 && performance.now() < deadline) {
+          await new Promise((resolve) => setTimeout(resolve, 25));
+        }
+        if (first.recovery_count() !== 1) throw new Error("first player did not recover");
+        if (first.registered_font_count() !== 1) throw new Error("uploaded font did not survive recovery");
+        if (second.recovery_count() !== 0) throw new Error("device loss leaked into second player");
+        const firstRecoveryCount = first.recovery_count();
+        const firstRegisteredFonts = first.registered_font_count();
+        first.destroy();
+        if (!first.is_destroyed()) throw new Error("first player did not destroy");
+        if (!Number.isFinite(second.current_time())) throw new Error("second player stopped with first");
+        globalThis.__multiPlayerState = {
+          ok: true,
+          firstRecoveryCount,
+          firstRegisteredFonts,
+          secondRecoveryCount: second.recovery_count(),
+          secondTime: second.current_time(),
+        };
+        globalThis.__secondPlayer = second;
+      } catch (error) {
+        globalThis.__multiPlayerState = { ok: false, error: error?.stack ?? String(error) };
+        throw error;
+      }
+    </script>
+  </body>
+</html>

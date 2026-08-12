@@ -1,0 +1,1678 @@
+{
+  "manimVersion": "0.20.1",
+  "classesAudited": 186,
+  "statusCounts": {
+    "constructed": 183,
+    "upstream-failure": 3
+  },
+  "results": [
+    {
+      "name": "Angle",
+      "module": "manim.mobject.geometry.line",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 32,
+      "visualIntent": true
+    },
+    {
+      "name": "AnimatedBoundary",
+      "module": "manim.animation.changing",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 3,
+      "pointCount": 64,
+      "visualIntent": true
+    },
+    {
+      "name": "AnnotationDot",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 32,
+      "visualIntent": true
+    },
+    {
+      "name": "AnnularSector",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 72,
+      "visualIntent": true
+    },
+    {
+      "name": "Annulus",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 64,
+      "visualIntent": true
+    },
+    {
+      "name": "Arc",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 32,
+      "visualIntent": true
+    },
+    {
+      "name": "ArcBetweenPoints",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 32,
+      "visualIntent": true
+    },
+    {
+      "name": "ArcBrace",
+      "module": "manim.mobject.svg.brace",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 100,
+      "visualIntent": true
+    },
+    {
+      "name": "ArcPolygon",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 5,
+      "pointCount": 256,
+      "visualIntent": true
+    },
+    {
+      "name": "ArcPolygonFromArcs",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 4,
+      "pointCount": 204,
+      "visualIntent": true
+    },
+    {
+      "name": "Arrow",
+      "module": "manim.mobject.geometry.line",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 2,
+      "pointCount": 16,
+      "visualIntent": true
+    },
+    {
+      "name": "Arrow3D",
+      "module": "manim.mobject.three_d.three_dimensions",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1079,
+      "pointCount": 17219,
+      "visualIntent": true
+    },
+    {
+      "name": "ArrowCircleFilledTip",
+      "module": "manim.mobject.geometry.tips",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 32,
+      "visualIntent": true
+    },
+    {
+      "name": "ArrowCircleTip",
+      "module": "manim.mobject.geometry.tips",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 32,
+      "visualIntent": true
+    },
+    {
+      "name": "ArrowSquareFilledTip",
+      "module": "manim.mobject.geometry.tips",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 16,
+      "visualIntent": true
+    },
+    {
+      "name": "ArrowSquareTip",
+      "module": "manim.mobject.geometry.tips",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 16,
+      "visualIntent": true
+    },
+    {
+      "name": "ArrowTip",
+      "module": "manim.mobject.geometry.tips",
+      "category": "vector",
+      "status": "upstream-failure",
+      "detail": "ArrowTip is an intentionally unimplemented base."
+    },
+    {
+      "name": "ArrowTriangleFilledTip",
+      "module": "manim.mobject.geometry.tips",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 12,
+      "visualIntent": true
+    },
+    {
+      "name": "ArrowTriangleTip",
+      "module": "manim.mobject.geometry.tips",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 12,
+      "visualIntent": true
+    },
+    {
+      "name": "ArrowVectorField",
+      "module": "manim.mobject.vector_field",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1123,
+      "pointCount": 8976,
+      "visualIntent": true
+    },
+    {
+      "name": "Axes",
+      "module": "manim.mobject.graphing.coordinate_systems",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 27,
+      "pointCount": 112,
+      "visualIntent": true
+    },
+    {
+      "name": "BackgroundRectangle",
+      "module": "manim.mobject.geometry.shape_matchers",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 16,
+      "visualIntent": true
+    },
+    {
+      "name": "BarChart",
+      "module": "manim.mobject.graphing.probability",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 69,
+      "pointCount": 1084,
+      "visualIntent": true
+    },
+    {
+      "name": "Brace",
+      "module": "manim.mobject.svg.brace",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 100,
+      "visualIntent": true
+    },
+    {
+      "name": "BraceBetweenPoints",
+      "module": "manim.mobject.svg.brace",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 100,
+      "visualIntent": true
+    },
+    {
+      "name": "BraceLabel",
+      "module": "manim.mobject.svg.brace",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 5,
+      "pointCount": 216,
+      "visualIntent": true
+    },
+    {
+      "name": "BraceText",
+      "module": "manim.mobject.svg.brace",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 4,
+      "pointCount": 280,
+      "visualIntent": true
+    },
+    {
+      "name": "BulletedList",
+      "module": "manim.mobject.text.tex_mobject",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 19,
+      "pointCount": 868,
+      "visualIntent": true
+    },
+    {
+      "name": "Circle",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 32,
+      "visualIntent": true
+    },
+    {
+      "name": "Code",
+      "module": "manim.mobject.text.code_mobject",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 12,
+      "pointCount": 400,
+      "visualIntent": true
+    },
+    {
+      "name": "ComplexPlane",
+      "module": "manim.mobject.graphing.coordinate_systems",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 27,
+      "pointCount": 96,
+      "visualIntent": true
+    },
+    {
+      "name": "ComplexValueTracker",
+      "module": "manim.mobject.value_tracker",
+      "category": "composite-or-nonvisual",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 1,
+      "visualIntent": true
+    },
+    {
+      "name": "Cone",
+      "module": "manim.mobject.three_d.three_dimensions",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1027,
+      "pointCount": 16386,
+      "visualIntent": true
+    },
+    {
+      "name": "ConvexHull",
+      "module": "manim.mobject.geometry.polygram",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 16,
+      "visualIntent": true
+    },
+    {
+      "name": "ConvexHull3D",
+      "module": "manim.mobject.three_d.polyhedra",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 276,
+      "pointCount": 4180,
+      "visualIntent": true
+    },
+    {
+      "name": "Cross",
+      "module": "manim.mobject.geometry.shape_matchers",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 3,
+      "pointCount": 8,
+      "visualIntent": true
+    },
+    {
+      "name": "Cube",
+      "module": "manim.mobject.three_d.three_dimensions",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 7,
+      "pointCount": 96,
+      "visualIntent": true
+    },
+    {
+      "name": "CubicBezier",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 4,
+      "visualIntent": true
+    },
+    {
+      "name": "CurvedArrow",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 2,
+      "pointCount": 44,
+      "visualIntent": true
+    },
+    {
+      "name": "CurvedDoubleArrow",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 3,
+      "pointCount": 56,
+      "visualIntent": true
+    },
+    {
+      "name": "CurvesAsSubmobjects",
+      "module": "manim.mobject.types.vectorized_mobject",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 9,
+      "pointCount": 32,
+      "visualIntent": true
+    },
+    {
+      "name": "Cutout",
+      "module": "manim.mobject.geometry.polygram",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 48,
+      "visualIntent": true
+    },
+    {
+      "name": "Cylinder",
+      "module": "manim.mobject.three_d.three_dimensions",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 579,
+      "pointCount": 9280,
+      "visualIntent": true
+    },
+    {
+      "name": "DashedLine",
+      "module": "manim.mobject.geometry.line",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 21,
+      "pointCount": 80,
+      "visualIntent": true
+    },
+    {
+      "name": "DashedVMobject",
+      "module": "manim.mobject.types.vectorized_mobject",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 16,
+      "pointCount": 72,
+      "visualIntent": true
+    },
+    {
+      "name": "DecimalMatrix",
+      "module": "manim.mobject.matrix",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 48,
+      "pointCount": 696,
+      "visualIntent": true
+    },
+    {
+      "name": "DecimalNumber",
+      "module": "manim.mobject.text.numbers",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 13,
+      "pointCount": 208,
+      "visualIntent": true
+    },
+    {
+      "name": "DecimalTable",
+      "module": "manim.mobject.table",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 44,
+      "pointCount": 708,
+      "visualIntent": true
+    },
+    {
+      "name": "DiGraph",
+      "module": "manim.mobject.graph",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 8,
+      "pointCount": 128,
+      "visualIntent": true
+    },
+    {
+      "name": "Difference",
+      "module": "manim.mobject.geometry.boolean_ops",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 52,
+      "visualIntent": true
+    },
+    {
+      "name": "Dodecahedron",
+      "module": "manim.mobject.three_d.polyhedra",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1364,
+      "pointCount": 20916,
+      "visualIntent": true
+    },
+    {
+      "name": "Dot",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 32,
+      "visualIntent": true
+    },
+    {
+      "name": "Dot3D",
+      "module": "manim.mobject.three_d.three_dimensions",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 65,
+      "pointCount": 1024,
+      "visualIntent": true
+    },
+    {
+      "name": "DotCloud",
+      "module": "manim.mobject.opengl.dot_cloud",
+      "category": "opengl-points",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 1303,
+      "visualIntent": true
+    },
+    {
+      "name": "DoubleArrow",
+      "module": "manim.mobject.geometry.line",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 3,
+      "pointCount": 28,
+      "visualIntent": true
+    },
+    {
+      "name": "Elbow",
+      "module": "manim.mobject.geometry.line",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 8,
+      "visualIntent": true
+    },
+    {
+      "name": "Ellipse",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 32,
+      "visualIntent": true
+    },
+    {
+      "name": "Exclusion",
+      "module": "manim.mobject.geometry.boolean_ops",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 52,
+      "visualIntent": true
+    },
+    {
+      "name": "FullScreenRectangle",
+      "module": "manim.mobject.frame",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 16,
+      "visualIntent": true
+    },
+    {
+      "name": "FunctionGraph",
+      "module": "manim.mobject.graphing.functions",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 5692,
+      "visualIntent": true
+    },
+    {
+      "name": "Graph",
+      "module": "manim.mobject.graph",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 6,
+      "pointCount": 104,
+      "visualIntent": true
+    },
+    {
+      "name": "Group",
+      "module": "manim.mobject.mobject",
+      "category": "composite-or-nonvisual",
+      "status": "constructed",
+      "familyMembers": 2,
+      "pointCount": 32,
+      "visualIntent": true
+    },
+    {
+      "name": "Icosahedron",
+      "module": "manim.mobject.three_d.polyhedra",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 849,
+      "pointCount": 12712,
+      "visualIntent": true
+    },
+    {
+      "name": "ImageMobject",
+      "module": "manim.mobject.types.image_mobject",
+      "category": "image",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 4,
+      "visualIntent": true
+    },
+    {
+      "name": "ImageMobjectFromCamera",
+      "module": "manim.mobject.types.image_mobject",
+      "category": "image",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 4,
+      "visualIntent": true
+    },
+    {
+      "name": "ImplicitFunction",
+      "module": "manim.mobject.graphing.functions",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 1408,
+      "visualIntent": true
+    },
+    {
+      "name": "Integer",
+      "module": "manim.mobject.text.numbers",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 4,
+      "pointCount": 64,
+      "visualIntent": true
+    },
+    {
+      "name": "IntegerMatrix",
+      "module": "manim.mobject.matrix",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 24,
+      "pointCount": 376,
+      "visualIntent": true
+    },
+    {
+      "name": "IntegerTable",
+      "module": "manim.mobject.table",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 20,
+      "pointCount": 320,
+      "visualIntent": true
+    },
+    {
+      "name": "Intersection",
+      "module": "manim.mobject.geometry.boolean_ops",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 36,
+      "visualIntent": true
+    },
+    {
+      "name": "Label",
+      "module": "manim.mobject.geometry.labeled",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 6,
+      "pointCount": 148,
+      "visualIntent": true
+    },
+    {
+      "name": "LabeledArrow",
+      "module": "manim.mobject.geometry.labeled",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 8,
+      "pointCount": 120,
+      "visualIntent": true
+    },
+    {
+      "name": "LabeledDot",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 4,
+      "pointCount": 148,
+      "visualIntent": true
+    },
+    {
+      "name": "LabeledLine",
+      "module": "manim.mobject.geometry.labeled",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 7,
+      "pointCount": 152,
+      "visualIntent": true
+    },
+    {
+      "name": "LabeledPolygram",
+      "module": "manim.mobject.geometry.labeled",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 7,
+      "pointCount": 160,
+      "visualIntent": true
+    },
+    {
+      "name": "Line",
+      "module": "manim.mobject.geometry.line",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 4,
+      "visualIntent": true
+    },
+    {
+      "name": "Line3D",
+      "module": "manim.mobject.three_d.three_dimensions",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 51,
+      "pointCount": 832,
+      "visualIntent": true
+    },
+    {
+      "name": "ManimBanner",
+      "module": "manim.mobject.logo",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 6,
+      "pointCount": 276,
+      "visualIntent": true
+    },
+    {
+      "name": "MarkupText",
+      "module": "manim.mobject.text.text_mobject",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 2,
+      "pointCount": 180,
+      "visualIntent": true
+    },
+    {
+      "name": "MathTable",
+      "module": "manim.mobject.table",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 16,
+      "pointCount": 320,
+      "visualIntent": true
+    },
+    {
+      "name": "MathTex",
+      "module": "manim.mobject.text.tex_mobject",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 7,
+      "pointCount": 444,
+      "visualIntent": true
+    },
+    {
+      "name": "Matrix",
+      "module": "manim.mobject.matrix",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 20,
+      "pointCount": 376,
+      "visualIntent": true
+    },
+    {
+      "name": "Mobject",
+      "module": "manim.mobject.mobject",
+      "category": "composite-or-nonvisual",
+      "status": "constructed",
+      "familyMembers": 2,
+      "pointCount": 32,
+      "visualIntent": true
+    },
+    {
+      "name": "Mobject1D",
+      "module": "manim.mobject.types.point_cloud_mobject",
+      "category": "points",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 3,
+      "visualIntent": true
+    },
+    {
+      "name": "Mobject2D",
+      "module": "manim.mobject.types.point_cloud_mobject",
+      "category": "points",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 3,
+      "visualIntent": true
+    },
+    {
+      "name": "MobjectMatrix",
+      "module": "manim.mobject.matrix",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 10,
+      "pointCount": 112,
+      "visualIntent": true
+    },
+    {
+      "name": "MobjectTable",
+      "module": "manim.mobject.table",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 5,
+      "pointCount": 52,
+      "visualIntent": true
+    },
+    {
+      "name": "NumberLine",
+      "module": "manim.mobject.graphing.number_line",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 17,
+      "pointCount": 64,
+      "visualIntent": true
+    },
+    {
+      "name": "NumberPlane",
+      "module": "manim.mobject.graphing.coordinate_systems",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 27,
+      "pointCount": 96,
+      "visualIntent": true
+    },
+    {
+      "name": "Octahedron",
+      "module": "manim.mobject.three_d.polyhedra",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 421,
+      "pointCount": 6320,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLAnnularSector",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 54,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLAnnulus",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 48,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLArc",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 24,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLArcBetweenPoints",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 24,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLArrow",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 21,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLArrowTip",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 9,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLCircle",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 24,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLCubicBezier",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 6,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLCurvedArrow",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 2,
+      "pointCount": 33,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLCurvedDoubleArrow",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 3,
+      "pointCount": 42,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLCurvesAsSubmobjects",
+      "module": "manim.mobject.opengl.opengl_vectorized_mobject",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 9,
+      "pointCount": 24,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLDashedLine",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 21,
+      "pointCount": 60,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLDashedVMobject",
+      "module": "manim.mobject.opengl.opengl_vectorized_mobject",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 16,
+      "pointCount": 57,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLDot",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 24,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLDoubleArrow",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 2,
+      "pointCount": 30,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLElbow",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "status": "upstream-failure",
+      "detail": "Manim 0.20.1 OpenGLElbow fails under its supported NumPy runtime."
+    },
+    {
+      "name": "OpenGLEllipse",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 24,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLGroup",
+      "module": "manim.mobject.opengl.opengl_mobject",
+      "category": "opengl-custom",
+      "status": "constructed",
+      "familyMembers": 2,
+      "pointCount": 24,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLImageMobject",
+      "module": "manim.mobject.opengl.opengl_image_mobject",
+      "category": "opengl-surface",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 30603,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLLine",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 3,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLMobject",
+      "module": "manim.mobject.opengl.opengl_mobject",
+      "category": "opengl-custom",
+      "status": "constructed",
+      "familyMembers": 2,
+      "pointCount": 24,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLPGroup",
+      "module": "manim.mobject.opengl.opengl_point_cloud_mobject",
+      "category": "opengl-points",
+      "status": "constructed",
+      "familyMembers": 3,
+      "pointCount": 2,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLPMPoint",
+      "module": "manim.mobject.opengl.opengl_point_cloud_mobject",
+      "category": "opengl-points",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 1,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLPMobject",
+      "module": "manim.mobject.opengl.opengl_point_cloud_mobject",
+      "category": "opengl-points",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 3,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLPoint",
+      "module": "manim.mobject.opengl.opengl_mobject",
+      "category": "opengl-custom",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 1,
+      "visualIntent": false
+    },
+    {
+      "name": "OpenGLPolygon",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 12,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLRectangle",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 12,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLRegularPolygon",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 18,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLRoundedRectangle",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "status": "upstream-failure",
+      "detail": "Manim 0.20.1 OpenGLRoundedRectangle fails under its supported NumPy runtime."
+    },
+    {
+      "name": "OpenGLSector",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 54,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLSquare",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 12,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLSurface",
+      "module": "manim.mobject.opengl.opengl_surface",
+      "category": "opengl-surface",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 30603,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLSurfaceGroup",
+      "module": "manim.mobject.opengl.opengl_surface",
+      "category": "opengl-surface",
+      "status": "constructed",
+      "familyMembers": 2,
+      "pointCount": 75,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLSurfaceMesh",
+      "module": "manim.mobject.opengl.opengl_three_dimensions",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 12,
+      "pointCount": 264,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLTangentLine",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 3,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLTexturedSurface",
+      "module": "manim.mobject.opengl.opengl_surface",
+      "category": "opengl-surface",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 90,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLTipableVMobject",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 12,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLTriangle",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 9,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLVGroup",
+      "module": "manim.mobject.opengl.opengl_vectorized_mobject",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 2,
+      "pointCount": 24,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLVMobject",
+      "module": "manim.mobject.opengl.opengl_vectorized_mobject",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 12,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLVector",
+      "module": "manim.mobject.opengl.opengl_geometry",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 21,
+      "visualIntent": true
+    },
+    {
+      "name": "OpenGLVectorizedPoint",
+      "module": "manim.mobject.opengl.opengl_vectorized_mobject",
+      "category": "opengl-vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 1,
+      "visualIntent": false
+    },
+    {
+      "name": "PGroup",
+      "module": "manim.mobject.types.point_cloud_mobject",
+      "category": "points",
+      "status": "constructed",
+      "familyMembers": 3,
+      "pointCount": 2,
+      "visualIntent": true
+    },
+    {
+      "name": "PMobject",
+      "module": "manim.mobject.types.point_cloud_mobject",
+      "category": "points",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 3,
+      "visualIntent": true
+    },
+    {
+      "name": "Paragraph",
+      "module": "manim.mobject.text.text_mobject",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 21,
+      "pointCount": 2104,
+      "visualIntent": true
+    },
+    {
+      "name": "ParametricFunction",
+      "module": "manim.mobject.graphing.functions",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 400,
+      "visualIntent": true
+    },
+    {
+      "name": "Point",
+      "module": "manim.mobject.types.point_cloud_mobject",
+      "category": "points",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 1,
+      "visualIntent": true
+    },
+    {
+      "name": "PointCloudDot",
+      "module": "manim.mobject.types.point_cloud_mobject",
+      "category": "points",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 1303,
+      "visualIntent": true
+    },
+    {
+      "name": "PolarPlane",
+      "module": "manim.mobject.graphing.coordinate_systems",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 30,
+      "pointCount": 248,
+      "visualIntent": true
+    },
+    {
+      "name": "Polygon",
+      "module": "manim.mobject.geometry.polygram",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 16,
+      "visualIntent": true
+    },
+    {
+      "name": "Polygram",
+      "module": "manim.mobject.geometry.polygram",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 16,
+      "visualIntent": true
+    },
+    {
+      "name": "Polyhedron",
+      "module": "manim.mobject.three_d.polyhedra",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 276,
+      "pointCount": 4180,
+      "visualIntent": true
+    },
+    {
+      "name": "Prism",
+      "module": "manim.mobject.three_d.three_dimensions",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 7,
+      "pointCount": 96,
+      "visualIntent": true
+    },
+    {
+      "name": "Rectangle",
+      "module": "manim.mobject.geometry.polygram",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 16,
+      "visualIntent": true
+    },
+    {
+      "name": "RegularPolygon",
+      "module": "manim.mobject.geometry.polygram",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 24,
+      "visualIntent": true
+    },
+    {
+      "name": "RegularPolygram",
+      "module": "manim.mobject.geometry.polygram",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 20,
+      "visualIntent": true
+    },
+    {
+      "name": "RightAngle",
+      "module": "manim.mobject.geometry.line",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 8,
+      "visualIntent": true
+    },
+    {
+      "name": "RoundedRectangle",
+      "module": "manim.mobject.geometry.polygram",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 32,
+      "visualIntent": true
+    },
+    {
+      "name": "SVGMobject",
+      "module": "manim.mobject.svg.svg_mobject",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 6,
+      "pointCount": 88,
+      "visualIntent": true
+    },
+    {
+      "name": "SampleSpace",
+      "module": "manim.mobject.graphing.probability",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 16,
+      "visualIntent": true
+    },
+    {
+      "name": "ScreenRectangle",
+      "module": "manim.mobject.frame",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 16,
+      "visualIntent": true
+    },
+    {
+      "name": "Sector",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 72,
+      "visualIntent": true
+    },
+    {
+      "name": "SingleStringMathTex",
+      "module": "manim.mobject.text.tex_mobject",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 3,
+      "pointCount": 188,
+      "visualIntent": true
+    },
+    {
+      "name": "Sphere",
+      "module": "manim.mobject.three_d.three_dimensions",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 289,
+      "pointCount": 4608,
+      "visualIntent": true
+    },
+    {
+      "name": "Square",
+      "module": "manim.mobject.geometry.polygram",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 16,
+      "visualIntent": true
+    },
+    {
+      "name": "Star",
+      "module": "manim.mobject.geometry.polygram",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 40,
+      "visualIntent": true
+    },
+    {
+      "name": "StealthTip",
+      "module": "manim.mobject.geometry.tips",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 16,
+      "visualIntent": true
+    },
+    {
+      "name": "StreamLines",
+      "module": "manim.mobject.vector_field",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 562,
+      "pointCount": 115900,
+      "visualIntent": true
+    },
+    {
+      "name": "Surface",
+      "module": "manim.mobject.three_d.three_dimensions",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1025,
+      "pointCount": 16384,
+      "visualIntent": true
+    },
+    {
+      "name": "SurroundingRectangle",
+      "module": "manim.mobject.geometry.shape_matchers",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 16,
+      "visualIntent": true
+    },
+    {
+      "name": "Table",
+      "module": "manim.mobject.table",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 16,
+      "pointCount": 356,
+      "visualIntent": true
+    },
+    {
+      "name": "TangentLine",
+      "module": "manim.mobject.geometry.line",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 4,
+      "visualIntent": true
+    },
+    {
+      "name": "TangentialArc",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 32,
+      "visualIntent": true
+    },
+    {
+      "name": "Tetrahedron",
+      "module": "manim.mobject.three_d.polyhedra",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 275,
+      "pointCount": 4176,
+      "visualIntent": true
+    },
+    {
+      "name": "Tex",
+      "module": "manim.mobject.text.tex_mobject",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 7,
+      "pointCount": 444,
+      "visualIntent": true
+    },
+    {
+      "name": "Text",
+      "module": "manim.mobject.text.text_mobject",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 2,
+      "pointCount": 180,
+      "visualIntent": true
+    },
+    {
+      "name": "ThreeDAxes",
+      "module": "manim.mobject.graphing.coordinate_systems",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 100,
+      "pointCount": 396,
+      "visualIntent": true
+    },
+    {
+      "name": "ThreeDVMobject",
+      "module": "manim.mobject.three_d.three_dimensions",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 16,
+      "visualIntent": true
+    },
+    {
+      "name": "TipableVMobject",
+      "module": "manim.mobject.geometry.arc",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 16,
+      "visualIntent": true
+    },
+    {
+      "name": "Title",
+      "module": "manim.mobject.text.tex_mobject",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 2,
+      "pointCount": 4,
+      "visualIntent": true
+    },
+    {
+      "name": "Torus",
+      "module": "manim.mobject.three_d.three_dimensions",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 577,
+      "pointCount": 9216,
+      "visualIntent": true
+    },
+    {
+      "name": "TracedPath",
+      "module": "manim.animation.changing",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 8,
+      "visualIntent": true
+    },
+    {
+      "name": "Triangle",
+      "module": "manim.mobject.geometry.polygram",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 12,
+      "visualIntent": true
+    },
+    {
+      "name": "TrueDot",
+      "module": "manim.mobject.opengl.dot_cloud",
+      "category": "opengl-points",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 1303,
+      "visualIntent": true
+    },
+    {
+      "name": "Underline",
+      "module": "manim.mobject.geometry.shape_matchers",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 4,
+      "visualIntent": true
+    },
+    {
+      "name": "Union",
+      "module": "manim.mobject.geometry.boolean_ops",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 52,
+      "visualIntent": true
+    },
+    {
+      "name": "UnitInterval",
+      "module": "manim.mobject.graphing.number_line",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 13,
+      "pointCount": 48,
+      "visualIntent": true
+    },
+    {
+      "name": "VDict",
+      "module": "manim.mobject.types.vectorized_mobject",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 2,
+      "pointCount": 32,
+      "visualIntent": true
+    },
+    {
+      "name": "VGroup",
+      "module": "manim.mobject.types.vectorized_mobject",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 3,
+      "pointCount": 48,
+      "visualIntent": true
+    },
+    {
+      "name": "VMobject",
+      "module": "manim.mobject.types.vectorized_mobject",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 16,
+      "visualIntent": true
+    },
+    {
+      "name": "VMobjectFromSVGPath",
+      "module": "manim.mobject.svg.svg_mobject",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 4,
+      "visualIntent": true
+    },
+    {
+      "name": "ValueTracker",
+      "module": "manim.mobject.value_tracker",
+      "category": "composite-or-nonvisual",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 1,
+      "visualIntent": true
+    },
+    {
+      "name": "Variable",
+      "module": "manim.mobject.text.numbers",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 20,
+      "pointCount": 404,
+      "visualIntent": true
+    },
+    {
+      "name": "Vector",
+      "module": "manim.mobject.geometry.line",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 2,
+      "pointCount": 16,
+      "visualIntent": true
+    },
+    {
+      "name": "VectorField",
+      "module": "manim.mobject.vector_field",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 16,
+      "visualIntent": true
+    },
+    {
+      "name": "VectorizedPoint",
+      "module": "manim.mobject.types.vectorized_mobject",
+      "category": "vector",
+      "status": "constructed",
+      "familyMembers": 1,
+      "pointCount": 1,
+      "visualIntent": false
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+[package]
+name = "realtime-manim-web-preview"
+description = "Interactive Rust/Wasm WebGPU prototype for realtime-manim-rs"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+realtime-manim-scene-core = { path = "../../crates/scene-core" }
+realtime-manim-svg-engine = { path = "../../crates/svg-engine" }
+realtime-manim-text-engine = { path = "../../crates/text-engine" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+base64.workspace = true
+bytemuck.workspace = true
+console_error_panic_hook.workspace = true
+js-sys.workspace = true
+lyon = "1.0.16"
+serde.workspace = true
+serde_json.workspace = true
+wasm-bindgen.workspace = true
+wasm-bindgen-futures.workspace = true
+wgpu.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies.web-sys]
+workspace = true
+features = [
+    "console",
+    "Document",
+    "Element",
+    "HtmlCanvasElement",
+    "HtmlElement",
+    "Performance",
+    "Window",
+]
+
+[lints]
+workspace = true

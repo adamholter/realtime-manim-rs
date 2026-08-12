@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-08-10",
+  "target": "Full Manim Community 0.20.1 capability parity with a Rust-owned renderer",
+  "policy": {
+    "permanentExclusions": [],
+    "supported": "Every corpus assertion for the tier has passed against the Rust renderer.",
+    "partial": "Some underlying primitives exist, but one or more Manim semantics or visual assertions are not implemented.",
+    "missing": "The Rust runtime has no conforming implementation yet.",
+    "noFallback": "A compatibility result may not be counted as supported when regular Manim rendered the output."
+  },
+  "tiers": [
+    {
+      "tier": "core-2d",
+      "status": "partial",
+      "implemented": ["circle", "rectangle", "line", "arrow", "polyline", "Bezier path", "groups", "z-order", "regular Manim VMobject paths compiled through Manim's own geometry semantics", "Cairo and OpenGL point-cloud families", "screen-space point radii under native camera zoom", "all 180 public visual mobject constructors in the pinned release"],
+      "missing": ["native complete Mobject geometry API", "stroke joins, caps, and dash golden parity"]
+    },
+    {
+      "tier": "typography",
+      "status": "partial",
+      "implemented": ["OpenType-shaped Noto Sans vector text", "real regular, bold, italic, and bold-italic faces", "mixed-style MarkupText spans", "server-side Tectonic MathTex to SVG", "regular Manim Text, MarkupText, Tex, MathTex, Write, and TransformMatchingTex compiled as vectors", "MSAA"],
+      "missing": ["arbitrary font selection and fallback in the native text node", "native Pango MarkupText parser parity", "compact semantic TransformMatchingTex correspondence in Rust"]
+    },
+    {
+      "tier": "graphing",
+      "status": "partial",
+      "implemented": ["paths", "point clouds", "numeric signals", "expression bindings", "regular Manim Axes, NumberPlane, plots, areas, labels, ParametricFunction, and PolarPlane compiled to vector tracks"],
+      "missing": ["native Rust Axes and NumberPlane APIs", "interactive native plot sampling and coordinate transforms"]
+    },
+    {
+      "tier": "animation",
+      "status": "partial",
+      "implemented": ["explicit-time keyframes", "seven native easing modes", "property tracks", "shared concrete keyframe timelines", "pure translated and uniform scale-plus-translation Manim paths lowered to native Rust transforms", "proven rotation/scale/translation paths lowered to one composite Rust transform2d timeline", "proven shear and non-uniform affine deformations lowered to one native 2x3 matrix timeline with world-space stroke tessellation and world-space fill/stroke gradients", "shared affine parent groups", "provable multi-subpath Create, Write, Uncreate, DrawBorderThenFill, and ShowPassingFlash traces lowered to native Rust de Casteljau draw ranges", "paired partial-path bounds lowered to one atomic drawRange timeline", "exact and translated retained path geometry references", "compatible path morphs lowered to retained topology plus flat numeric pathData tracks", "Manim Mobject transforms, AnimationGroup, LaggedStart, Succession, and indication effects sampled from Manim's own animation semantics"],
+      "missing": ["native semantic nonlinear deformation operators", "compact topology-changing path-correspondence representation"]
+    },
+    {
+      "tier": "dynamic",
+      "status": "partial",
+      "implemented": ["signals", "bounded expression graph", "random-seek evaluator tests", "regular Manim ValueTracker, arbitrary Python updaters, always_redraw, and DecimalNumber compiled at explicit frame times", "the first user-authored monotonic ValueTracker automatically exposed as a live semantic slider mapped to exact compiled scene time", "real Manim TracedPath trails lowered to shared cubic segments and Rust-owned explicit-time sliding windows"],
+      "missing": ["native updater closures", "independent multi-parameter browser recomputation of arbitrary Python updater semantics"]
+    },
+    {
+      "tier": "camera",
+      "status": "partial",
+      "implemented": ["2D pan", "zoom", "rotation tracks", "perspective 3D position/target/up/FOV camera", "compatible regular MovingCameraScene vectors, multistop gradients, raster images, and point positions retained in world space with direct native cameraX/cameraY/cameraZoom tracks", "screen-space point sprite radius under camera zoom", "camera- and transform-aware curve tessellation", "camera.frame save/Restore semantics executed by Manim and compiled to explicit-time Rust camera state", "proven roll-free ThreeDScene motion lowered to one direct native camera3dOrbit track with a Rust-derived up-vector", "masked atomic native 3D camera-state tracks with size-aware fallback", "fixed-in-frame vectors retained in 2D", "fixed-orientation glyph families and single/self-animated or topology-changing paths lowered to native static or animated billboard anchors projected from the live Rust camera", "ThreeDScene cameras compiled through Manim projection"],
+      "missing": ["native camera frame state stack", "direct 2D camera lowering for 2D mesh/custom-shader content"]
+    },
+    {
+      "tier": "media",
+      "status": "partial",
+      "implemented": ["styled SVG path ingestion", "native per-fragment multistop SVG linear gradients with stop opacity, transforms, and pad/repeat/reflect spread", "native per-fragment focal SVG radial gradients with focal radius and arbitrary elliptical affine transforms", "native vector SVG group and linked clip paths using multisampled GPU stencil intersections and multi-shape unions", "native recursive clip paths inside clip definitions using lazily composed vector coverage layers", "native fractional SVG alpha and luminance masks using lazily allocated 4x-MSAA GPU texture arrays, source-over premultiplied color, transformed mask regions, mask-content clips, linked layer multiplication, and recursively masked mask content", "native transformed SVG vector pattern fills and strokes with tile clipping, child gradients, child clip paths and masks, outer masks, recursively nested pattern paints, and pattern paints inside mask definitions", "raster ImageMobject capture and animation", "world-space ImageMobject corners under native MovingCameraScene pan/zoom", "perspective textured OpenGL surfaces", "opaque textured-mesh GPU depth", "nearest, box, bilinear, Hamming, bicubic, and Lanczos GPU reconstruction", "dynamic image pixels, alpha, resampling, UVs, and retained lifetimes"],
+      "missing": ["complete SVG filters, text edge cases, and embedded-resource edge cases"]
+    },
+    {
+      "tier": "layout",
+      "status": "partial",
+      "implemented": ["regular Manim Matrix, Table, Code, Brace, SurroundingRectangle, groups, and layout operations compile through VMobject vectors"],
+      "missing": ["native Rust layout object APIs"]
+    },
+    {
+      "tier": "data-viz",
+      "status": "partial",
+      "implemented": ["regular Manim Graph, DiGraph, vector fields, streamlines, charts, and probability mobjects enter the compatibility compiler", "streamline passing flashes retain one cubic path plus exact independent Rust draw bounds"],
+      "missing": ["compact native graph and field operators", "live native resampling of Python-defined vector fields"]
+    },
+    {
+      "tier": "geometry",
+      "status": "partial",
+      "implemented": ["arbitrary cubic paths", "cubic command interpolation tracks", "retained-topology numeric pathData morph tracks", "regular Manim VMobject Python API, boolean geometry, pointwise functions, and path correspondence executed by Manim then compiled"],
+      "missing": ["native arc-length and boolean geometry APIs", "semantic rather than sampled correspondence"]
+    },
+    {
+      "tier": "3d",
+      "status": "partial",
+      "implemented": ["indexed triangle meshes", "compact indexed static and topology-stable animated Cairo Surface patches expanded by Rust", "native compact surface control-vertex, fill/stroke-material, and wire-radius tracks", "topology-changing Cairo surfaces split at exact connectivity changes into compact retained lifetimes", "camera-independent cubic path3d geometry projected by Rust at explicit camera time", "perspective projection", "X/Y/Z transforms", "back-face culling", "directional and ambient lighting", "4x-MSAA GPU depth for opaque meshes and surfaces", "attributed near/far-plane polygon clipping", "painter-sorted translucent triangle depth", "regular Manim ThreeDScene surfaces, polyhedra, camera projection, and animated linear shading gradients compiled to retained nodes and tracks"],
+      "missing": ["order-independent transparency", "native 3D group helpers", "continuously interpolated topology correspondence within one compact surface lifetime", "complete fixed-label golden parity"]
+    },
+    {
+      "tier": "audio",
+      "status": "supported",
+      "implemented": ["embedded audio timeline", "sample-accurate start offsets and gain", "48 kHz stereo mix", "Opus/WebM offline mux", "Manim subcaption capture and WebVTT export"],
+      "missing": ["native multitrack timeline editor"]
+    },
+    {
+      "tier": "international",
+      "status": "partial",
+      "implemented": ["Rustybuzz shaping", "Unicode scalar input", "regular Manim Unicode Text and subcaption metadata captured by the compatibility compiler", "runtime subcaption presentation and WebVTT export"],
+      "missing": ["native font fallback", "complete RTL and complex-script coverage", "emoji color fonts", "grapheme-aware native transforms"]
+    }
+  ]
+}

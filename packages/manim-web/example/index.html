@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,">
+    <title>Real-time Manim Web slider</title>
+    <style>
+      :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: radial-gradient(circle at 50% 0, #19223a, #070910 55%); color: #f4f7ff; }
+      main { width: min(1080px, calc(100% - 32px)); padding: 32px 0; }
+      header { display: flex; justify-content: space-between; align-items: end; gap: 16px; margin-bottom: 14px; }
+      h1 { margin: 0; font-size: clamp(1.5rem, 4vw, 2.6rem); letter-spacing: -0.04em; }
+      p { margin: 5px 0 0; color: #aeb9d3; }
+      output { min-width: 5ch; font: 600 1rem ui-monospace, monospace; color: #8be9fd; text-align: right; }
+      canvas { display: block; width: 100%; aspect-ratio: 16 / 9; background: #080b12; border: 1px solid #303b57; border-radius: 14px; box-shadow: 0 24px 80px #0008; }
+      nav { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; margin-top: 16px; align-items: center; }
+      button { min-width: 82px; padding: 10px 16px; color: inherit; background: #1b2540; border: 1px solid #405071; border-radius: 6px; cursor: pointer; font: inherit; }
+      button:hover { background: #263455; }
+      input { width: 100%; accent-color: #58c4dd; cursor: ew-resize; }
+      .hint { margin-top: 10px; text-align: center; font-size: .86rem; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div><h1>Animation is now an input.</h1><p>Drag the timeline—Rust evaluates every frame in real time.</p></div>
+        <output id="clock">0.00s</output>
+      </header>
+      <canvas width="1280" height="720" aria-label="Seekable Rust WebGPU animation"></canvas>
+      <nav aria-label="Playback controls">
+        <button id="toggle" type="button">Pause</button>
+        <input id="time" aria-label="Animation time" type="range" min="0" max="4" step="0.01" value="0">
+        <button id="restart" type="button">Restart</button>
+      </nav>
+      <p class="hint">No video file. No frame export. Just a live, seekable scene.</p>
+    </main>
+
+    <script type="module">
+      // In an installed app, use: import { ... } from "realtime-manim";
+      import { Arrow, Circle, Create, MoveTo, Rotate, Scene, Square, Text, createManimPlayer } from "../src/index.js";
+
+      const duration = 4;
+      const circle = new Circle({ id: "circle", radius: 1.05 })
+        .fill("#58c4ddbb").stroke("#8be9fdff", 0.07).moveTo(-4.5, 0);
+      const square = new Square({ id: "square", size: 1.8 })
+        .fill("#fc625599").stroke("#ff8a80ff", 0.07).moveTo(3.2, 0);
+
+      const scene = new Scene({ title: "Real-time slider", duration: 0.001, background: "#080b12" })
+        .add(
+          new Arrow([-5.3, -2], [5.3, -2], { id: "axis" }).stroke("#65708aff", 0.035),
+          circle,
+          square,
+          new Text("seek(t)", { id: "label", fontSize: 0.72 }).fill("#f4f7ffff").moveTo(0, 2.6),
+        )
+        .play(
+          Create(circle, { duration: 0.8 }),
+          MoveTo(circle, [3.2, 0], { from: [-4.5, 0], duration }),
+          Rotate(square, Math.PI * 2, { duration }),
+        );
+
+      const player = await createManimPlayer({ canvas: document.querySelector("canvas"), scene });
+      const slider = document.querySelector("#time");
+      const clock = document.querySelector("#clock");
+      const toggle = document.querySelector("#toggle");
+      let playing = true;
+      let dragging = false;
+
+      const paintControls = () => {
+        const time = Math.min(duration, player.time());
+        if (!dragging) slider.value = String(time);
+        clock.value = `${time.toFixed(2)}s`;
+        requestAnimationFrame(paintControls);
+      };
+
+      toggle.addEventListener("click", () => {
+        playing = !playing;
+        playing ? player.play() : player.pause();
+        toggle.textContent = playing ? "Pause" : "Play";
+      });
+      slider.addEventListener("pointerdown", () => { dragging = true; });
+      slider.addEventListener("input", () => {
+        player.pause();
+        player.seek(Number(slider.value));
+        clock.value = `${Number(slider.value).toFixed(2)}s`;
+      });
+      slider.addEventListener("change", () => {
+        dragging = false;
+        if (playing) player.play();
+      });
+      document.querySelector("#restart").addEventListener("click", () => {
+        player.seek(0);
+        if (!playing) { playing = true; player.play(); toggle.textContent = "Pause"; }
+      });
+
+      requestAnimationFrame(paintControls);
+      globalThis.__MANIM_PACKAGE_READY__ = true;
+    </script>
+  </body>
+</html>

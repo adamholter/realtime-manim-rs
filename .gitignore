@@ -1,0 +1,51 @@
+# Rust build and profiling output
+/target/
+*.profraw
+*.trace
+
+# JavaScript dependencies, logs, coverage, and package archives
+/node_modules/
+/coverage/
+/dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Python and Manim environments/caches
+/.venv-manim-reference/
+**/__pycache__/
+*.py[cod]
+/.pytest_cache/
+/.mypy_cache/
+
+# Local credentials and machine-specific overrides
+**/.env
+**/.env.*
+!**/.env.example
+**/.npmrc
+*.local
+
+# Generated web application binding output. The distributable package runtime
+# under packages/manim-web/runtime is intentionally versioned.
+/apps/web-preview/www/pkg/
+
+# Generated Manim media and benchmark output. Keep corpus source, schemas,
+# hand-authored fixtures, shaders, and sanitized environment manifests.
+/media/
+/benchmarks/results/
+/benchmarks/text-math/current.json
+/benchmarks/corpus/reference/
+/benchmarks/compat/**/*-reference/
+/benchmarks/compat/**/*.json
+/benchmarks/compat/**/*.png
+/benchmarks/compat/**/*.webm
+/benchmarks/compat/**/*.mp4
+
+# Editor, operating-system, and agent-local state
+/.DS_Store
+**/.DS_Store
+/.idea/
+/.vscode/
+/.codex/
+/AGENTS.md

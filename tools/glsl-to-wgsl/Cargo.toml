@@ -1,0 +1,13 @@
+[package]
+name = "realtime-manim-glsl-to-wgsl"
+description = "Build-time GLSL to WGSL translator for Manim plugin shaders"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+naga.workspace = true
+
+[lints]
+workspace = true

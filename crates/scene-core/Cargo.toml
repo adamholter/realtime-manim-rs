@@ -1,0 +1,15 @@
+[package]
+name = "realtime-manim-scene-core"
+description = "Versioned retained scene IR and explicit-time evaluator for realtime-manim-rs"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+base64.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

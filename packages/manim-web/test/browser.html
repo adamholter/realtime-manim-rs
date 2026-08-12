@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8"><link rel="icon" href="data:,"><title>Package lifecycle test</title></head>
+  <body>
+    <div id="viewport">Unrelated element with the legacy runtime id</div>
+    <canvas id="first" width="640" height="360"></canvas>
+    <canvas id="second" width="640" height="360"></canvas>
+    <canvas id="third" width="640" height="360"></canvas>
+    <canvas id="fourth" width="640" height="360"></canvas>
+    <script type="module">
+      import {
+        Arc, Circle, Create, DotCloud, Group, MarkupText, Path3D, Polygon, Scene,
+        createManimPlayer, pathCommand3D,
+      } from "../src/index.js";
+
+      const makeScene = (color) => {
+        const circle = new Circle({ radius: 1.5 }).fill(color).stroke("#ffffffff", 0.08);
+        return new Scene({ background: "#070910" }).add(circle).play(Create(circle, { duration: 0.25 }));
+      };
+
+      const makeGeometryScene = () => new Scene({ background: "#070910" })
+        .add(
+          new Group([
+            new Polygon([[-2, -1], [0, 2], [2, -1]], { id: "polygon" }).fill("#58c4dd88"),
+            new Arc({ id: "arc", radius: 2.5, angle: Math.PI }).stroke("#ffffffff", 0.08),
+          ], { id: "geometry" }),
+          new MarkupText([{ text: "Rust", weight: "bold", color: "#58c4ddff" }], { id: "rich" }),
+          new DotCloud([[-1, -2], [0, -2], [1, -2]], { id: "dots" }),
+          new Path3D([
+            pathCommand3D.moveTo([0, 0, 0]),
+            pathCommand3D.lineTo([1, 1, 1]),
+          ], { id: "path-3d" }),
+        )
+        .setCamera3D({ position: [0, 0, 8], target: [0, 0, 0] });
+
+      const testFont = Uint8Array.from(
+        atob(globalThis.__MANIM_TEST_FONT_BASE64__ ?? ""),
+        (character) => character.charCodeAt(0),
+      );
+      const makeFontScene = () => new Scene({ background: "#070910" })
+        .add(new MarkupText(
+          [{ text: "Uploaded OpenType", weight: "bold", color: "#58c4ddff" }],
+          { id: "uploaded-font", fontFamily: "Uploaded Sans", fontSize: 1.2 },
+        ));
+
+      try {
+        const first = await createManimPlayer({
+          canvas: document.querySelector("#first"),
+          scene: makeFontScene(),
+          fonts: [{ family: "Uploaded Sans", data: testFont, weight: "bold" }],
+        });
+        const fontPreloadWorks = first.diagnostics().registeredFontFaces === 1;
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const validatedGeometry = first.validate(makeGeometryScene());
+        const geometryValid = validatedGeometry.nodes.some(({ type }) => type === "path3d")
+          && validatedGeometry.nodes.some(({ type }) => type === "markupText");
+        first.load(makeGeometryScene());
+        first.seek(0.2);
+        first.destroy();
+        let disposedGuard = false;
+        try { first.play(); } catch { disposedGuard = true; }
+
+        const second = await createManimPlayer({ canvas: document.querySelector("#second"), scene: makeScene("#fc6255ff") });
+        second.seek(0.2);
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        second.destroy();
+
+        const empty = await createManimPlayer({ canvas: document.querySelector("#second"), autoplay: false });
+        const emptyDefaultWorks = empty.validate({
+          version: 2, title: "Empty", width: 16, height: 9, duration: 0.25, fps: 60,
+          background: "#000000", nodes: [{ id: "root", type: "group" }],
+          tracks: [], signals: [], bindings: [], controls: [], audio: [], captions: [],
+        }).nodes.length === 1;
+        let missingFontRejected = false;
+        try {
+          empty.load(new Scene().add(new MarkupText(
+            [{ text: "Missing" }],
+            { fontFamily: "Never Registered" },
+          )));
+        } catch (error) {
+          missingFontRejected = /unregistered font family/.test(String(error));
+        }
+        empty.destroy();
+
+        const concurrent = await Promise.all([
+          createManimPlayer({ canvas: document.querySelector("#third"), scene: makeScene("#83c167ff"), autoplay: false }),
+          createManimPlayer({ canvas: document.querySelector("#fourth"), scene: makeScene("#ffff00ff"), autoplay: false }),
+        ]);
+        const [third, fourth] = concurrent;
+        third.seek(0.05);
+        fourth.seek(0.2);
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        const independentTimes = Math.abs(third.time() - 0.05) < 0.01 && Math.abs(fourth.time() - 0.2) < 0.01;
+        third.destroy();
+        const survivorWorks = Math.abs(fourth.time() - 0.2) < 0.01;
+        fourth.destroy();
+        globalThis.__MANIM_BROWSER_TEST__ = {
+          ok: disposedGuard && geometryValid && fontPreloadWorks && missingFontRejected && emptyDefaultWorks && independentTimes && survivorWorks,
+          disposedGuard,
+          geometryValid,
+          fontPreloadWorks,
+          missingFontRejected,
+          emptyDefaultWorks,
+          concurrentPlayers: concurrent.length,
+          independentTimes,
+          survivorWorks,
+        };
+      } catch (error) {
+        globalThis.__MANIM_BROWSER_TEST__ = { ok: false, error: error?.stack ?? String(error) };
+      }
+    </script>
+  </body>
+</html>

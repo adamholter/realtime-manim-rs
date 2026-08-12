@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Describe a general mathematical animation, watch GPT-5.6 Terra write a retained scene graph, and render it with Rust and WebGPU."
+    />
+    <title>Live Math Lab — General Rust Animation Engine</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='8' fill='%23163e59'/%3E%3Cpath d='M8 34c9-25 15 25 24 0s15 25 24 0' fill='none' stroke='%23f7f4ed' stroke-width='5'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="studio">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <div>
+            <h1>Live Math Lab</h1>
+            <p>General retained scenes. Explicit-time Rust. Real output.</p>
+          </div>
+        </div>
+        <div class="runtime" aria-live="polite">
+          <span class="runtime-item"><i id="gpu-dot"></i><span id="renderer-status">Starting WebGPU…</span></span>
+          <span class="runtime-item runtime-item--muted">GPT-5.6 Terra</span>
+          <span class="runtime-item runtime-item--muted"><strong id="fps-value">—</strong> fps</span>
+          <span id="frame-time-value" hidden>— ms</span>
+          <span id="backend-value" hidden>Initializing…</span>
+        </div>
+      </header>
+
+      <section class="studio-grid">
+        <aside class="pane chat-pane" aria-label="Animation chat">
+          <div class="pane-header">
+            <div>
+              <h2>Ask for an animation</h2>
+              <p>Your key stays in this local server’s memory.</p>
+            </div>
+            <button class="text-button" id="disconnect-button" type="button" hidden>Disconnect</button>
+          </div>
+
+          <form class="key-form" id="key-form">
+            <label for="api-key">OpenRouter key</label>
+            <div class="key-row">
+              <input
+                id="api-key"
+                type="password"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="sk-or-v1-…"
+                required
+              />
+              <button type="submit" id="connect-button">Connect</button>
+            </div>
+            <p class="form-status" id="key-status">Not connected</p>
+          </form>
+
+          <div class="transcript" id="transcript" aria-live="polite">
+            <article class="message message--assistant">
+              <span>Lab</span>
+              <p>Ask for anything you would make in Manim—plots, proofs, morphs, updaters, moving cameras, or 3D surfaces. Terra writes real Manim code; the lab compiles its vectors into Rust and renders them.</p>
+            </article>
+          </div>
+
+          <div class="prompt-example">
+            Try: “Animate a labeled Pareto frontier: reveal the objectives, scatter points, classify dominated points, then draw the frontier.”
+          </div>
+
+          <form class="prompt-form" id="prompt-form">
+            <label class="sr-only" for="prompt">Animation request</label>
+            <textarea
+              id="prompt"
+              rows="3"
+              maxlength="4000"
+              placeholder="Describe an animation…"
+              required
+            ></textarea>
+            <div class="asset-row">
+              <label class="asset-button" for="asset-input">Attach assets</label>
+              <input
+                id="asset-input"
+                type="file"
+                multiple
+                accept=".png,.jpg,.jpeg,.webp,.gif,.svg,.wav,.mp3,.m4a,.aac,.ogg,.flac,.ttf,.otf"
+                hidden
+                disabled
+              />
+              <span id="asset-status">Images, SVG, audio, or fonts</span>
+            </div>
+            <div class="prompt-actions">
+              <span id="prompt-status">Connect a key to generate</span>
+              <button type="submit" id="generate-button" disabled>
+                <span>Generate</span>
+                <svg viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="M4 10h11m-4-4 4 4-4 4" />
+                </svg>
+              </button>
+            </div>
+          </form>
+        </aside>
+
+        <section class="pane code-pane" aria-label="Generated animation code">
+          <div class="pane-header pane-header--code">
+            <div>
+              <h2>Manim code</h2>
+              <p id="code-status">Ready to run</p>
+            </div>
+            <div class="header-actions">
+              <button class="text-button" id="copy-button" type="button">Copy</button>
+              <button class="run-button" id="run-button" type="button">Run code</button>
+            </div>
+          </div>
+          <div class="code-shell" id="code-shell">
+            <pre><code id="code-output"></code><span class="stream-caret" id="stream-caret" hidden></span></pre>
+          </div>
+          <p class="inline-error" id="code-error" role="alert" hidden></p>
+        </section>
+
+        <section class="pane output-pane" aria-label="Animation output">
+          <div class="pane-header">
+            <div>
+              <h2 id="scene-title">General engine proof</h2>
+              <p id="render-status">Live retained Rust/WebGPU preview</p>
+            </div>
+            <button class="text-button" id="pause-button" type="button">Pause preview</button>
+          </div>
+
+          <div class="preview-wrap">
+            <canvas id="viewport" width="1280" height="720" aria-label="Generated animation preview"></canvas>
+            <div class="preview-label">Rust IR · lyon vectors · WebGPU</div>
+            <div class="error-state" id="error-state" role="alert">
+              <strong>WebGPU could not start.</strong>
+              <p id="error-detail">Try a current WebGPU-capable browser.</p>
+            </div>
+          </div>
+
+          <div class="scene-control-panel" id="scene-control-panel" hidden>
+            <label class="scene-control timeline-control" for="timeline-control">
+              <span>Timeline</span>
+              <input id="timeline-control" type="range" min="0" max="1" step="any" value="0" />
+              <output id="timeline-output" for="timeline-control">0.00 / 1.00 s</output>
+            </label>
+            <div class="scene-controls" id="scene-controls" aria-label="Live scene controls" hidden></div>
+          </div>
+
+          <dl class="timings" aria-label="Generation and rendering times">
+            <div>
+              <dt>Agent</dt>
+              <dd id="model-time">—</dd>
+            </div>
+            <div>
+              <dt>Compile</dt>
+              <dd id="compile-time">—</dd>
+            </div>
+            <div>
+              <dt>Render</dt>
+              <dd id="render-time">—</dd>
+            </div>
+            <div>
+              <dt>Total</dt>
+              <dd id="total-time">—</dd>
+            </div>
+            <div>
+              <dt>Video</dt>
+              <dd id="video-size">—</dd>
+            </div>
+          </dl>
+
+          <section class="video-output" id="video-output" hidden>
+            <div class="video-heading">
+              <div>
+                <h3>Output video</h3>
+                <p id="video-description">Ready to play</p>
+              </div>
+              <div>
+                <a id="caption-download-link" download="live-math-lab.vtt" hidden>Captions</a>
+                <a id="download-link" download="live-math-lab.webm">Download</a>
+              </div>
+            </div>
+            <video id="output-video" controls playsinline></video>
+          </section>
+        </section>
+      </section>
+    </main>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,159 @@
+{
+  "batches": 9,
+  "classes": 70,
+  "compiled": 9,
+  "failed": 0,
+  "rows": [
+    {
+      "scene": "AnimationSweep00",
+      "classes": [
+        "Add",
+        "AddTextLetterByLetter",
+        "AddTextWordByWord",
+        "Animation",
+        "AnimationGroup",
+        "ApplyComplexFunction",
+        "ApplyFunction",
+        "ApplyMatrix"
+      ],
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/animation-sweep/AnimationSweep00.json",
+      "stderr": ""
+    },
+    {
+      "scene": "AnimationSweep01",
+      "classes": [
+        "ApplyMethod",
+        "ApplyPointwiseFunction",
+        "ApplyWave",
+        "Blink",
+        "Broadcast",
+        "ChangeDecimalToValue",
+        "ChangeSpeed",
+        "ChangingDecimal"
+      ],
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/animation-sweep/AnimationSweep01.json",
+      "stderr": ""
+    },
+    {
+      "scene": "AnimationSweep02",
+      "classes": [
+        "Circumscribe",
+        "ClockwiseTransform",
+        "ComplexHomotopy",
+        "CounterclockwiseTransform",
+        "Create",
+        "CyclicReplace",
+        "DrawBorderThenFill",
+        "FadeIn"
+      ],
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/animation-sweep/AnimationSweep02.json",
+      "stderr": ""
+    },
+    {
+      "scene": "AnimationSweep03",
+      "classes": [
+        "FadeOut",
+        "FadeToColor",
+        "FadeTransform",
+        "FadeTransformPieces",
+        "Flash",
+        "FocusOn",
+        "GrowArrow",
+        "GrowFromCenter"
+      ],
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/animation-sweep/AnimationSweep03.json",
+      "stderr": ""
+    },
+    {
+      "scene": "AnimationSweep04",
+      "classes": [
+        "GrowFromEdge",
+        "GrowFromPoint",
+        "Homotopy",
+        "Indicate",
+        "LaggedStart",
+        "LaggedStartMap",
+        "MaintainPositionRelativeTo",
+        "MoveAlongPath"
+      ],
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/animation-sweep/AnimationSweep04.json",
+      "stderr": ""
+    },
+    {
+      "scene": "AnimationSweep05",
+      "classes": [
+        "MoveToTarget",
+        "PhaseFlow",
+        "RemoveTextLetterByLetter",
+        "ReplacementTransform",
+        "Restore",
+        "Rotate",
+        "Rotating",
+        "ScaleInPlace"
+      ],
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/animation-sweep/AnimationSweep05.json",
+      "stderr": ""
+    },
+    {
+      "scene": "AnimationSweep06",
+      "classes": [
+        "ShowIncreasingSubsets",
+        "ShowPassingFlash",
+        "ShowPassingFlashWithThinningStrokeWidth",
+        "ShowSubmobjectsOneByOne",
+        "ShrinkToCenter",
+        "SpinInFromNothing",
+        "SpiralIn",
+        "Succession"
+      ],
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/animation-sweep/AnimationSweep06.json",
+      "stderr": ""
+    },
+    {
+      "scene": "AnimationSweep07",
+      "classes": [
+        "Swap",
+        "Transform",
+        "TransformFromCopy",
+        "TransformMatchingShapes",
+        "TransformMatchingTex",
+        "TypeWithCursor",
+        "Uncreate",
+        "UntypeWithCursor"
+      ],
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/animation-sweep/AnimationSweep07.json",
+      "stderr": ""
+    },
+    {
+      "scene": "AnimationSweep08",
+      "classes": [
+        "Unwrite",
+        "UpdateFromAlphaFunc",
+        "UpdateFromFunc",
+        "Wait",
+        "Wiggle",
+        "Write"
+      ],
+      "status": "compiled",
+      "diagnostics": [],
+      "output": "benchmarks/compat/animation-sweep/AnimationSweep08.json",
+      "stderr": ""
+    }
+  ]
+}

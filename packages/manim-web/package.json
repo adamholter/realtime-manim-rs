@@ -1,0 +1,45 @@
+{
+  "name": "realtime-manim",
+  "version": "0.3.0",
+  "description": "Rust/WebGPU Manim-compatible runtime for the browser",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "import": "./src/index.js"
+    }
+  },
+  "types": "./src/index.d.ts",
+  "files": [
+    "src",
+    "runtime",
+    "example",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "pack:check": "npm pack --dry-run"
+  },
+  "keywords": [
+    "manim",
+    "animation",
+    "rust",
+    "wasm",
+    "webgpu"
+  ],
+  "author": "Adam Holter",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/adamholter/realtime-manim-rs.git",
+    "directory": "packages/manim-web"
+  },
+  "homepage": "https://github.com/adamholter/realtime-manim-rs#readme",
+  "bugs": {
+    "url": "https://github.com/adamholter/realtime-manim-rs/issues"
+  },
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,0 +1,453 @@
+{
+  "classesAudited": 74,
+  "statusCounts": {
+    "interpolated": 70,
+    "upstream-failure": 4
+  },
+  "results": [
+    {
+      "name": "Add",
+      "module": "manim.animation.animation",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "AddTextLetterByLetter",
+      "module": "manim.animation.creation",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "AddTextWordByWord",
+      "module": "manim.animation.creation",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "Animation",
+      "module": "manim.animation.animation",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "AnimationGroup",
+      "module": "manim.animation.composition",
+      "status": "interpolated",
+      "mobjects": 2
+    },
+    {
+      "name": "ApplyComplexFunction",
+      "module": "manim.animation.transform",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "ApplyFunction",
+      "module": "manim.animation.transform",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "ApplyMatrix",
+      "module": "manim.animation.transform",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "ApplyMethod",
+      "module": "manim.animation.transform",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "ApplyPointwiseFunction",
+      "module": "manim.animation.transform",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "ApplyPointwiseFunctionToCenter",
+      "module": "manim.animation.transform",
+      "status": "upstream-failure",
+      "detail": "Manim 0.20.1 omits the mobject argument in this constructor's super() call."
+    },
+    {
+      "name": "ApplyWave",
+      "module": "manim.animation.indication",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "Blink",
+      "module": "manim.animation.indication",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "Broadcast",
+      "module": "manim.animation.specialized",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "ChangeDecimalToValue",
+      "module": "manim.animation.numbers",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "ChangeSpeed",
+      "module": "manim.animation.speedmodifier",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "ChangingDecimal",
+      "module": "manim.animation.numbers",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "Circumscribe",
+      "module": "manim.animation.indication",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "ClockwiseTransform",
+      "module": "manim.animation.transform",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "ComplexHomotopy",
+      "module": "manim.animation.movement",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "CounterclockwiseTransform",
+      "module": "manim.animation.transform",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "Create",
+      "module": "manim.animation.creation",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "CyclicReplace",
+      "module": "manim.animation.transform",
+      "status": "interpolated",
+      "mobjects": 2
+    },
+    {
+      "name": "DrawBorderThenFill",
+      "module": "manim.animation.creation",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "FadeIn",
+      "module": "manim.animation.fading",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "FadeOut",
+      "module": "manim.animation.fading",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "FadeToColor",
+      "module": "manim.animation.transform",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "FadeTransform",
+      "module": "manim.animation.transform",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "FadeTransformPieces",
+      "module": "manim.animation.transform",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "Flash",
+      "module": "manim.animation.indication",
+      "status": "interpolated",
+      "mobjects": 0
+    },
+    {
+      "name": "FocusOn",
+      "module": "manim.animation.indication",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "GrowArrow",
+      "module": "manim.animation.growing",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "GrowFromCenter",
+      "module": "manim.animation.growing",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "GrowFromEdge",
+      "module": "manim.animation.growing",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "GrowFromPoint",
+      "module": "manim.animation.growing",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "Homotopy",
+      "module": "manim.animation.movement",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "Indicate",
+      "module": "manim.animation.indication",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "LaggedStart",
+      "module": "manim.animation.composition",
+      "status": "interpolated",
+      "mobjects": 2
+    },
+    {
+      "name": "LaggedStartMap",
+      "module": "manim.animation.composition",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "MaintainPositionRelativeTo",
+      "module": "manim.animation.updaters.update",
+      "status": "interpolated",
+      "mobjects": 2
+    },
+    {
+      "name": "MoveAlongPath",
+      "module": "manim.animation.movement",
+      "status": "interpolated",
+      "mobjects": 2
+    },
+    {
+      "name": "MoveToTarget",
+      "module": "manim.animation.transform",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "PhaseFlow",
+      "module": "manim.animation.movement",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "RemoveTextLetterByLetter",
+      "module": "manim.animation.creation",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "ReplacementTransform",
+      "module": "manim.animation.transform",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "Restore",
+      "module": "manim.animation.transform",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "Rotate",
+      "module": "manim.animation.rotation",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "Rotating",
+      "module": "manim.animation.rotation",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "ScaleInPlace",
+      "module": "manim.animation.transform",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "ShowIncreasingSubsets",
+      "module": "manim.animation.creation",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "ShowPartial",
+      "module": "manim.animation.creation",
+      "status": "upstream-failure",
+      "detail": "ShowPartial requires a subclass implementation."
+    },
+    {
+      "name": "ShowPassingFlash",
+      "module": "manim.animation.indication",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "ShowPassingFlashWithThinningStrokeWidth",
+      "module": "manim.animation.indication",
+      "status": "interpolated",
+      "mobjects": 0
+    },
+    {
+      "name": "ShowSubmobjectsOneByOne",
+      "module": "manim.animation.creation",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "ShrinkToCenter",
+      "module": "manim.animation.transform",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "SmoothedVectorizedHomotopy",
+      "module": "manim.animation.movement",
+      "status": "upstream-failure",
+      "detail": "Manim 0.20.1 references VMobject without importing it in this animation module."
+    },
+    {
+      "name": "SpinInFromNothing",
+      "module": "manim.animation.growing",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "SpiralIn",
+      "module": "manim.animation.creation",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "Succession",
+      "module": "manim.animation.composition",
+      "status": "interpolated",
+      "mobjects": 2
+    },
+    {
+      "name": "Swap",
+      "module": "manim.animation.transform",
+      "status": "interpolated",
+      "mobjects": 2
+    },
+    {
+      "name": "Transform",
+      "module": "manim.animation.transform",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "TransformAnimations",
+      "module": "manim.animation.transform",
+      "status": "upstream-failure",
+      "detail": "Manim 0.20.1 fails while aligning this class's rewired animation families."
+    },
+    {
+      "name": "TransformFromCopy",
+      "module": "manim.animation.transform",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "TransformMatchingShapes",
+      "module": "manim.animation.transform_matching_parts",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "TransformMatchingTex",
+      "module": "manim.animation.transform_matching_parts",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "TypeWithCursor",
+      "module": "manim.animation.creation",
+      "status": "interpolated",
+      "mobjects": 2
+    },
+    {
+      "name": "Uncreate",
+      "module": "manim.animation.creation",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "UntypeWithCursor",
+      "module": "manim.animation.creation",
+      "status": "interpolated",
+      "mobjects": 2
+    },
+    {
+      "name": "Unwrite",
+      "module": "manim.animation.creation",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "UpdateFromAlphaFunc",
+      "module": "manim.animation.updaters.update",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "UpdateFromFunc",
+      "module": "manim.animation.updaters.update",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "Wait",
+      "module": "manim.animation.animation",
+      "status": "interpolated",
+      "mobjects": 0
+    },
+    {
+      "name": "Wiggle",
+      "module": "manim.animation.indication",
+      "status": "interpolated",
+      "mobjects": 1
+    },
+    {
+      "name": "Write",
+      "module": "manim.animation.creation",
+      "status": "interpolated",
+      "mobjects": 1
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "name": "realtime-manim-rs-local",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server/server.mjs",
+    "check:web": "node --check server/server.mjs && node --check apps/web-preview/www/app.js",
+    "test:web": "node --test server/*.test.mjs",
+    "sweep:webgpu": "node scripts/sweep-webgpu.mjs",
+    "test:device-recovery": "node scripts/test-device-recovery.mjs",
+    "test:multi-player": "node scripts/test-multi-player.mjs",
+    "test:browser-package": "node scripts/test-browser-package.mjs",
+    "capture:scene": "node scripts/capture-scene.mjs",
+    "capture:svg-reference": "node scripts/capture-svg-reference.mjs",
+    "test:public-package": "node scripts/test-public-package.mjs",
+    "build:package": "./scripts/build-web-package.sh",
+    "test:package": "npm test --prefix packages/manim-web && npm run pack:check --prefix packages/manim-web"
+  },
+  "dependencies": {
+    "@openrouter/agent": "0.8.0",
+    "webm-muxer": "^5.1.4"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "benchmark_id": "scaffold-round-trip",
+  "recorded_at_utc": "2026-07-28T12:00:00Z",
+  "environment": {
+    "os": "macos",
+    "os_version": "example",
+    "architecture": "aarch64",
+    "processor": "Apple Silicon",
+    "memory_bytes": 17179869184,
+    "display": {
+      "width": 2560,
+      "height": 1440,
+      "refresh_hz": 60,
+      "device_pixel_ratio_milli": 1000
+    },
+    "background_load_profile": "fixture"
+  },
+  "workload": {
+    "name": "schema-smoke",
+    "scene": "corpus/not-yet-defined",
+    "resolution": [2560, 1440],
+    "duration_seconds": 1.0,
+    "notes": ["P-00 fixture; not a performance claim"]
+  },
+  "samples": [
+    {
+      "name": "round_trip",
+      "unit": "boolean-as-number",
+      "statistic": "raw",
+      "value": 1.0
+    }
+  ],
+  "provenance": {
+    "revision": "uncommitted",
+    "dirty": true,
+    "commands": ["cargo test -p realtime-manim-benchmark-schema"],
+    "artifacts": ["benchmarks/samples/smoke.json"]
+  }
+}

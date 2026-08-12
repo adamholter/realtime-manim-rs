@@ -1,0 +1,49 @@
+[workspace]
+members = [
+    "apps/native-preview",
+    "apps/web-preview",
+    "crates/benchmark-schema",
+    "crates/scene-core",
+    "crates/svg-engine",
+    "crates/text-engine",
+    "tools/env-capture",
+    "tools/glsl-to-wgsl",
+]
+resolver = "3"
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+bytemuck = { version = "1.25.2", features = ["derive"] }
+base64 = "0.22.1"
+console_error_panic_hook = "0.1.7"
+js-sys = "0.3.103"
+image = { version = "0.25.9", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+rustybuzz = "0.20.1"
+ttf-noto-sans = { version = "0.1.2", default-features = false, features = ["regular", "bold", "italic", "bold_italic"] }
+tiny-skia-path = "0.12.0"
+usvg = { version = "0.47.0", default-features = false }
+wasm-bindgen = "0.2.126"
+wasm-bindgen-futures = "0.4.76"
+web-sys = "0.3.103"
+wgpu = { version = "30.0.0", default-features = false, features = ["webgpu", "wgsl"] }
+naga = { version = "30.0.0", default-features = false, features = ["glsl-in", "wgsl-in", "wgsl-out"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = "warn"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "debuginfo"
