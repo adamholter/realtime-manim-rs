@@ -11,7 +11,7 @@ npm install realtime-manim
 
 The published browser package is dependency-free ESM with bundled Rust/Wasm and
 typed JavaScript authoring APIs. See [`packages/manim-web`](./packages/manim-web)
-for a copy-paste example.
+for a copy-paste example and [`CHANGELOG.md`](./CHANGELOG.md) for releases.
 
 ## Current state
 
