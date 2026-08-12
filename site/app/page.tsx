@@ -68,27 +68,28 @@ export default function Home() {
       </nav>
 
       <section className="hero shell" id="top">
-        <div className="status"><span /> Public beta · Rust + WebGPU</div>
-        <h1>Manim-style animation.<br /><em>Real-time by default.</em></h1>
-        <p className="hero-copy">
-          A typed JavaScript authoring API backed by a Rust renderer for interactive
-          mathematical animation in the browser—and native Metal rendering on macOS.
-        </p>
-        <div className="hero-actions">
-          <a className="button primary" href="#quickstart">Start building</a>
-          <a className="button secondary" href="https://www.npmjs.com/package/realtime-manim">View on npm</a>
+        <div className="hero-main">
+          <p className="hero-version">realtime-manim / 0.6 / Rust + WebGPU</p>
+          <h1>Manim scenes,<br /><span>at interaction speed.</span></h1>
+          <p className="hero-copy">
+            Write a retained scene in JavaScript. Rust evaluates it, WebGPU draws it,
+            and every slider stays live—without a JavaScript frame loop.
+          </p>
+          <div className="hero-actions">
+            <a className="button primary" href="#demos">Open the 3D lab</a>
+            <a className="button secondary" href="https://www.npmjs.com/package/realtime-manim">npm package</a>
+          </div>
+          <div className="install" aria-label="Install command"><span>$</span><code>{install}</code></div>
         </div>
-        <div className="install" aria-label="Install command"><span>$</span><code>{install}</code></div>
-
-        <div className="stage" aria-label="Abstract animation preview">
-          <div className="grid" />
-          <div className="axis axis-x" />
-          <div className="axis axis-y" />
-          <div className="orb orb-one" />
-          <div className="orb orb-two" />
-          <div className="curve" />
-          <div className="stage-label"><span>60 fps target</span><b>Rust owns every frame</b></div>
-        </div>
+        <aside className="hero-system" aria-label="Rendering architecture">
+          <p>One retained scene</p>
+          <ol>
+            <li><span>01</span><b>JavaScript authoring</b><small>Typed mobjects, animation and signals</small></li>
+            <li><span>02</span><b>Rust scene core</b><small>Deterministic evaluation and validation</small></li>
+            <li><span>03</span><b>GPU output</b><small>WebGPU in browser · Metal on macOS</small></li>
+          </ol>
+          <a href="https://github.com/adamholter/realtime-manim-rs">Read the implementation →</a>
+        </aside>
       </section>
 
       <DemoPlayground />
