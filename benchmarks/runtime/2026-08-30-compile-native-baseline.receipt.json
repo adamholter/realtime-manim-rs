@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "benchmark_id": "P-12-compile-native-baseline-2026-08-30",
+  "recorded_at_utc": "2026-08-30T20:57:51Z",
+  "environment": {
+    "os": "macOS",
+    "os_version": "27.0",
+    "architecture": "arm64",
+    "processor": "Apple M4",
+    "memory_bytes": 17179869184,
+    "display": {
+      "width": 1280,
+      "height": 720,
+      "refresh_hz": 60,
+      "device_pixel_ratio_milli": 1000
+    },
+    "background_load_profile": "interactive-apps-open-and-parallel-audit"
+  },
+  "workload": {
+    "name": "Rust and Python compile, native render, and GPU completion baseline",
+    "scene": "benchmarks/corpus/manim_reference_scenes.py and renderer-shootout generated workloads",
+    "resolution": [1280, 720],
+    "duration_seconds": 108.48,
+    "notes": [
+      "Python compiler runs used ManimCE 0.20.1 at 15 fps and isolated media directories.",
+      "Native first-frame figures are complete strict headless render-process wall times, including startup.",
+      "Renderer-shootout frame samples include CPU encoding, GPU submission, and queue-completion wait.",
+      "The production renderers request no WebGPU timestamp-query feature, so separate GPU-only time is not observable.",
+      "The compact browser surface used 669 nodes and 2983 tracks; the legacy expanded version was 39579242 bytes."
+    ]
+  },
+  "samples": [
+    { "name": "rust_native_preview.stale_target_build_wall_time", "unit": "s", "statistic": "single", "value": 67.89 },
+    { "name": "rust_native_preview.stale_target_build_user_time", "unit": "s", "statistic": "single", "value": 94.44 },
+    { "name": "rust_native_preview.stale_target_build_system_time", "unit": "s", "statistic": "single", "value": 6.64 },
+    { "name": "rust_native_preview.stale_target_build_max_rss", "unit": "bytes", "statistic": "single", "value": 1170063360 },
+    { "name": "rust_native_preview.no_op_build_wall_time", "unit": "s", "statistic": "single", "value": 0.24 },
+    { "name": "rust_native_preview.no_op_build_max_rss", "unit": "bytes", "statistic": "single", "value": 74399744 },
+    { "name": "VectorFieldAndStreamLines.python_compile_wall_time", "unit": "s", "statistic": "run_1", "value": 8.51 },
+    { "name": "VectorFieldAndStreamLines.python_compile_wall_time", "unit": "s", "statistic": "run_2", "value": 5.71 },
+    { "name": "VectorFieldAndStreamLines.python_compile_user_time", "unit": "s", "statistic": "run_1", "value": 4.54 },
+    { "name": "VectorFieldAndStreamLines.python_compile_user_time", "unit": "s", "statistic": "run_2", "value": 3.77 },
+    { "name": "VectorFieldAndStreamLines.python_compile_max_rss", "unit": "bytes", "statistic": "run_1", "value": 226639872 },
+    { "name": "VectorFieldAndStreamLines.python_compile_max_rss", "unit": "bytes", "statistic": "run_2", "value": 248692736 },
+    { "name": "VectorFieldAndStreamLines.compiled_output_size", "unit": "bytes", "statistic": "single", "value": 500139 },
+    { "name": "VectorFieldAndStreamLines.compile_determinism", "unit": "match", "statistic": "sha256_repeat", "value": 1 },
+    { "name": "ThreeDSurface.python_compile_wall_time", "unit": "s", "statistic": "single", "value": 20.96 },
+    { "name": "ThreeDSurface.python_compile_user_time", "unit": "s", "statistic": "single", "value": 17.44 },
+    { "name": "ThreeDSurface.python_compile_system_time", "unit": "s", "statistic": "single", "value": 0.81 },
+    { "name": "ThreeDSurface.python_compile_max_rss", "unit": "bytes", "statistic": "single", "value": 386891776 },
+    { "name": "ThreeDSurface.compiled_output_size", "unit": "bytes", "statistic": "single", "value": 183388 },
+    { "name": "ThreeDSurface.native_first_frame_process_time", "unit": "s", "statistic": "cold_process", "value": 1.76 },
+    { "name": "ThreeDSurface.native_first_frame_process_time", "unit": "s", "statistic": "warm_process", "value": 0.21 },
+    { "name": "ThreeDSurface.native_render_max_rss", "unit": "bytes", "statistic": "cold_process", "value": 42795008 },
+    { "name": "ThreeDSurface.native_render_max_rss", "unit": "bytes", "statistic": "warm_process", "value": 38256640 },
+    { "name": "ThreeDSurface.native_triangle_count", "unit": "triangles", "statistic": "single", "value": 5955 },
+    { "name": "ThreeDSurface.native_output_determinism", "unit": "match", "statistic": "sha256_repeat", "value": 1 },
+    { "name": "ThreeDSurface.browser_scene_load_time", "unit": "ms", "statistic": "single", "value": 8.6 },
+    { "name": "ThreeDSurface.browser_first_frame_time", "unit": "ms", "statistic": "single", "value": 16.9 },
+    { "name": "ThreeDSurface.browser_frame_rate", "unit": "fps", "statistic": "mean_5s", "value": 59.97 },
+    { "name": "ThreeDSurface.browser_cpu_time_per_frame", "unit": "ms", "statistic": "mean_5s", "value": 3.277 },
+    { "name": "ThreeDSurface.browser_wasm_memory", "unit": "bytes", "statistic": "after_80_alternating_loads", "value": 9043968 },
+    { "name": "ThreeDSurface.browser_wasm_memory_growth", "unit": "bytes", "statistic": "80_alternating_loads", "value": 0 },
+    { "name": "ThreeDSurfaceLegacy.browser_first_frame_time", "unit": "ms", "statistic": "single", "value": 803.1 },
+    { "name": "ThreeDSurfaceLegacy.browser_wasm_memory", "unit": "bytes", "statistic": "single", "value": 66322432 },
+    { "name": "ThreeDSurfaceLegacy.browser_js_heap", "unit": "bytes", "statistic": "single", "value": 90350343 },
+    { "name": "primitive_grid.combined_frame_completion", "unit": "ms", "statistic": "p95", "value": 0.7609 },
+    { "name": "bezier_strokes.combined_frame_completion", "unit": "ms", "statistic": "p95", "value": 0.7464 },
+    { "name": "dense_vector_field.combined_frame_completion", "unit": "ms", "statistic": "p95", "value": 0.4074 },
+    { "name": "translucent_layers.combined_frame_completion", "unit": "ms", "statistic": "p95", "value": 0.9217 },
+    { "name": "outline_glyphs.combined_frame_completion", "unit": "ms", "statistic": "p95", "value": 0.7595 }
+  ],
+  "provenance": {
+    "revision": "116fc1ca38b1ce03288cf886e6b9b9edcdb6121e",
+    "dirty": true,
+    "commands": [
+      "env REALTIME_MANIM_MEDIA_DIR=<isolated> /usr/bin/time -lp .venv-manim-reference/bin/python scripts/compile-manim.py benchmarks/corpus/manim_reference_scenes.py VectorFieldAndStreamLines --fps 15 --output <temporary-output>",
+      "env REALTIME_MANIM_MEDIA_DIR=<isolated> /usr/bin/time -lp .venv-manim-reference/bin/python scripts/compile-manim.py benchmarks/corpus/manim_reference_scenes.py ThreeDSurface --fps 15 --output <temporary-output>",
+      "/usr/bin/time -lp cargo build --release -p realtime-manim-native-preview",
+      "/usr/bin/time -lp target/release/realtime-manim-native-preview render <compiled-scene> --strict --time 1.59 --width 1280 --height 720 --output <temporary-png>",
+      "/usr/bin/time -lp target/release/realtime-manim-renderer-shootout --output <temporary-output> --width 1280 --height 720 --warmup 12 --iterations 60 --background-load interactive-apps-open-and-parallel-audit"
+    ],
+    "artifacts": [
+      "benchmarks/runtime/2026-08-30-compile-native-baseline.receipt.json"
+    ]
+  }
+}

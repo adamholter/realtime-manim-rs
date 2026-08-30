@@ -7,6 +7,7 @@
     <canvas id="second" width="640" height="360"></canvas>
     <canvas id="third" width="640" height="360"></canvas>
     <canvas id="fourth" width="640" height="360"></canvas>
+    <canvas id="heavy-paused" width="640" height="360"></canvas>
     <canvas id="bidi-mixed" width="640" height="360"></canvas>
     <canvas id="bidi-joined" width="640" height="360"></canvas>
     <canvas id="bidi-markup-same" width="640" height="360"></canvas>
@@ -91,6 +92,44 @@
           background: "#000000", nodes: [{ id: "root", type: "group" }],
           tracks: [], signals: [], bindings: [], controls: [], audio: [], captions: [],
         }).nodes.length === 1;
+        const waitFrames = (count) => new Promise((resolve) => {
+          const step = () => count-- > 0 ? requestAnimationFrame(step) : resolve();
+          requestAnimationFrame(step);
+        });
+        await waitFrames(3);
+        const pausedStart = empty.diagnostics();
+        await waitFrames(8);
+        const pausedEnd = empty.diagnostics();
+        const pausedRedrawSuppressed = pausedEnd.presentedFrames === pausedStart.presentedFrames
+          && pausedEnd.skippedFrames > pausedStart.skippedFrames;
+        empty.seek(0.1);
+        await waitFrames(2);
+        const seekRendered = empty.diagnostics();
+        await waitFrames(6);
+        const seekSettled = empty.diagnostics();
+        const seekRenderedOnce = seekRendered.presentedFrames === pausedEnd.presentedFrames + 1
+          && seekSettled.presentedFrames === seekRendered.presentedFrames;
+        const heavyScene = globalThis.__MANIM_HEAVY_SCENE__;
+        const heavySceneShape = heavyScene?.nodes?.length === 669 && heavyScene?.tracks?.length === 2983;
+        const heavy = await createManimPlayer({
+          canvas: document.querySelector("#heavy-paused"),
+          scene: heavyScene,
+          autoplay: false,
+        });
+        await waitFrames(3);
+        const heavyPausedStart = heavy.diagnostics();
+        await waitFrames(20);
+        const heavyPausedEnd = heavy.diagnostics();
+        const heavyPausedRedrawSuppressed = heavyPausedEnd.presentedFrames === heavyPausedStart.presentedFrames
+          && heavyPausedEnd.skippedFrames >= heavyPausedStart.skippedFrames + 20;
+        heavy.seek(1.5);
+        await waitFrames(2);
+        const heavySeekRendered = heavy.diagnostics();
+        await waitFrames(8);
+        const heavySeekSettled = heavy.diagnostics();
+        const heavySeekRenderedOnce = heavySeekRendered.presentedFrames === heavyPausedEnd.presentedFrames + 1
+          && heavySeekSettled.presentedFrames === heavySeekRendered.presentedFrames;
+        heavy.destroy();
         let missingFontRejected = false;
         try {
           empty.load(new Scene().add(new MarkupText(
@@ -225,6 +264,8 @@
         bidiPlayers.forEach((player) => player.destroy());
         globalThis.__MANIM_BROWSER_TEST__ = {
           ok: disposedGuard && geometryValid && fontPreloadWorks && missingFontRejected && emptyDefaultWorks
+            && pausedRedrawSuppressed && seekRenderedOnce
+            && heavySceneShape && heavyPausedRedrawSuppressed && heavySeekRenderedOnce
             && unsupportedMarkupEmojiRejected && independentTimes && survivorWorks
             && bidiRenderingWorks && unsupportedEmojiRejected && invalidPangoRejected,
           disposedGuard,
@@ -233,6 +274,15 @@
           missingFontRejected,
           unsupportedMarkupEmojiRejected,
           emptyDefaultWorks,
+          pausedRedrawSuppressed,
+          seekRenderedOnce,
+          pausedFrameDelta: pausedEnd.presentedFrames - pausedStart.presentedFrames,
+          pausedSkippedDelta: pausedEnd.skippedFrames - pausedStart.skippedFrames,
+          heavySceneShape,
+          heavyPausedRedrawSuppressed,
+          heavySeekRenderedOnce,
+          heavyPausedFrameDelta: heavyPausedEnd.presentedFrames - heavyPausedStart.presentedFrames,
+          heavyPausedSkippedDelta: heavyPausedEnd.skippedFrames - heavyPausedStart.skippedFrames,
           concurrentPlayers: concurrent.length,
           independentTimes,
           survivorWorks,

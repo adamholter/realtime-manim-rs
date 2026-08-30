@@ -2788,7 +2788,17 @@ export async function createManimPlayer(options) {
       setSize: (width, height) => { ready(); engine.set_render_size(assertPositive(width, "render width"), assertPositive(height, "render height")); },
       clearSize: () => { ready(); engine.clear_render_size(); },
       reset: () => { ready(); engine.reset_clock(); },
-      diagnostics: () => { ready(); return { recoveryCount: engine.recovery_count(), registeredFontFaces: engine.registered_font_count(), webgpu: true }; },
+      diagnostics: () => {
+        ready();
+        return {
+          recoveryCount: engine.recovery_count(),
+          registeredFontFaces: engine.registered_font_count(),
+          presentedFrames: engine.presented_frame_count(),
+          skippedFrames: engine.skipped_frame_count(),
+          lastCpuFrameMs: engine.last_cpu_frame_ms(),
+          webgpu: true,
+        };
+      },
       destroy: () => {
         if (disposed) return;
         disposed = true;

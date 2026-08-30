@@ -13,7 +13,14 @@ await Promise.all([mkdir(playgroundRoot, { recursive: true }), mkdir(runtimeRoot
 const packageApi = await readFile(resolve(packageRoot, "src/index.js"), "utf8");
 const browserApi = packageApi.replace(
   "initRuntime(wasmUrl).catch((error) => {",
-  "initRuntime(wasmUrl === undefined ? undefined : { module_or_path: wasmUrl }).catch((error) => {",
+  `(async () => {
+      if (wasmUrl === undefined) return initRuntime();
+      const response = await fetch(wasmUrl);
+      if (!response.ok) {
+        throw new Error("Failed to fetch the docs Wasm runtime: " + response.status + " " + response.statusText);
+      }
+      return initRuntime({ module_or_path: await response.arrayBuffer() });
+    })().catch((error) => {`,
 );
 if (browserApi === packageApi) throw new Error("Could not adapt the package Wasm initializer for the docs playground.");
 

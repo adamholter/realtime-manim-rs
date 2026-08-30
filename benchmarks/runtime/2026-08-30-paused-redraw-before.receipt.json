@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "benchmark_id": "P-12-heavy-scenes-before-paused-redraw",
+  "recorded_at_utc": "2026-08-30T20:47:05.703Z",
+  "environment": {
+    "os": "macOS",
+    "os_version": "27.0",
+    "architecture": "arm64",
+    "processor": "Apple M4",
+    "memory_bytes": 17179869184,
+    "display": {
+      "width": 1440,
+      "height": 900,
+      "refresh_hz": 60,
+      "device_pixel_ratio_milli": 1000
+    },
+    "background_load_profile": "interactive-apps-open-isolated-headless-chrome"
+  },
+  "workload": {
+    "name": "WebGPU heavy-scene runtime before paused redraw gating",
+    "scene": "benchmarks/runtime/fixtures/*.json.gz",
+    "resolution": [1440, 900],
+    "duration_seconds": 48.618,
+    "notes": [
+      "Measured from committed revision 116fc1c before source modification or Wasm rebuild.",
+      "Browser WebGPU timestamp queries were not enabled, so GPU-only frame time is not reported.",
+      "Presented-canvas readback includes synchronization and CPU copy cost; it is not labeled as GPU-only time.",
+      "Chrome exposes JS heap here, not total WebAssembly or GPU-resident memory.",
+      "A separate committed-package probe of ThreeDSurfaceCompact2 measured 301 unchanged paused frames and 1060.267 ms renderer-main work in 5.0065 seconds.",
+      "The tracked deterministic gzip fixtures preserve the exact measured scene inputs in a clean checkout."
+    ]
+  },
+  "samples": [
+    { "name": "VectorFieldAndStreamLines.first_frame_time", "unit": "ms", "statistic": "single", "value": 653.1000000238419 },
+    { "name": "VectorFieldAndStreamLines.playback_frame_rate", "unit": "fps", "statistic": "mean", "value": 60 },
+    { "name": "VectorFieldAndStreamLines.playback_cpu_time", "unit": "ms", "statistic": "total_3000ms", "value": 181.85000000000008 },
+    { "name": "VectorFieldAndStreamLines.paused_cpu_time", "unit": "ms", "statistic": "total_3000ms", "value": 175.72699999999998 },
+    { "name": "VectorFieldAndStreamLines.seek_throughput", "unit": "frames/s", "statistic": "120_seeks", "value": 60.07173568438705 },
+    { "name": "VectorFieldAndStreamLines.presented_readback_time", "unit": "ms", "statistic": "p50", "value": 1.3000000715255737 },
+    { "name": "VectorFieldAndStreamLines.presented_readback_time", "unit": "ms", "statistic": "p95", "value": 13.699999928474426 },
+    { "name": "VectorFieldAndStreamLines.fixed_time_determinism", "unit": "match", "statistic": "sha256_repeat", "value": 1 },
+    { "name": "TextAndMath.first_frame_time", "unit": "ms", "statistic": "single", "value": 20.700000047683716 },
+    { "name": "TextAndMath.playback_frame_rate", "unit": "fps", "statistic": "mean", "value": 60 },
+    { "name": "TextAndMath.playback_cpu_time", "unit": "ms", "statistic": "total_3000ms", "value": 184.84699999999998 },
+    { "name": "TextAndMath.paused_cpu_time", "unit": "ms", "statistic": "total_3000ms", "value": 163.40699999999987 },
+    { "name": "TextAndMath.seek_throughput", "unit": "frames/s", "statistic": "120_seeks", "value": 59.990490247495515 },
+    { "name": "TextAndMath.presented_readback_time", "unit": "ms", "statistic": "p50", "value": 1.2000000476837158 },
+    { "name": "TextAndMath.presented_readback_time", "unit": "ms", "statistic": "p95", "value": 1.9000000953674316 },
+    { "name": "TextAndMath.fixed_time_determinism", "unit": "match", "statistic": "sha256_repeat", "value": 1 },
+    { "name": "ThreeDSurface.first_frame_time", "unit": "ms", "statistic": "single", "value": 32.5 },
+    { "name": "ThreeDSurface.playback_frame_rate", "unit": "fps", "statistic": "mean", "value": 60 },
+    { "name": "ThreeDSurface.playback_cpu_time", "unit": "ms", "statistic": "total_3000ms", "value": 548.4399999999998 },
+    { "name": "ThreeDSurface.paused_cpu_time", "unit": "ms", "statistic": "total_3000ms", "value": 523.46 },
+    { "name": "ThreeDSurface.seek_throughput", "unit": "frames/s", "statistic": "120_seeks", "value": 59.96142981027448 },
+    { "name": "ThreeDSurface.presented_readback_time", "unit": "ms", "statistic": "p50", "value": 2.799999952316284 },
+    { "name": "ThreeDSurface.presented_readback_time", "unit": "ms", "statistic": "p95", "value": 4.600000023841858 },
+    { "name": "ThreeDSurface.fixed_time_determinism", "unit": "match", "statistic": "sha256_repeat", "value": 1 },
+    { "name": "PolyhedraAndFixedLabels.first_frame_time", "unit": "ms", "statistic": "single", "value": 38.299999952316284 },
+    { "name": "PolyhedraAndFixedLabels.playback_frame_rate", "unit": "fps", "statistic": "mean", "value": 60 },
+    { "name": "PolyhedraAndFixedLabels.playback_cpu_time", "unit": "ms", "statistic": "total_3000ms", "value": 1487.405 },
+    { "name": "PolyhedraAndFixedLabels.paused_cpu_time", "unit": "ms", "statistic": "total_3000ms", "value": 1355.8439999999994 },
+    { "name": "PolyhedraAndFixedLabels.seek_throughput", "unit": "frames/s", "statistic": "120_seeks", "value": 25.40360327710743 },
+    { "name": "PolyhedraAndFixedLabels.presented_readback_time", "unit": "ms", "statistic": "p50", "value": 4 },
+    { "name": "PolyhedraAndFixedLabels.presented_readback_time", "unit": "ms", "statistic": "p95", "value": 7.200000047683716 },
+    { "name": "PolyhedraAndFixedLabels.fixed_time_determinism", "unit": "match", "statistic": "sha256_repeat", "value": 1 },
+    { "name": "ThreeDSurfaceCompact.paused_presented_frames", "unit": "frames", "statistic": "total_5006.5ms", "value": 301 },
+    { "name": "ThreeDSurfaceCompact.paused_frame_rate", "unit": "fps", "statistic": "mean", "value": 60.121841605912316 },
+    { "name": "ThreeDSurfaceCompact.paused_cpu_time", "unit": "ms", "statistic": "total_5006.5ms", "value": 1060.267 },
+    { "name": "ThreeDSurfaceCompact.paused_cpu_time_per_frame", "unit": "ms", "statistic": "mean", "value": 3.522481727574751 }
+  ],
+  "provenance": {
+    "revision": "116fc1ca38b1ce03288cf886e6b9b9edcdb6121e",
+    "dirty": true,
+    "commands": [
+      "node /tmp/realtime-manim-baseline.mjs",
+      "git archive HEAD package baseline plus node browser-paused-baseline.mjs"
+    ],
+    "artifacts": [
+      "benchmarks/runtime/2026-08-30-paused-redraw-before.json",
+      "benchmarks/runtime/2026-08-30-paused-heavy-before.json",
+      "benchmarks/runtime/2026-08-30-paused-redraw-before.receipt.json"
+    ]
+  }
+}

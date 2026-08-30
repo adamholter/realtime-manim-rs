@@ -91,6 +91,9 @@ export function previewDiagnostics() {
   }
   return {
     recoveryCount: renderer.recovery_count(),
+    presentedFrames: renderer.presented_frame_count(),
+    skippedFrames: renderer.skipped_frame_count(),
+    lastCpuFrameMs: renderer.last_cpu_frame_ms(),
     time,
     engineAvailable,
     destroyed: renderer.is_destroyed(),

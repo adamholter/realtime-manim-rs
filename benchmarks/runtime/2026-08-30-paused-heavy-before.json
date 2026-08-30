@@ -1,0 +1,30 @@
+{
+  "recordedAt": "2026-08-30T20:53:25.063Z",
+  "revision": "116fc1c295c01d7d84bc623ff86766473de930fe",
+  "scene": "ThreeDSurface",
+  "paused": true,
+  "manualTime": 1.59,
+  "resolution": [
+    1280,
+    720
+  ],
+  "cadence": {
+    "frames": 301,
+    "elapsedMs": 5006.5,
+    "fps": 60.121841605912316,
+    "intervalP50Ms": 16.699999928474426,
+    "intervalP95Ms": 19.5,
+    "intervalP99Ms": 20.199999928474426,
+    "diagnostics": {
+      "recoveryCount": 0,
+      "registeredFontFaces": 0,
+      "webgpu": true
+    }
+  },
+  "mainThreadTaskDurationMs": 1060.267,
+  "mainThreadTaskMsPerAnimationFrame": 3.522481727574751,
+  "scriptDurationMs": 978.5760000000001,
+  "layoutDurationMs": 0,
+  "pngSha256": "22ff20b37732cd9526e56c9c348b62a23e0b132e993af236b7290d1cb906a637",
+  "note": "Committed baseline package extracted with git archive; player is paused at fixed explicit time."
+}

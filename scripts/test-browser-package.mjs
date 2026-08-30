@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { readFile, readdir } from "node:fs/promises";
+import { gunzipSync } from "node:zlib";
 
 async function bundledTestFont() {
   const registryRoot = join(homedir(), ".cargo", "registry", "src");
@@ -27,9 +28,15 @@ const browser = await chromium.launch({
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const errors = [];
 const testFontBase64 = (await bundledTestFont()).toString("base64");
+const heavyScene = JSON.parse(gunzipSync(await readFile(
+  join(import.meta.dirname, "..", "benchmarks", "runtime", "fixtures", "ThreeDSurfaceCompact2.json.gz"),
+)).toString("utf8"));
 await page.addInitScript((encoded) => {
   globalThis.__MANIM_TEST_FONT_BASE64__ = encoded;
 }, testFontBase64);
+await page.addInitScript((scene) => {
+  globalThis.__MANIM_HEAVY_SCENE__ = scene;
+}, heavyScene);
 page.on("console", (message) => {
   if (message.type() === "warning" || message.type() === "error") errors.push(`${message.type()}: ${message.text()}`);
 });

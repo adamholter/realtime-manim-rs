@@ -651,7 +651,14 @@ export interface ManimPlayer {
   setSize(width: number, height: number): void;
   clearSize(): void;
   reset(): void;
-  diagnostics(): { recoveryCount: number; registeredFontFaces: number; webgpu: true };
+  diagnostics(): {
+    recoveryCount: number;
+    registeredFontFaces: number;
+    presentedFrames: number;
+    skippedFrames: number;
+    lastCpuFrameMs: number;
+    webgpu: true;
+  };
   destroy(): void;
 }
 

@@ -53,6 +53,16 @@ export class WebPlayer {
         return ret !== 0;
     }
     /**
+     * @returns {number}
+     */
+    last_cpu_frame_ms() {
+        const ret = wasm.webplayer_last_cpu_frame_ms(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return ret[0];
+    }
+    /**
      * @param {string} scene_json
      */
     load_scene(scene_json) {
@@ -62,6 +72,16 @@ export class WebPlayer {
         if (ret[1]) {
             throw takeFromExternrefTable0(ret[0]);
         }
+    }
+    /**
+     * @returns {number}
+     */
+    presented_frame_count() {
+        const ret = wasm.webplayer_presented_frame_count(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return ret[0] >>> 0;
     }
     /**
      * @returns {number}
@@ -157,6 +177,16 @@ export class WebPlayer {
         if (ret[1]) {
             throw takeFromExternrefTable0(ret[0]);
         }
+    }
+    /**
+     * @returns {number}
+     */
+    skipped_frame_count() {
+        const ret = wasm.webplayer_skipped_frame_count(this.__wbg_ptr);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return ret[0] >>> 0;
     }
 }
 if (Symbol.dispose) WebPlayer.prototype[Symbol.dispose] = WebPlayer.prototype.free;

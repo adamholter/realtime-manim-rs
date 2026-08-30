@@ -1,0 +1,287 @@
+{
+  "schema_version": 1,
+  "benchmark_id": "P-12-heavy-scenes-after-paused-redraw",
+  "recorded_at_utc": "2026-08-30T21:08:41.672Z",
+  "environment": {
+    "os": "macOS",
+    "os_version": "27.0",
+    "architecture": "arm64",
+    "processor": "Apple M4",
+    "memory_bytes": 17179869184,
+    "display": {
+      "width": 1440,
+      "height": 900,
+      "refresh_hz": 60,
+      "device_pixel_ratio_milli": 1000
+    },
+    "background_load_profile": "interactive-apps-open-isolated-headless-chrome"
+  },
+  "workload": {
+    "name": "WebGPU heavy-scene runtime after-paused-redraw",
+    "scene": "benchmarks/runtime/fixtures/*.json.gz",
+    "resolution": [
+      1440,
+      900
+    ],
+    "duration_seconds": 68.857621,
+    "notes": [
+      "Browser WebGPU timestamp queries are not enabled, so GPU-only frame time is not reported.",
+      "Presented-canvas readback includes synchronization and CPU copy cost; it is not labeled as GPU-only time.",
+      "Chrome exposes JS heap here, not total WebAssembly or GPU-resident memory.",
+      "Browser: 151.0.7922.174"
+    ]
+  },
+  "samples": [
+    {
+      "name": "VectorFieldAndStreamLines.first_frame_time",
+      "unit": "ms",
+      "statistic": "single",
+      "value": 35.10000002384186
+    },
+    {
+      "name": "VectorFieldAndStreamLines.playback_frame_rate",
+      "unit": "fps",
+      "statistic": "mean",
+      "value": 60.666666666666664
+    },
+    {
+      "name": "VectorFieldAndStreamLines.playback_cpu_time",
+      "unit": "ms",
+      "statistic": "total_3000ms",
+      "value": 320.987
+    },
+    {
+      "name": "VectorFieldAndStreamLines.paused_cpu_time",
+      "unit": "ms",
+      "statistic": "total_3000ms",
+      "value": 101.64899999999999
+    },
+    {
+      "name": "VectorFieldAndStreamLines.paused_presented_frames",
+      "unit": "frames",
+      "statistic": "total_3000ms",
+      "value": 0
+    },
+    {
+      "name": "VectorFieldAndStreamLines.seek_throughput",
+      "unit": "frames/s",
+      "statistic": "120_seeks",
+      "value": 58.90329790361326
+    },
+    {
+      "name": "VectorFieldAndStreamLines.presented_readback_time",
+      "unit": "ms",
+      "statistic": "p50",
+      "value": 1
+    },
+    {
+      "name": "VectorFieldAndStreamLines.presented_readback_time",
+      "unit": "ms",
+      "statistic": "p95",
+      "value": 1.600000023841858
+    },
+    {
+      "name": "VectorFieldAndStreamLines.fixed_time_determinism",
+      "unit": "match",
+      "statistic": "sha256_repeat",
+      "value": 1
+    },
+    {
+      "name": "TextAndMath.first_frame_time",
+      "unit": "ms",
+      "statistic": "single",
+      "value": 26.899999976158142
+    },
+    {
+      "name": "TextAndMath.playback_frame_rate",
+      "unit": "fps",
+      "statistic": "mean",
+      "value": 61
+    },
+    {
+      "name": "TextAndMath.playback_cpu_time",
+      "unit": "ms",
+      "statistic": "total_3000ms",
+      "value": 250.8079999999999
+    },
+    {
+      "name": "TextAndMath.paused_cpu_time",
+      "unit": "ms",
+      "statistic": "total_3000ms",
+      "value": 116.96900000000011
+    },
+    {
+      "name": "TextAndMath.paused_presented_frames",
+      "unit": "frames",
+      "statistic": "total_3000ms",
+      "value": 0
+    },
+    {
+      "name": "TextAndMath.seek_throughput",
+      "unit": "frames/s",
+      "statistic": "120_seeks",
+      "value": 57.19750799990561
+    },
+    {
+      "name": "TextAndMath.presented_readback_time",
+      "unit": "ms",
+      "statistic": "p50",
+      "value": 1
+    },
+    {
+      "name": "TextAndMath.presented_readback_time",
+      "unit": "ms",
+      "statistic": "p95",
+      "value": 1.3000000715255737
+    },
+    {
+      "name": "TextAndMath.fixed_time_determinism",
+      "unit": "match",
+      "statistic": "sha256_repeat",
+      "value": 1
+    },
+    {
+      "name": "ThreeDSurface.first_frame_time",
+      "unit": "ms",
+      "statistic": "single",
+      "value": 31.799999952316284
+    },
+    {
+      "name": "ThreeDSurface.playback_frame_rate",
+      "unit": "fps",
+      "statistic": "mean",
+      "value": 60.333333333333336
+    },
+    {
+      "name": "ThreeDSurface.playback_cpu_time",
+      "unit": "ms",
+      "statistic": "total_3000ms",
+      "value": 552.8880000000003
+    },
+    {
+      "name": "ThreeDSurface.paused_cpu_time",
+      "unit": "ms",
+      "statistic": "total_3000ms",
+      "value": 78.07800000000009
+    },
+    {
+      "name": "ThreeDSurface.paused_presented_frames",
+      "unit": "frames",
+      "statistic": "total_3000ms",
+      "value": 0
+    },
+    {
+      "name": "ThreeDSurface.seek_throughput",
+      "unit": "frames/s",
+      "statistic": "120_seeks",
+      "value": 57.01966526003944
+    },
+    {
+      "name": "ThreeDSurface.presented_readback_time",
+      "unit": "ms",
+      "statistic": "p50",
+      "value": 1.1999999284744263
+    },
+    {
+      "name": "ThreeDSurface.presented_readback_time",
+      "unit": "ms",
+      "statistic": "p95",
+      "value": 1.600000023841858
+    },
+    {
+      "name": "ThreeDSurface.fixed_time_determinism",
+      "unit": "match",
+      "statistic": "sha256_repeat",
+      "value": 1
+    },
+    {
+      "name": "PolyhedraAndFixedLabels.first_frame_time",
+      "unit": "ms",
+      "statistic": "single",
+      "value": 49.89999997615814
+    },
+    {
+      "name": "PolyhedraAndFixedLabels.playback_frame_rate",
+      "unit": "fps",
+      "statistic": "mean",
+      "value": 60.333333333333336
+    },
+    {
+      "name": "PolyhedraAndFixedLabels.playback_cpu_time",
+      "unit": "ms",
+      "statistic": "total_3000ms",
+      "value": 1094.6869999999994
+    },
+    {
+      "name": "PolyhedraAndFixedLabels.paused_cpu_time",
+      "unit": "ms",
+      "statistic": "total_3000ms",
+      "value": 85.58800000000045
+    },
+    {
+      "name": "PolyhedraAndFixedLabels.paused_presented_frames",
+      "unit": "frames",
+      "statistic": "total_3000ms",
+      "value": 0
+    },
+    {
+      "name": "PolyhedraAndFixedLabels.seek_throughput",
+      "unit": "frames/s",
+      "statistic": "120_seeks",
+      "value": 54.52175822454704
+    },
+    {
+      "name": "PolyhedraAndFixedLabels.presented_readback_time",
+      "unit": "ms",
+      "statistic": "p50",
+      "value": 1.2000000476837158
+    },
+    {
+      "name": "PolyhedraAndFixedLabels.presented_readback_time",
+      "unit": "ms",
+      "statistic": "p95",
+      "value": 1.7999999523162842
+    },
+    {
+      "name": "PolyhedraAndFixedLabels.fixed_time_determinism",
+      "unit": "match",
+      "statistic": "sha256_repeat",
+      "value": 1
+    },
+    {
+      "name": "large_scene.seek_throughput",
+      "unit": "frames/s",
+      "statistic": "1000_seeks",
+      "value": 59.77289631857458
+    },
+    {
+      "name": "large_scene.js_heap_growth",
+      "unit": "bytes",
+      "statistic": "1000_seeks",
+      "value": 3636
+    },
+    {
+      "name": "large_scene.dom_node_growth",
+      "unit": "nodes",
+      "statistic": "1000_seeks",
+      "value": 0
+    },
+    {
+      "name": "large_scene.event_listener_growth",
+      "unit": "listeners",
+      "statistic": "1000_seeks",
+      "value": 0
+    }
+  ],
+  "provenance": {
+    "revision": "116fc1ca38b1ce03288cf886e6b9b9edcdb6121e",
+    "dirty": true,
+    "commands": [
+      "node scripts/benchmark-heavy-scenes.mjs --phase after-paused-redraw --sample-ms 3000 --memory-sweeps 1000 --output benchmarks/runtime/2026-08-30-paused-redraw-after.json --receipt benchmarks/runtime/2026-08-30-paused-redraw-after.receipt.json"
+    ],
+    "artifacts": [
+      "benchmarks/runtime/2026-08-30-paused-redraw-after.json",
+      "benchmarks/runtime/2026-08-30-paused-redraw-after.receipt.json"
+    ]
+  }
+}

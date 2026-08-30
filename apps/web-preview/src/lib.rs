@@ -1145,6 +1145,10 @@ mod web {
         last_scene_time: f32,
         last_sample_ms: f64,
         frames_in_sample: u32,
+        needs_redraw: bool,
+        presented_frames: u32,
+        skipped_frames: u32,
+        last_cpu_frame_ms: f64,
     }
 
     struct RecoveryState {
@@ -1810,6 +1814,10 @@ mod web {
                 last_scene_time: 0.0,
                 last_sample_ms: 0.0,
                 frames_in_sample: 0,
+                needs_redraw: true,
+                presented_frames: 0,
+                skipped_frames: 0,
+                last_cpu_frame_ms: 0.0,
             })
         }
 
@@ -1973,6 +1981,7 @@ mod web {
                     data,
                 });
             }
+            self.needs_redraw = true;
             Ok(())
         }
 
@@ -2006,6 +2015,7 @@ mod web {
             self.paused_total_ms = 0.0;
             self.paused = state.paused;
             self.resize_if_needed();
+            self.needs_redraw = true;
             Ok(())
         }
 
@@ -2019,6 +2029,7 @@ mod web {
                 self.paused_total_ms += now_ms - self.pause_started_ms;
             }
             self.paused = paused;
+            self.needs_redraw = true;
         }
 
         fn reset_clock(&mut self, now_ms: f64) {
@@ -2026,6 +2037,7 @@ mod web {
             self.pause_started_ms = now_ms;
             self.paused_total_ms = 0.0;
             self.last_scene_time = 0.0;
+            self.needs_redraw = true;
         }
 
         fn scene_time(&self, now_ms: f64) -> f32 {
@@ -2053,9 +2065,10 @@ mod web {
             self.pause_started_ms = now_ms;
             self.paused_total_ms = 0.0;
             self.last_scene_time = scene_time;
+            self.needs_redraw = true;
         }
 
-        fn resize_if_needed(&mut self) {
+        fn resize_if_needed(&mut self) -> bool {
             let (width, height) = self.render_size_override.unwrap_or_else(|| {
                 let ratio = device_pixel_ratio();
                 (
@@ -2064,7 +2077,7 @@ mod web {
                 )
             });
             if width == self.config.width && height == self.config.height {
-                return;
+                return false;
             }
             self.canvas.set_width(width);
             self.canvas.set_height(height);
@@ -2073,11 +2086,18 @@ mod web {
             self.surface.configure(&self.device, &self.config);
             (self.msaa_texture, self.msaa_view) = create_msaa_target(&self.device, &self.config);
             (self.depth_texture, self.depth_view) = create_depth_target(&self.device, &self.config);
+            self.needs_redraw = true;
+            true
         }
 
         fn render(&mut self, now_ms: f64) {
             self.resize_if_needed();
             self.first_frame_ms.get_or_insert(now_ms);
+            if !self.needs_redraw && (self.paused || self.manual_time.is_some()) {
+                self.skipped_frames = self.skipped_frames.saturating_add(1);
+                return;
+            }
+            let cpu_started_ms = performance_now();
             let scene_time = self.scene_time(now_ms);
             self.last_scene_time = scene_time;
             let frame = match self
@@ -2610,6 +2630,9 @@ mod web {
             self.queue.present(surface_texture);
             self.update_frame_metrics(now_ms);
             self.frame_geometry = geometry;
+            self.needs_redraw = false;
+            self.presented_frames = self.presented_frames.saturating_add(1);
+            self.last_cpu_frame_ms = (performance_now() - cpu_started_ms).max(0.0);
         }
 
         fn upload_geometry(
@@ -7734,6 +7757,7 @@ mod web {
         pub fn seek(&self, time: f32) -> Result<(), JsValue> {
             self.with_engine(|engine| {
                 engine.manual_time = Some(time.clamp(0.0, engine.scene.duration));
+                engine.needs_redraw = true;
                 Ok(())
             })
         }
@@ -7797,6 +7821,7 @@ mod web {
                 } else {
                     engine.signal_overrides.insert(signal.to_owned(), value);
                 }
+                engine.needs_redraw = true;
                 Ok(())
             })
         }
@@ -7852,6 +7877,18 @@ mod web {
                 u32::try_from(engine.registered_fonts.len())
                     .map_err(|_| js_error("Too many font faces are registered."))
             })
+        }
+
+        pub fn presented_frame_count(&self) -> Result<u32, JsValue> {
+            self.with_engine(|engine| Ok(engine.presented_frames))
+        }
+
+        pub fn skipped_frame_count(&self) -> Result<u32, JsValue> {
+            self.with_engine(|engine| Ok(engine.skipped_frames))
+        }
+
+        pub fn last_cpu_frame_ms(&self) -> Result<f64, JsValue> {
+            self.with_engine(|engine| Ok(engine.last_cpu_frame_ms))
         }
 
         pub fn simulate_device_loss(&self) -> Result<(), JsValue> {
@@ -8052,6 +8089,7 @@ mod web {
         ENGINE.with(|slot| {
             if let Some(engine) = slot.borrow_mut().as_mut() {
                 engine.manual_time = Some(time.clamp(0.0, engine.scene.duration));
+                engine.needs_redraw = true;
             }
         });
     }
@@ -8152,6 +8190,7 @@ mod web {
             } else {
                 engine.signal_overrides.insert(signal.to_owned(), value);
             }
+            engine.needs_redraw = true;
             Ok(())
         })
     }

@@ -211,6 +211,11 @@ mod tests {
     const SMOKE_RECEIPT: &str = include_str!("../../../benchmarks/samples/smoke.json");
     const JSON_SCHEMA: &str =
         include_str!("../../../benchmarks/schema/benchmark-result.schema.json");
+    const HEAVY_SCENE_RUNTIME_RECEIPTS: [&str; 3] = [
+        include_str!("../../../benchmarks/runtime/2026-08-30-paused-redraw-before.receipt.json"),
+        include_str!("../../../benchmarks/runtime/2026-08-30-paused-redraw-after.receipt.json"),
+        include_str!("../../../benchmarks/runtime/2026-08-30-compile-native-baseline.receipt.json"),
+    ];
 
     #[test]
     fn json_schema_is_valid_json_and_declares_v1() {
@@ -231,6 +236,15 @@ mod tests {
 
         assert_eq!(decoded, receipt);
         assert_eq!(decoded.schema_version, SCHEMA_VERSION);
+    }
+
+    #[test]
+    fn heavy_scene_runtime_receipts_validate() {
+        for encoded in HEAVY_SCENE_RUNTIME_RECEIPTS {
+            let receipt: BenchmarkResult =
+                serde_json::from_str(encoded).expect("runtime receipt must deserialize");
+            receipt.validate().expect("runtime receipt must validate");
+        }
     }
 
     #[test]

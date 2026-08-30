@@ -1853,7 +1853,7 @@ async fn render_headless_async(
 pub fn play(scene: Scene, args: &Args) -> Result<(), String> {
     let event_loop =
         EventLoop::new().map_err(|error| format!("Window event loop failed: {error}"))?;
-    event_loop.set_control_flow(ControlFlow::Poll);
+    event_loop.set_control_flow(ControlFlow::Wait);
     let (width, height) = render_dimensions(&scene, args);
     let mut app = PreviewApp {
         scene,
@@ -1865,6 +1865,7 @@ pub fn play(scene: Scene, args: &Args) -> Result<(), String> {
         playback: Playback::new(args.time, args.paused),
         error: None,
         last_title_update: Instant::now(),
+        force_title_update: true,
     };
     event_loop
         .run_app(&mut app)
@@ -1882,6 +1883,19 @@ struct PreviewApp {
     playback: Playback,
     error: Option<String>,
     last_title_update: Instant,
+    force_title_update: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum RedrawTrigger {
+    Startup,
+    Resize,
+    PlaybackInput,
+    FramePresented,
+}
+
+fn should_request_redraw(trigger: RedrawTrigger, paused: bool) -> bool {
+    trigger != RedrawTrigger::FramePresented || !paused
 }
 
 impl ApplicationHandler for PreviewApp {
@@ -1910,7 +1924,9 @@ impl ApplicationHandler for PreviewApp {
                     "native play backend={:?} adapter={:?} controls=Space/Left/Right/Home/R/Esc",
                     renderer.gpu.backend, renderer.gpu.adapter_name
                 );
-                window.request_redraw();
+                if should_request_redraw(RedrawTrigger::Startup, self.playback.paused) {
+                    window.request_redraw();
+                }
                 self.renderer = Some(renderer);
                 self.window = Some(window);
             }
@@ -1936,21 +1952,41 @@ impl ApplicationHandler for PreviewApp {
                 if let Some(renderer) = self.renderer.as_mut() {
                     renderer.resize(size.width, size.height);
                 }
+                if should_request_redraw(RedrawTrigger::Resize, self.playback.paused)
+                    && let Some(window) = &self.window
+                {
+                    window.request_redraw();
+                }
             }
             WindowEvent::KeyboardInput { event, .. } if event.state == ElementState::Pressed => {
-                match event.physical_key {
-                    PhysicalKey::Code(KeyCode::Escape) => event_loop.exit(),
-                    PhysicalKey::Code(KeyCode::Space) => self.playback.toggle(),
+                let playback_changed = match event.physical_key {
+                    PhysicalKey::Code(KeyCode::Escape) => {
+                        event_loop.exit();
+                        false
+                    }
+                    PhysicalKey::Code(KeyCode::Space) => {
+                        self.playback.toggle();
+                        true
+                    }
                     PhysicalKey::Code(KeyCode::ArrowLeft) => {
-                        self.playback.seek(-0.25, self.scene.duration)
+                        self.playback.seek(-0.25, self.scene.duration);
+                        true
                     }
                     PhysicalKey::Code(KeyCode::ArrowRight) => {
-                        self.playback.seek(0.25, self.scene.duration)
+                        self.playback.seek(0.25, self.scene.duration);
+                        true
                     }
-                    PhysicalKey::Code(KeyCode::Home | KeyCode::KeyR) => self.playback.restart(),
-                    _ => {}
-                }
-                if let Some(window) = &self.window {
+                    PhysicalKey::Code(KeyCode::Home | KeyCode::KeyR) => {
+                        self.playback.restart();
+                        true
+                    }
+                    _ => false,
+                };
+                if playback_changed
+                    && should_request_redraw(RedrawTrigger::PlaybackInput, self.playback.paused)
+                    && let Some(window) = &self.window
+                {
+                    self.force_title_update = true;
                     window.request_redraw();
                 }
             }
@@ -1963,7 +1999,9 @@ impl ApplicationHandler for PreviewApp {
                     event_loop.exit();
                     return;
                 }
-                if self.last_title_update.elapsed() >= Duration::from_millis(200) {
+                if self.force_title_update
+                    || self.last_title_update.elapsed() >= Duration::from_millis(200)
+                {
                     if let Some(window) = &self.window {
                         window.set_title(&format!(
                             "{} — {:.2}/{:.2}s{} — realtime-manim native",
@@ -1974,18 +2012,15 @@ impl ApplicationHandler for PreviewApp {
                         ));
                     }
                     self.last_title_update = Instant::now();
+                    self.force_title_update = false;
                 }
-                if let Some(window) = &self.window {
+                if should_request_redraw(RedrawTrigger::FramePresented, self.playback.paused)
+                    && let Some(window) = &self.window
+                {
                     window.request_redraw();
                 }
             }
             _ => {}
-        }
-    }
-
-    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        if let Some(window) = &self.window {
-            window.request_redraw();
         }
     }
 }
@@ -2261,8 +2296,9 @@ mod tests {
     use realtime_manim_svg_engine::SvgEngine;
 
     use super::{
-        DepthMode, ImageSourceSignature, Playback, changed_pixel_count, decode_base64, depth_state,
-        fnv1a64, grown_buffer_capacity, validate_geometry,
+        DepthMode, ImageSourceSignature, Playback, RedrawTrigger, changed_pixel_count,
+        decode_base64, depth_state, fnv1a64, grown_buffer_capacity, should_request_redraw,
+        validate_geometry,
     };
     #[cfg(target_os = "macos")]
     use super::{Gpu, TARGET_FORMAT, native_instance, render_headless};
@@ -2498,5 +2534,43 @@ mod tests {
         playback.toggle();
         std::thread::sleep(Duration::from_millis(2));
         assert!(playback.time(5.0) > 1.25);
+    }
+
+    #[test]
+    fn paused_preview_redraws_only_for_explicit_changes() {
+        let mut playback = Playback::new(1.0, true);
+        assert!(should_request_redraw(
+            RedrawTrigger::Startup,
+            playback.paused
+        ));
+        assert!(should_request_redraw(
+            RedrawTrigger::Resize,
+            playback.paused
+        ));
+        assert!(should_request_redraw(
+            RedrawTrigger::PlaybackInput,
+            playback.paused
+        ));
+        assert!(!should_request_redraw(
+            RedrawTrigger::FramePresented,
+            playback.paused
+        ));
+
+        playback.toggle();
+        assert!(should_request_redraw(
+            RedrawTrigger::FramePresented,
+            playback.paused
+        ));
+
+        playback.toggle();
+        playback.seek(0.25, 5.0);
+        assert!(!should_request_redraw(
+            RedrawTrigger::FramePresented,
+            playback.paused
+        ));
+        assert!(should_request_redraw(
+            RedrawTrigger::PlaybackInput,
+            playback.paused
+        ));
     }
 }
