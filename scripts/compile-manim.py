@@ -63,6 +63,7 @@ from manim.mobject.opengl.opengl_mobject import OpenGLMobject
 from manim.renderer.opengl_renderer import OpenGLCamera
 from manim.renderer.shader_wrapper import get_shader_code_from_file
 from manim.utils.rate_functions import linear, smooth
+from manim.utils.qhull import Facet, QuickHull
 from manim.camera.three_d_camera import ThreeDCamera
 from manim.camera.moving_camera import MovingCamera as ManimMovingCamera
 
@@ -73,6 +74,55 @@ SHADER_TRANSLATOR: Any | None = None
 REGISTERED_VALUE_TRACKERS: list[ValueTracker] = []
 ORIGINAL_VALUE_TRACKER_INIT = ValueTracker.__init__
 ORIGINAL_TRANSFORM_MATCHING_INIT = TransformMatchingAbstractBase.__init__
+NUMPY_DEFAULT_RNG = np.random.default_rng
+
+
+def deterministic_quick_hull_initialize(
+    self: QuickHull, points: np.ndarray
+) -> None:
+    """Run Manim's QuickHull initialization with a fixed local generator."""
+
+    rng = NUMPY_DEFAULT_RNG(0)
+    simplex = points[
+        rng.choice(points.shape[0], points.shape[1] + 1, replace=False)
+    ]
+    dimension = points.shape[1]
+    rank = np.linalg.matrix_rank(
+        simplex[1:] - simplex[0], tol=self.tolerance
+    )
+    if rank < dimension:
+        selected = [0]
+        selected_rank = 0
+        for index in range(1, points.shape[0]):
+            candidate = points[[*selected, index]]
+            candidate_rank = np.linalg.matrix_rank(
+                candidate[1:] - candidate[0], tol=self.tolerance
+            )
+            if candidate_rank > selected_rank:
+                selected.append(index)
+                selected_rank = candidate_rank
+            if selected_rank == dimension:
+                break
+        if selected_rank < dimension:
+            raise ValueError(
+                "Points do not contain a full-dimensional simplex."
+            )
+        simplex = points[selected]
+    self.unclaimed = points
+    new_internal = np.mean(simplex, axis=0)
+    self.internal = new_internal
+    for index in range(simplex.shape[0]):
+        facet = Facet(
+            np.delete(simplex, index, axis=0), internal=new_internal
+        )
+        self.classify(facet)
+        self.facets.append(facet)
+    for facet in self.facets:
+        for subfacet in facet.subfacets:
+            self.neighbors.setdefault(subfacet, set()).add(facet)
+
+
+QuickHull.initialize = deterministic_quick_hull_initialize
 
 
 def registered_value_tracker_init(

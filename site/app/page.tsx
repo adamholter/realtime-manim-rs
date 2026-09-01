@@ -138,7 +138,7 @@ export default function Home() {
           <div className="agent-links">
             <a href="/llms.txt">Open llms.txt →</a>
             <a href="/agent-guide.md">Open agent guide →</a>
-            <a href="https://github.com/adamholter/realtime-manim-rs/blob/main/AGENTS.md">Repository instructions →</a>
+            <a href="https://github.com/adamholter/realtime-manim-rs/blob/main/site/public/agent-guide.md">Repository guide →</a>
           </div>
         </div>
         <div className="prompt-card">
