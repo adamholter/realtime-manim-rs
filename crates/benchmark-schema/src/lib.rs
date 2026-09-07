@@ -211,10 +211,11 @@ mod tests {
     const SMOKE_RECEIPT: &str = include_str!("../../../benchmarks/samples/smoke.json");
     const JSON_SCHEMA: &str =
         include_str!("../../../benchmarks/schema/benchmark-result.schema.json");
-    const HEAVY_SCENE_RUNTIME_RECEIPTS: [&str; 3] = [
+    const HEAVY_SCENE_RUNTIME_RECEIPTS: [&str; 4] = [
         include_str!("../../../benchmarks/runtime/2026-08-30-paused-redraw-before.receipt.json"),
         include_str!("../../../benchmarks/runtime/2026-08-30-paused-redraw-after.receipt.json"),
         include_str!("../../../benchmarks/runtime/2026-08-30-compile-native-baseline.receipt.json"),
+        include_str!("../../../benchmarks/runtime/2026-09-07-accounting.receipt.json"),
     ];
 
     #[test]

@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import math
 import os
 import subprocess
 import sys
@@ -14,6 +15,8 @@ from typing import Any
 
 import numpy as np
 from manim import ConvexHull3D, Scene
+from manim.utils.qhull import QuickHull
+from scipy.spatial import ConvexHull
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,6 +48,16 @@ class DegenerateSeedConvexHull3D(Scene):
                 [-1, 1, 0],
             )
         )
+        self.wait(1 / 30)
+
+
+class SmallInputConvexHull3D(Scene):
+    def construct(self) -> None:
+        points = np.array(
+            [[-1, -1, -1], [1, -1, -1], [0, 1, -1], [0, 0, 1]],
+            dtype=float,
+        )
+        self.add(ConvexHull3D(*(points * 1e-6)).scale(1e6, about_point=np.zeros(3)))
         self.wait(1 / 30)
 
 
@@ -89,17 +102,78 @@ def compile_worker(entropy_seed: int, scene_class: str) -> None:
     )
 
 
+def check_hull_geometry() -> int:
+    """Compare hull volume and supporting planes with independent Qhull output."""
+    load_compiler()
+    clouds = [
+        np.array([[-1, -1, -1], [1, -1, -1], [0, 1, -1], [0, 0, 1]], dtype=float),
+        # Seed zero chooses the four coplanar base vertices first.
+        np.array(
+            [[0, 0, 1], [-1, -1, 0], [1, -1, 0], [1, 1, 0], [-1, 1, 0]],
+            dtype=float,
+        ),
+        # Repeated and interior points must not add spurious hull facets.
+        np.array([[0, 0], [0, 0], [-1, -1], [1, -1], [1, 1], [-1, 1]], dtype=float),
+    ]
+    checks = 0
+    for cloud in clouds:
+        dimension = cloud.shape[1]
+        reference_volume = ConvexHull(cloud).volume
+        for scale in (1e-6, 1.0, 1e6):
+            # Keep the outside classification tolerance proportional to scale,
+            # then also exercise the default tolerance on a tiny tetrahedron.
+            tolerances = [1e-5 * scale]
+            if len(cloud) == 4 and scale == 1e-6:
+                tolerances.append(1e-5)
+            for tolerance in tolerances:
+                hull = QuickHull(tolerance=tolerance)
+                hull.build(cloud * scale)
+                facets = [
+                    facet for facet in hull.facets if facet not in hull.removed
+                ]
+                center = np.mean(cloud, axis=0)
+                volume = 0.0
+                vertices = set()
+                for facet in facets:
+                    coordinates = facet.coordinates / scale
+                    assert np.isfinite(facet.normal).all()
+                    assert np.max((cloud - coordinates[0]) @ facet.normal) <= 1e-9
+                    volume += abs(np.linalg.det(coordinates - center)) / math.factorial(
+                        dimension
+                    )
+                    vertices.update(map(tuple, coordinates))
+                expected_vertices = set(map(tuple, cloud[ConvexHull(cloud).vertices]))
+                assert vertices == expected_vertices, (
+                    scale, vertices, expected_vertices
+                )
+                assert np.isclose(volume, reference_volume, rtol=1e-10), (
+                    scale, volume, reference_volume
+                )
+                checks += 1
+    for cloud in (np.zeros((4, 3)), np.array([[0, 0], [1, 0], [2, 0]], dtype=float)):
+        try:
+            QuickHull().build(cloud)
+        except ValueError as error:
+            assert "full-dimensional simplex" in str(error)
+        else:
+            raise AssertionError("Rank-deficient input should fail explicitly")
+    return checks
+
+
 def main() -> int:
     if len(sys.argv) == 4 and sys.argv[1] == "--worker":
         compile_worker(int(sys.argv[2]), sys.argv[3])
         return 0
 
+    geometry_checks = check_hull_geometry()
     environment = os.environ.copy()
     environment["PYTHONHASHSEED"] = "0"
     results = {}
     expected_nodes = {
         "ConvexHull3DDeterminism": 16,
         "DegenerateSeedConvexHull3D": 24,
+        # Matches upstream Manim with seed zero for the same small input.
+        "SmallInputConvexHull3D": 17,
     }
     for scene_class, expected_node_count in expected_nodes.items():
         rows = []
@@ -117,6 +191,7 @@ def main() -> int:
                 text=True,
                 capture_output=True,
                 check=True,
+                timeout=60,
             )
             rows.append(json.loads(result.stdout.strip().splitlines()[-1]))
 
@@ -133,7 +208,9 @@ def main() -> int:
         )
         assert not diagnostics, diagnostics
         results[scene_class] = rows
-    print(json.dumps({"ok": True, "runs": results}, indent=2))
+    print(json.dumps(
+        {"ok": True, "geometryChecks": geometry_checks, "runs": results}, indent=2
+    ))
     return 0
 
 

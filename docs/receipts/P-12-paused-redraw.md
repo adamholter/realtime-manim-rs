@@ -2,6 +2,11 @@
 
 Recorded: 2026-08-30
 
+Measurement note, 2026-09-07: the historical playback FPS figures below used the
+requested sample duration as their denominator. The benchmark now uses measured
+elapsed time and records CPU sample durations separately. Historical numbers are
+preserved here; see `2026-09-07-review.md` for the correction and fresh evidence.
+
 Revision measured before the change: `116fc1c`
 
 ## Decision

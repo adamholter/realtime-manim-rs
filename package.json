@@ -4,6 +4,11 @@
   "type": "module",
   "scripts": {
     "start": "node server/server.mjs",
+    "validate": "npm run validate:rust && npm run test:python && npm run check:web && npm run test:web && npm run test:package && npm run validate:docs",
+    "validate:rust": "node scripts/verify-rust.mjs",
+    "validate:docs": "npm run lint --prefix site && npm test --prefix site",
+    "test:python": "node scripts/test-python.mjs",
+    "docs:dev": "npm run dev --prefix site",
     "check:web": "node --check server/server.mjs && node --check apps/web-preview/www/app.js",
     "test:web": "node --test server/*.test.mjs",
     "sweep:webgpu": "node scripts/sweep-webgpu.mjs",

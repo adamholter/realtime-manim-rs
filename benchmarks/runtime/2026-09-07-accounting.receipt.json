@@ -1,0 +1,335 @@
+{
+  "schema_version": 1,
+  "benchmark_id": "P-12-heavy-scenes-sept7-measurement-fix",
+  "recorded_at_utc": "2026-09-07T21:05:44.522Z",
+  "environment": {
+    "os": "macOS",
+    "os_version": "27.0",
+    "architecture": "arm64",
+    "processor": "Apple M4",
+    "memory_bytes": 17179869184,
+    "display": {
+      "width": 1440,
+      "height": 900,
+      "refresh_hz": 60,
+      "device_pixel_ratio_milli": 1000
+    },
+    "background_load_profile": "shared-host-background-load-uncontrolled"
+  },
+  "workload": {
+    "name": "WebGPU heavy-scene runtime sept7-measurement-fix",
+    "scene": "benchmarks/runtime/fixtures/*.json.gz",
+    "resolution": [
+      1440,
+      900
+    ],
+    "duration_seconds": 35.816953208,
+    "notes": [
+      "Browser WebGPU timestamp queries are not enabled, so GPU-only frame time is not reported.",
+      "Presented-canvas readback includes synchronization and CPU copy cost; it is not labeled as GPU-only time.",
+      "Chrome exposes JS heap here, not total WebAssembly or GPU-resident memory.",
+      "Browser: 152.0.7977.76"
+    ]
+  },
+  "samples": [
+    {
+      "name": "VectorFieldAndStreamLines.first_frame_time",
+      "unit": "ms",
+      "statistic": "single",
+      "value": 30.299999952316284
+    },
+    {
+      "name": "VectorFieldAndStreamLines.playback_frame_rate",
+      "unit": "fps",
+      "statistic": "mean",
+      "value": 60.18153118166867
+    },
+    {
+      "name": "VectorFieldAndStreamLines.playback_cpu_time",
+      "unit": "ms",
+      "statistic": "sample_total",
+      "value": 76.654
+    },
+    {
+      "name": "VectorFieldAndStreamLines.playback_cpu_sample_duration",
+      "unit": "ms",
+      "statistic": "elapsed",
+      "value": 1006.9929999299347
+    },
+    {
+      "name": "VectorFieldAndStreamLines.paused_cpu_time",
+      "unit": "ms",
+      "statistic": "sample_total",
+      "value": 48.25800000000014
+    },
+    {
+      "name": "VectorFieldAndStreamLines.paused_cpu_sample_duration",
+      "unit": "ms",
+      "statistic": "elapsed",
+      "value": 1003.1909998506308
+    },
+    {
+      "name": "VectorFieldAndStreamLines.paused_presented_frames",
+      "unit": "frames",
+      "statistic": "sample_total",
+      "value": 0
+    },
+    {
+      "name": "VectorFieldAndStreamLines.seek_throughput",
+      "unit": "frames/s",
+      "statistic": "120_seeks",
+      "value": 59.66791573873755
+    },
+    {
+      "name": "VectorFieldAndStreamLines.presented_readback_time",
+      "unit": "ms",
+      "statistic": "p50",
+      "value": 1.5
+    },
+    {
+      "name": "VectorFieldAndStreamLines.presented_readback_time",
+      "unit": "ms",
+      "statistic": "p95",
+      "value": 5.700000047683716
+    },
+    {
+      "name": "VectorFieldAndStreamLines.fixed_time_determinism",
+      "unit": "match",
+      "statistic": "sha256_repeat",
+      "value": 1
+    },
+    {
+      "name": "TextAndMath.first_frame_time",
+      "unit": "ms",
+      "statistic": "single",
+      "value": 49.299999952316284
+    },
+    {
+      "name": "TextAndMath.playback_frame_rate",
+      "unit": "fps",
+      "statistic": "mean",
+      "value": 60.659426662090404
+    },
+    {
+      "name": "TextAndMath.playback_cpu_time",
+      "unit": "ms",
+      "statistic": "sample_total",
+      "value": 102.82999999999998
+    },
+    {
+      "name": "TextAndMath.playback_cpu_sample_duration",
+      "unit": "ms",
+      "statistic": "elapsed",
+      "value": 1009.6569999586791
+    },
+    {
+      "name": "TextAndMath.paused_cpu_time",
+      "unit": "ms",
+      "statistic": "sample_total",
+      "value": 50.46700000000026
+    },
+    {
+      "name": "TextAndMath.paused_cpu_sample_duration",
+      "unit": "ms",
+      "statistic": "elapsed",
+      "value": 1011.5250002127141
+    },
+    {
+      "name": "TextAndMath.paused_presented_frames",
+      "unit": "frames",
+      "statistic": "sample_total",
+      "value": 0
+    },
+    {
+      "name": "TextAndMath.seek_throughput",
+      "unit": "frames/s",
+      "statistic": "120_seeks",
+      "value": 56.36482350332275
+    },
+    {
+      "name": "TextAndMath.presented_readback_time",
+      "unit": "ms",
+      "statistic": "p50",
+      "value": 2.200000047683716
+    },
+    {
+      "name": "TextAndMath.presented_readback_time",
+      "unit": "ms",
+      "statistic": "p95",
+      "value": 15.900000095367432
+    },
+    {
+      "name": "TextAndMath.fixed_time_determinism",
+      "unit": "match",
+      "statistic": "sha256_repeat",
+      "value": 1
+    },
+    {
+      "name": "ThreeDSurface.first_frame_time",
+      "unit": "ms",
+      "statistic": "single",
+      "value": 70.89999985694885
+    },
+    {
+      "name": "ThreeDSurface.playback_frame_rate",
+      "unit": "fps",
+      "statistic": "mean",
+      "value": 59.67180507210343
+    },
+    {
+      "name": "ThreeDSurface.playback_cpu_time",
+      "unit": "ms",
+      "statistic": "sample_total",
+      "value": 331.8729999999999
+    },
+    {
+      "name": "ThreeDSurface.playback_cpu_sample_duration",
+      "unit": "ms",
+      "statistic": "elapsed",
+      "value": 1003.650999860838
+    },
+    {
+      "name": "ThreeDSurface.paused_cpu_time",
+      "unit": "ms",
+      "statistic": "sample_total",
+      "value": 54.30699999999966
+    },
+    {
+      "name": "ThreeDSurface.paused_cpu_sample_duration",
+      "unit": "ms",
+      "statistic": "elapsed",
+      "value": 1006.6090000327677
+    },
+    {
+      "name": "ThreeDSurface.paused_presented_frames",
+      "unit": "frames",
+      "statistic": "sample_total",
+      "value": 0
+    },
+    {
+      "name": "ThreeDSurface.seek_throughput",
+      "unit": "frames/s",
+      "statistic": "120_seeks",
+      "value": 60.23713099580638
+    },
+    {
+      "name": "ThreeDSurface.presented_readback_time",
+      "unit": "ms",
+      "statistic": "p50",
+      "value": 2
+    },
+    {
+      "name": "ThreeDSurface.presented_readback_time",
+      "unit": "ms",
+      "statistic": "p95",
+      "value": 5.300000190734863
+    },
+    {
+      "name": "ThreeDSurface.fixed_time_determinism",
+      "unit": "match",
+      "statistic": "sha256_repeat",
+      "value": 1
+    },
+    {
+      "name": "PolyhedraAndFixedLabels.first_frame_time",
+      "unit": "ms",
+      "statistic": "single",
+      "value": 90.70000004768372
+    },
+    {
+      "name": "PolyhedraAndFixedLabels.playback_frame_rate",
+      "unit": "fps",
+      "statistic": "mean",
+      "value": 59.18882205088753
+    },
+    {
+      "name": "PolyhedraAndFixedLabels.playback_cpu_time",
+      "unit": "ms",
+      "statistic": "sample_total",
+      "value": 566.3000000000001
+    },
+    {
+      "name": "PolyhedraAndFixedLabels.playback_cpu_sample_duration",
+      "unit": "ms",
+      "statistic": "elapsed",
+      "value": 1006.8979999050498
+    },
+    {
+      "name": "PolyhedraAndFixedLabels.paused_cpu_time",
+      "unit": "ms",
+      "statistic": "sample_total",
+      "value": 43.575000000000585
+    },
+    {
+      "name": "PolyhedraAndFixedLabels.paused_cpu_sample_duration",
+      "unit": "ms",
+      "statistic": "elapsed",
+      "value": 1003.8640000857413
+    },
+    {
+      "name": "PolyhedraAndFixedLabels.paused_presented_frames",
+      "unit": "frames",
+      "statistic": "sample_total",
+      "value": 0
+    },
+    {
+      "name": "PolyhedraAndFixedLabels.seek_throughput",
+      "unit": "frames/s",
+      "statistic": "120_seeks",
+      "value": 58.61683444281519
+    },
+    {
+      "name": "PolyhedraAndFixedLabels.presented_readback_time",
+      "unit": "ms",
+      "statistic": "p50",
+      "value": 1.5
+    },
+    {
+      "name": "PolyhedraAndFixedLabels.presented_readback_time",
+      "unit": "ms",
+      "statistic": "p95",
+      "value": 3.700000047683716
+    },
+    {
+      "name": "PolyhedraAndFixedLabels.fixed_time_determinism",
+      "unit": "match",
+      "statistic": "sha256_repeat",
+      "value": 1
+    },
+    {
+      "name": "large_scene.seek_throughput",
+      "unit": "frames/s",
+      "statistic": "120_seeks",
+      "value": 60.2036791004111
+    },
+    {
+      "name": "large_scene.js_heap_growth",
+      "unit": "bytes",
+      "statistic": "120_seeks",
+      "value": 2784
+    },
+    {
+      "name": "large_scene.dom_node_growth",
+      "unit": "nodes",
+      "statistic": "120_seeks",
+      "value": 1
+    },
+    {
+      "name": "large_scene.event_listener_growth",
+      "unit": "listeners",
+      "statistic": "120_seeks",
+      "value": 0
+    }
+  ],
+  "provenance": {
+    "revision": "f88695396035d7ac3d5d0de4e1e49c63f561b985",
+    "dirty": true,
+    "commands": [
+      "node scripts/benchmark-heavy-scenes.mjs --sample-ms 1000 --memory-sweeps 120 --background-load shared-host-background-load-uncontrolled --phase sept7-measurement-fix --output benchmarks/results/2026-09-07/runtime.json --receipt benchmarks/results/2026-09-07/runtime.receipt.json"
+    ],
+    "artifacts": [
+      "benchmarks/runtime/2026-09-07-accounting.json",
+      "benchmarks/runtime/2026-09-07-accounting.receipt.json"
+    ]
+  }
+}

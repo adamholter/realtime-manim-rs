@@ -40,3 +40,4 @@ yarn-error.log*
 /work/
 /public/playground/
 /public/runtime/
+*.tsbuildinfo

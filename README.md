@@ -18,6 +18,10 @@ For coding agents, start with the repository’s machine-readable
 [`agent guide`](./site/public/agent-guide.md). The same source powers the public
 ChatGPT Site; the GitHub release links its deployed URL.
 
+For local development, start with [setup, repository map, and verification](CONTRIBUTING.md).
+`npm run validate` runs the local checks. The [docs-site guide](site/README.md)
+covers editing and testing the interactive examples.
+
 ## Current state
 
 The repository now contains:

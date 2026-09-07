@@ -102,6 +102,13 @@ async function waitForFrames(page, count) {
   }, count);
 }
 
+async function frameSnapshot(page) {
+  return page.evaluate(async () => {
+    const app = await import("/app.js");
+    return { ...app.previewDiagnostics(), measuredAtMs: performance.now() };
+  });
+}
+
 const options = parseArgs(process.argv.slice(2));
 const chromePath = process.env.CHROME_PATH || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const browser = await chromium.launch({
@@ -144,12 +151,13 @@ try {
       return performance.now() - started;
     }, scene);
 
-    const playbackDiagnosticsBefore = await page.evaluate(async () => (await import("/app.js")).previewDiagnostics());
+    const playbackDiagnosticsBefore = await frameSnapshot(page);
     const playbackMetricsBefore = await cdp.send("Performance.getMetrics");
     await page.waitForTimeout(options.sampleMs);
     const playbackMetricsAfter = await cdp.send("Performance.getMetrics");
-    const playbackDiagnosticsAfter = await page.evaluate(async () => (await import("/app.js")).previewDiagnostics());
+    const playbackDiagnosticsAfter = await frameSnapshot(page);
     const playbackPresentedFrames = playbackDiagnosticsAfter.presentedFrames - playbackDiagnosticsBefore.presentedFrames;
+    const playbackElapsedMs = playbackDiagnosticsAfter.measuredAtMs - playbackDiagnosticsBefore.measuredAtMs;
 
     await page.evaluate(async () => {
       const app = await import("/app.js");
@@ -157,11 +165,12 @@ try {
       await new Promise((resolveFrame) => requestAnimationFrame(resolveFrame));
       await new Promise((resolveFrame) => requestAnimationFrame(resolveFrame));
     });
-    const pausedDiagnosticsBefore = await page.evaluate(async () => (await import("/app.js")).previewDiagnostics());
+    const pausedDiagnosticsBefore = await frameSnapshot(page);
     const pausedMetricsBefore = await cdp.send("Performance.getMetrics");
     await page.waitForTimeout(options.sampleMs);
     const pausedMetricsAfter = await cdp.send("Performance.getMetrics");
-    const pausedDiagnosticsAfter = await page.evaluate(async () => (await import("/app.js")).previewDiagnostics());
+    const pausedDiagnosticsAfter = await frameSnapshot(page);
+    const pausedElapsedMs = pausedDiagnosticsAfter.measuredAtMs - pausedDiagnosticsBefore.measuredAtMs;
 
     const seekStarted = performance.now();
     for (let index = 0; index < 120; index += 1) {
@@ -212,13 +221,17 @@ try {
       nodes: scene.nodes.length,
       tracks: scene.tracks.length,
       firstFrameMs,
-      playbackFps: playbackPresentedFrames * 1_000 / options.sampleMs,
+      playbackFps: playbackPresentedFrames * 1_000 / playbackElapsedMs,
+      playbackElapsedMs,
+      playbackCpuSampleMs: (cdpMetric(playbackMetricsAfter, "Timestamp") - cdpMetric(playbackMetricsBefore, "Timestamp")) * 1_000,
       playbackPresentedFrames,
       playbackCpuMs: (
         cdpMetric(playbackMetricsAfter, "TaskDuration") - cdpMetric(playbackMetricsBefore, "TaskDuration")
       ) * 1_000,
       lastCpuFrameMs: playbackDiagnosticsAfter.lastCpuFrameMs,
       pausedPresentedFrames: pausedDiagnosticsAfter.presentedFrames - pausedDiagnosticsBefore.presentedFrames,
+      pausedElapsedMs,
+      pausedCpuSampleMs: (cdpMetric(pausedMetricsAfter, "Timestamp") - cdpMetric(pausedMetricsBefore, "Timestamp")) * 1_000,
       pausedSkippedFrames: pausedDiagnosticsAfter.skippedFrames - pausedDiagnosticsBefore.skippedFrames,
       pausedCpuMs: (
         cdpMetric(pausedMetricsAfter, "TaskDuration") - cdpMetric(pausedMetricsBefore, "TaskDuration")
@@ -334,7 +347,7 @@ try {
       minLargeSceneSeekFps: options.minLargeSceneSeekFps,
       maxMemoryGrowthPercent: options.maxMemoryGrowthPercent,
       failures,
-      passed: failures.length === 0,
+      passed: failures.length === 0 && errors.length === 0,
     },
     errors,
   };
@@ -345,9 +358,11 @@ try {
     samples.push(
       { name: `${prefix}.first_frame_time`, unit: "ms", statistic: "single", value: result.firstFrameMs },
       { name: `${prefix}.playback_frame_rate`, unit: "fps", statistic: "mean", value: result.playbackFps },
-      { name: `${prefix}.playback_cpu_time`, unit: "ms", statistic: `total_${options.sampleMs}ms`, value: result.playbackCpuMs },
-      { name: `${prefix}.paused_cpu_time`, unit: "ms", statistic: `total_${options.sampleMs}ms`, value: result.pausedCpuMs },
-      { name: `${prefix}.paused_presented_frames`, unit: "frames", statistic: `total_${options.sampleMs}ms`, value: result.pausedPresentedFrames },
+      { name: `${prefix}.playback_cpu_time`, unit: "ms", statistic: "sample_total", value: result.playbackCpuMs },
+      { name: `${prefix}.playback_cpu_sample_duration`, unit: "ms", statistic: "elapsed", value: result.playbackCpuSampleMs },
+      { name: `${prefix}.paused_cpu_time`, unit: "ms", statistic: "sample_total", value: result.pausedCpuMs },
+      { name: `${prefix}.paused_cpu_sample_duration`, unit: "ms", statistic: "elapsed", value: result.pausedCpuSampleMs },
+      { name: `${prefix}.paused_presented_frames`, unit: "frames", statistic: "sample_total", value: result.pausedPresentedFrames },
       { name: `${prefix}.seek_throughput`, unit: "frames/s", statistic: "120_seeks", value: result.seekThroughputPerSecond },
       { name: `${prefix}.presented_readback_time`, unit: "ms", statistic: "p50", value: result.presentedReadbackP50Ms },
       { name: `${prefix}.presented_readback_time`, unit: "ms", statistic: "p95", value: result.presentedReadbackP95Ms },

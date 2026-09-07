@@ -87,17 +87,16 @@ def deterministic_quick_hull_initialize(
         rng.choice(points.shape[0], points.shape[1] + 1, replace=False)
     ]
     dimension = points.shape[1]
-    rank = np.linalg.matrix_rank(
-        simplex[1:] - simplex[0], tol=self.tolerance
-    )
+    # QuickHull's tolerance measures outside-point distances in world units.
+    # Rank needs a relative numerical threshold: a small valid hull must not
+    # become degenerate simply because its coordinates are below that distance.
+    rank = np.linalg.matrix_rank(simplex[1:] - simplex[0])
     if rank < dimension:
         selected = [0]
         selected_rank = 0
         for index in range(1, points.shape[0]):
             candidate = points[[*selected, index]]
-            candidate_rank = np.linalg.matrix_rank(
-                candidate[1:] - candidate[0], tol=self.tolerance
-            )
+            candidate_rank = np.linalg.matrix_rank(candidate[1:] - candidate[0])
             if candidate_rank > selected_rank:
                 selected.append(index)
                 selected_rank = candidate_rank
