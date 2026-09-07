@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.6.1 - 2026-09-07
+
+- Paused browser and native players skip unchanged frames. Seeks, signals,
+  resizing, font loading, and device recovery still trigger rendering.
+- Cairo surface compilation keeps compact patch data and expands triangles
+  only for legacy fallback. The 24-by-24 surface benchmark compiles in a median
+  10.57 seconds instead of 30.78 seconds, with 57% less peak resident memory.
+  Before and after compilers emitted identical scene JSON in every paired run.
+  These are shared-workstation results,
+  not a general speed guarantee. See the [measurement receipt](docs/receipts/P-18-deferred-surfaces.md).
+- Fixed deterministic small-scale polyhedron construction and benchmark FPS
+  accounting. Added geometry, surface, and error-propagation regression tests.
+- Added one workspace validation command, pinned Python dependencies, Python
+  CI coverage, and reproducible standalone documentation builds.
+
 ## 0.6.0 — 2026-08-12
 
 - Added strict nested Pango-style `MarkupText` parsing and attributed shaping

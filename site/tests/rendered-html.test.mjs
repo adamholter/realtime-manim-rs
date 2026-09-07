@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
-import { readFile, stat } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { execFileSync, spawnSync } from "node:child_process";
+import { copyFile, mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 
 async function render() {
@@ -52,4 +56,33 @@ test("ships machine-readable agent documentation and a social card", async () =>
   assert.match(guide, /Keep the frame loop.*Rust\/Wasm/);
   assert.match(guide, /compatibility matrix/);
   assert.ok(image.size > 100_000);
+});
+
+test("standalone Sites source verifies its runtime snapshot", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "manim-site-snapshot-"));
+  try {
+    await Promise.all(["scripts", "public/playground", "public/runtime"].map(
+      (path) => mkdir(join(directory, path), { recursive: true }),
+    ));
+    await copyFile(new URL("../scripts/sync-playground.mjs", import.meta.url), join(directory, "scripts/sync-playground.mjs"));
+    const manifest = JSON.parse(await readFile(new URL("../public/playground/snapshot.json", import.meta.url), "utf8"));
+    const hashes = {};
+    for (const file of Object.keys(manifest.sha256)) {
+      const bytes = await readFile(new URL(`../public/${file}`, import.meta.url));
+      hashes[file] = createHash("sha256").update(bytes).digest("hex");
+      assert.equal(hashes[file], manifest.sha256[file]);
+      await writeFile(join(directory, "public", file), bytes);
+    }
+    await writeFile(join(directory, "public/playground/snapshot.json"), JSON.stringify(manifest));
+    await writeFile(join(directory, "package.json"), JSON.stringify({ realtimeManimVersion: manifest.version }));
+    const run = () => spawnSync(process.execPath, ["scripts/sync-playground.mjs"], { cwd: directory, encoding: "utf8" });
+    assert.equal(run().status, 0);
+    await writeFile(join(directory, "package.json"), JSON.stringify({ realtimeManimVersion: "wrong-version" }));
+    assert.match(run().stderr, /different release/);
+    await writeFile(join(directory, "package.json"), JSON.stringify({ realtimeManimVersion: manifest.version }));
+    await writeFile(join(directory, "public/playground/realtime-manim.js"), "corrupt");
+    assert.match(run().stderr, /snapshot is corrupt/);
+  } finally {
+    execFileSync("rm", ["-rf", directory]);
+  }
 });

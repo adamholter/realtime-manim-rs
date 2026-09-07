@@ -1,6 +1,7 @@
 {
   "name": "realtime-manim-docs-site",
   "version": "0.1.0",
+  "realtimeManimVersion": "0.6.1",
   "private": true,
   "engines": {
     "node": ">=22.13.0"

@@ -13,6 +13,7 @@
     "test:web": "node --test server/*.test.mjs",
     "sweep:webgpu": "node scripts/sweep-webgpu.mjs",
     "benchmark:heavy-scenes": "node scripts/benchmark-heavy-scenes.mjs",
+    "benchmark:surface-compiler": ".venv-manim-reference/bin/python scripts/benchmark-surface-compiler.py",
     "test:device-recovery": "node scripts/test-device-recovery.mjs",
     "test:multi-player": "node scripts/test-multi-player.mjs",
     "test:browser-package": "node scripts/test-browser-package.mjs",

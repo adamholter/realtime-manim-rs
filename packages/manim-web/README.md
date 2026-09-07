@@ -49,7 +49,7 @@ For a plain HTML file, import the module from a CDN. Pin the version in producti
 <script type="module">
   import {
     Circle, Create, Scene, createManimPlayer,
-  } from "https://cdn.jsdelivr.net/npm/realtime-manim@0.6.0/src/index.js";
+  } from "https://cdn.jsdelivr.net/gh/adamholter/realtime-manim-rs@v0.6.1/packages/manim-web/src/index.js";
 
   const circle = new Circle().fill("#58c4ddcc");
   const scene = new Scene().add(circle).play(Create(circle));

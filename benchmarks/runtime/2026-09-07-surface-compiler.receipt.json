@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "benchmark_id": "P-18-deferred-cairo-surface-capture",
+  "recorded_at_utc": "2026-09-07T21:54:39.150Z",
+  "environment": {
+    "os": "macOS",
+    "os_version": "27.0",
+    "architecture": "arm64",
+    "processor": "Apple M4",
+    "memory_bytes": 17179869184,
+    "display": null,
+    "background_load_profile": "shared-host-background-load-uncontrolled"
+  },
+  "workload": {
+    "name": "Cairo surface compilation with byte-equality checks",
+    "scene": "benchmarks/corpus/manim_reference_scenes.py",
+    "resolution": [
+      854,
+      480
+    ],
+    "duration_seconds": 409.53146025305614,
+    "notes": [
+      "Three paired runs per scene at 15 fps, with alternating order. CPU time and peak RSS are per child process.",
+      "Shared workstation with unrelated applications active. Other validation work overlapped the later Polyhedra samples; wall times are not controlled-idle measurements.",
+      "Baseline is compiler source from f523b45adf2e80d0988b795ddeccd084fff6f74f. Every before and after scene matches byte-for-byte.",
+      "These are Python-to-retained-IR compiler measurements, not playback FPS or GPU frame times."
+    ]
+  },
+  "samples": [
+    {
+      "name": "ThreeDSurface.before.wallSeconds",
+      "unit": "s",
+      "statistic": "median_3_runs",
+      "value": 30.78076645801775
+    },
+    {
+      "name": "ThreeDSurface.before.cpuSeconds",
+      "unit": "s",
+      "statistic": "median_3_runs",
+      "value": 22.708362
+    },
+    {
+      "name": "ThreeDSurface.before.peakRssBytes",
+      "unit": "bytes",
+      "statistic": "median_3_runs",
+      "value": 342212608
+    },
+    {
+      "name": "ThreeDSurface.after.wallSeconds",
+      "unit": "s",
+      "statistic": "median_3_runs",
+      "value": 10.565905541880056
+    },
+    {
+      "name": "ThreeDSurface.after.cpuSeconds",
+      "unit": "s",
+      "statistic": "median_3_runs",
+      "value": 8.009317
+    },
+    {
+      "name": "ThreeDSurface.after.peakRssBytes",
+      "unit": "bytes",
+      "statistic": "median_3_runs",
+      "value": 148406272
+    },
+    {
+      "name": "PolyhedraAndFixedLabels.before.wallSeconds",
+      "unit": "s",
+      "statistic": "median_3_runs",
+      "value": 48.62460929201916
+    },
+    {
+      "name": "PolyhedraAndFixedLabels.before.cpuSeconds",
+      "unit": "s",
+      "statistic": "median_3_runs",
+      "value": 32.327248
+    },
+    {
+      "name": "PolyhedraAndFixedLabels.before.peakRssBytes",
+      "unit": "bytes",
+      "statistic": "median_3_runs",
+      "value": 390135808
+    },
+    {
+      "name": "PolyhedraAndFixedLabels.after.wallSeconds",
+      "unit": "s",
+      "statistic": "median_3_runs",
+      "value": 32.53882545907982
+    },
+    {
+      "name": "PolyhedraAndFixedLabels.after.cpuSeconds",
+      "unit": "s",
+      "statistic": "median_3_runs",
+      "value": 15.528105
+    },
+    {
+      "name": "PolyhedraAndFixedLabels.after.peakRssBytes",
+      "unit": "bytes",
+      "statistic": "median_3_runs",
+      "value": 118800384
+    }
+  ],
+  "provenance": {
+    "revision": "f523b45adf2e80d0988b795ddeccd084fff6f74f",
+    "dirty": true,
+    "commands": [
+      "python scripts/benchmark-surface-compiler.py --before benchmarks/results/compile-manim-before.py --runs 3 --fps 15 --output benchmarks/runtime/2026-09-07-surface-compiler.json"
+    ],
+    "artifacts": [
+      "benchmarks/runtime/2026-09-07-surface-compiler.json",
+      "benchmarks/runtime/2026-09-07-surface-compiler.receipt.json"
+    ]
+  }
+}

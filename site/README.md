@@ -20,6 +20,10 @@ and `public/runtime/` directories. Edit the package source, not those copies.
 After Rust runtime changes, run `npm run build:package` at the repository root
 before rebuilding this site.
 
+The standalone Sites source includes a runtime snapshot and SHA-256 manifest.
+Without the parent repository, the build verifies that snapshot's version and
+every file hash. Missing, stale, or modified snapshot files fail the build.
+
 ## Where to work
 
 | Path | Purpose |

@@ -17,6 +17,7 @@ const scripts = [
   "audit-corpus.py",
   "test-compile-manim-strokes.py",
   "test-compile-manim-determinism.py",
+  "test-compile-manim-surfaces.py",
   ...(!args.includes("--core") ? ["test-transform-matching-semantics.py"] : []),
 ];
 for (const script of scripts) {

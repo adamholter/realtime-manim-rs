@@ -11,6 +11,8 @@
 - scene schema: https://github.com/adamholter/realtime-manim-rs/blob/main/apps/web-preview/www/scene-schema.js
 - compatibility matrix: https://github.com/adamholter/realtime-manim-rs/blob/main/benchmarks/corpus/capability-matrix.json
 - agent guide: /agent-guide.md
+- release notes: https://github.com/adamholter/realtime-manim-rs/blob/main/CHANGELOG.md
+- compiler measurements: https://github.com/adamholter/realtime-manim-rs/blob/main/docs/receipts/P-18-deferred-surfaces.md
 
 ## Install
 

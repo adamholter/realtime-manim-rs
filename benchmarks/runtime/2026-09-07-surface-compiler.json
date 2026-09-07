@@ -1,0 +1,163 @@
+{
+  "fps": 15,
+  "runs": 3,
+  "baseline": "pre-change compiler",
+  "environment": {
+    "os": "darwin",
+    "python": "3.13.5",
+    "load": "shared workstation; other applications active; no process inventory"
+  },
+  "byteEquality": true,
+  "records": [
+    {
+      "scene": "ThreeDSurface",
+      "mode": "before",
+      "run": 0,
+      "wallSeconds": 32.602813416859135,
+      "cpuSeconds": 22.708362,
+      "peakRssBytes": 371834880,
+      "bytes": 183388,
+      "sha256": "21a3c895e425849d786480e0ef3306cd5cb9341c88b6c192a0ac7848d903c6f9"
+    },
+    {
+      "scene": "ThreeDSurface",
+      "mode": "after",
+      "run": 0,
+      "wallSeconds": 10.565905541880056,
+      "cpuSeconds": 8.009317,
+      "peakRssBytes": 148406272,
+      "bytes": 183388,
+      "sha256": "21a3c895e425849d786480e0ef3306cd5cb9341c88b6c192a0ac7848d903c6f9"
+    },
+    {
+      "scene": "ThreeDSurface",
+      "mode": "after",
+      "run": 1,
+      "wallSeconds": 9.223470667144284,
+      "cpuSeconds": 7.637931,
+      "peakRssBytes": 155287552,
+      "bytes": 183388,
+      "sha256": "21a3c895e425849d786480e0ef3306cd5cb9341c88b6c192a0ac7848d903c6f9"
+    },
+    {
+      "scene": "ThreeDSurface",
+      "mode": "before",
+      "run": 1,
+      "wallSeconds": 25.53195545892231,
+      "cpuSeconds": 19.119902999999997,
+      "peakRssBytes": 326041600,
+      "bytes": 183388,
+      "sha256": "21a3c895e425849d786480e0ef3306cd5cb9341c88b6c192a0ac7848d903c6f9"
+    },
+    {
+      "scene": "ThreeDSurface",
+      "mode": "before",
+      "run": 2,
+      "wallSeconds": 30.78076645801775,
+      "cpuSeconds": 23.293926000000003,
+      "peakRssBytes": 342212608,
+      "bytes": 183388,
+      "sha256": "21a3c895e425849d786480e0ef3306cd5cb9341c88b6c192a0ac7848d903c6f9"
+    },
+    {
+      "scene": "ThreeDSurface",
+      "mode": "after",
+      "run": 2,
+      "wallSeconds": 11.007006499916315,
+      "cpuSeconds": 9.071824,
+      "peakRssBytes": 140574720,
+      "bytes": 183388,
+      "sha256": "21a3c895e425849d786480e0ef3306cd5cb9341c88b6c192a0ac7848d903c6f9"
+    },
+    {
+      "scene": "PolyhedraAndFixedLabels",
+      "mode": "before",
+      "run": 0,
+      "wallSeconds": 36.17396420822479,
+      "cpuSeconds": 25.746196,
+      "peakRssBytes": 399687680,
+      "bytes": 407675,
+      "sha256": "6bd2b4fc5ecae6509416b83616c67d29e219d949eb197183fa0a887b2ed56968"
+    },
+    {
+      "scene": "PolyhedraAndFixedLabels",
+      "mode": "after",
+      "run": 0,
+      "wallSeconds": 32.53882545907982,
+      "cpuSeconds": 15.385121999999999,
+      "peakRssBytes": 111214592,
+      "bytes": 407675,
+      "sha256": "6bd2b4fc5ecae6509416b83616c67d29e219d949eb197183fa0a887b2ed56968"
+    },
+    {
+      "scene": "PolyhedraAndFixedLabels",
+      "mode": "after",
+      "run": 1,
+      "wallSeconds": 24.742793292040005,
+      "cpuSeconds": 15.714189,
+      "peakRssBytes": 121405440,
+      "bytes": 407675,
+      "sha256": "6bd2b4fc5ecae6509416b83616c67d29e219d949eb197183fa0a887b2ed56968"
+    },
+    {
+      "scene": "PolyhedraAndFixedLabels",
+      "mode": "before",
+      "run": 1,
+      "wallSeconds": 48.62460929201916,
+      "cpuSeconds": 32.327248,
+      "peakRssBytes": 390135808,
+      "bytes": 407675,
+      "sha256": "6bd2b4fc5ecae6509416b83616c67d29e219d949eb197183fa0a887b2ed56968"
+    },
+    {
+      "scene": "PolyhedraAndFixedLabels",
+      "mode": "before",
+      "run": 2,
+      "wallSeconds": 98.17420908412896,
+      "cpuSeconds": 32.560193,
+      "peakRssBytes": 373227520,
+      "bytes": 407675,
+      "sha256": "6bd2b4fc5ecae6509416b83616c67d29e219d949eb197183fa0a887b2ed56968"
+    },
+    {
+      "scene": "PolyhedraAndFixedLabels",
+      "mode": "after",
+      "run": 2,
+      "wallSeconds": 49.565140874823555,
+      "cpuSeconds": 15.528105,
+      "peakRssBytes": 118800384,
+      "bytes": 407675,
+      "sha256": "6bd2b4fc5ecae6509416b83616c67d29e219d949eb197183fa0a887b2ed56968"
+    }
+  ],
+  "summaries": [
+    {
+      "scene": "ThreeDSurface",
+      "before": {
+        "wallSeconds": 30.78076645801775,
+        "cpuSeconds": 22.708362,
+        "peakRssBytes": 342212608
+      },
+      "after": {
+        "wallSeconds": 10.565905541880056,
+        "cpuSeconds": 8.009317,
+        "peakRssBytes": 148406272
+      },
+      "wallSpeedup": 2.9132161305069495
+    },
+    {
+      "scene": "PolyhedraAndFixedLabels",
+      "before": {
+        "wallSeconds": 48.62460929201916,
+        "cpuSeconds": 32.327248,
+        "peakRssBytes": 390135808
+      },
+      "after": {
+        "wallSeconds": 32.53882545907982,
+        "cpuSeconds": 15.528105,
+        "peakRssBytes": 118800384
+      },
+      "wallSpeedup": 1.494356621850672
+    }
+  ]
+}

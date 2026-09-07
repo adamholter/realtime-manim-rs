@@ -69,7 +69,7 @@ export default function Home() {
 
       <section className="hero shell" id="top">
         <div className="hero-main">
-          <p className="hero-version">realtime-manim / 0.6 / Rust + WebGPU</p>
+          <p className="hero-version">realtime-manim / 0.6.1 / Rust + WebGPU</p>
           <h1>Manim scenes,<br /><span>at interaction speed.</span></h1>
           <p className="hero-copy">
             Write a retained scene in JavaScript. Rust evaluates it, WebGPU draws it,

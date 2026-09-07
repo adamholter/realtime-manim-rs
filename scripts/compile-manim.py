@@ -1029,6 +1029,15 @@ class PointCloudTrack:
 
 
 @dataclass
+class CairoSurfacePatch:
+    # Keep unrounded coordinates for the rare expanded-mesh fallback.
+    anchors: list[np.ndarray]
+    fill_rgbas: list[np.ndarray]
+    stroke_rgba: np.ndarray
+    stroke_radius: float
+
+
+@dataclass
 class MeshSnapshot:
     at: float
     vertices: list[list[float]]
@@ -1043,6 +1052,59 @@ class MeshSnapshot:
     surface_patches: list[list[int]] = field(default_factory=list)
     surface_rgbas: np.ndarray | None = None
     surface_stroke_radii: list[float] = field(default_factory=list)
+    deferred_surface: list[CairoSurfacePatch] | None = None
+
+
+def expand_cairo_surface(snapshot: MeshSnapshot) -> list[list[int]]:
+    """Materialize legacy geometry only when a surface cannot stay retained."""
+    vertices: list[list[float]] = []
+    normals: list[list[float]] = []
+    rgbas: list[np.ndarray] = []
+    triangles: list[list[int]] = []
+    for patch in snapshot.deferred_surface or []:
+        anchors = patch.anchors
+        base = len(vertices)
+        vertices.extend([[finite(c) for c in point] for point in anchors])
+        normal = np.zeros(3, dtype=float)
+        for first, second in zip(anchors, anchors[1:] + anchors[:1]):
+            normal += np.cross(first, second)
+        length = float(np.linalg.norm(normal))
+        if length > 1e-12:
+            normal /= length
+        else:
+            normal = np.asarray([0.0, 0.0, 1.0])
+        normals.extend([[finite(c) for c in normal] for _ in anchors])
+        triangles.extend(
+            [base, base + corner, base + corner + 1]
+            for corner in range(1, len(anchors) - 1)
+        )
+        rgbas.extend(patch.fill_rgbas)
+        for edge_start, edge_end in zip(anchors, anchors[1:] + anchors[:1]):
+            direction = np.asarray(edge_end) - np.asarray(edge_start)
+            perpendicular = np.cross(normal, direction)
+            perpendicular_length = float(np.linalg.norm(perpendicular))
+            if perpendicular_length <= 1e-12:
+                perpendicular = np.asarray([1.0, 0.0, 0.0])
+                perpendicular_length = 1.0
+            offset = perpendicular / perpendicular_length * patch.stroke_radius
+            wire_base = len(vertices)
+            wire_vertices = [
+                edge_start - offset, edge_start + offset,
+                edge_end - offset, edge_end + offset,
+            ]
+            vertices.extend([[finite(c) for c in point] for point in wire_vertices])
+            normals.extend([[finite(c) for c in normal] for _ in wire_vertices])
+            triangles.extend([
+                [wire_base, wire_base + 1, wire_base + 2],
+                [wire_base + 2, wire_base + 1, wire_base + 3],
+            ])
+            rgbas.extend([patch.stroke_rgba] * 4)
+    snapshot.vertices = vertices
+    snapshot.normals = normals
+    snapshot.rgbas = np.asarray(rgbas, dtype=float).reshape(-1, 4)
+    snapshot.colors = [rgba_hex(color) for color in rgbas]
+    snapshot.deferred_surface = None
+    return triangles
 
 
 @dataclass
@@ -1198,6 +1260,7 @@ class CompatibilityRenderer:
         *,
         semantic_billboards: bool = True,
         compact_surface_lifetimes: bool = True,
+        eager_surface_capture: bool = False,
         full_affine_tracks: bool = True,
         semantic_matching: bool = True,
     ) -> None:
@@ -1205,6 +1268,7 @@ class CompatibilityRenderer:
         self.renderer_name = renderer_name
         self.enable_semantic_billboards = semantic_billboards
         self.enable_compact_surface_lifetimes = compact_surface_lifetimes
+        self.eager_surface_capture = eager_surface_capture
         self.enable_full_affine_tracks = full_affine_tracks
         self.enable_semantic_matching = semantic_matching
         self.time = 0.0
@@ -2268,17 +2332,13 @@ class CompatibilityRenderer:
         at: float,
         order: int,
     ) -> tuple[Any, int] | None:
-        vertices: list[list[float]] = []
-        normals: list[list[float]] = []
-        colors: list[str] = []
-        rgbas: list[np.ndarray] = []
-        triangles: list[list[int]] = []
         surface_vertices: list[list[float]] = []
         surface_vertex_indices: dict[tuple[float, float, float], int] = {}
         surface_patches: list[list[int]] = []
         surface_fill_rgbas: list[np.ndarray] = []
         surface_stroke_rgbas: list[np.ndarray] = []
         surface_stroke_radii: list[float] = []
+        deferred_surface: list[CairoSurfacePatch] = []
         for piece in pieces:
             anchors: list[np.ndarray] = []
             for point in np.asarray(piece.get_anchors(), dtype=float):
@@ -2301,36 +2361,14 @@ class CompatibilityRenderer:
                     surface_vertices.append(list(compact_point))
                 patch.append(compact_index)
             surface_patches.append(patch)
-            base = len(vertices)
-            vertices.extend(
-                [
-                    [finite(channel) for channel in point]
-                    for point in anchors
-                ]
-            )
-            normal = np.zeros(3, dtype=float)
-            for first, second in zip(
-                anchors, anchors[1:] + anchors[:1]
-            ):
-                normal += np.cross(first, second)
-            length = float(np.linalg.norm(normal))
-            if length > 1e-12:
-                normal /= length
-            else:
-                normal = np.asarray([0.0, 0.0, 1.0])
-            normals.extend(
-                [[finite(channel) for channel in normal] for _ in anchors]
-            )
-            triangles.extend(
-                [
-                    [base, base + corner, base + corner + 1]
-                    for corner in range(1, len(anchors) - 1)
-                ]
-            )
             fill_rgbas = np.asarray(
                 self.camera.get_fill_rgbas(piece), dtype=float
             )
-            if fill_rgbas.ndim != 2 or fill_rgbas.shape[1] != 4:
+            if (
+                fill_rgbas.ndim != 2
+                or fill_rgbas.shape[0] == 0
+                or fill_rgbas.shape[1] != 4
+            ):
                 self.diagnostics.add("unsupported-cairo-surface-color")
                 return None
             start_color = np.clip(fill_rgbas[0], 0.0, 1.0)
@@ -2347,8 +2385,6 @@ class CompatibilityRenderer:
                     (1.0 - alpha) * start_color + alpha * end_color
                     for alpha in np.linspace(0.0, 1.0, len(anchors))
                 ]
-            rgbas.extend(piece_colors)
-            colors.extend(rgba_hex(color) for color in piece_colors)
             surface_fill_rgbas.extend(piece_colors)
             stroke_width = float(np.max(piece.get_stroke_width()))
             stroke_rgbas = np.asarray(
@@ -2370,45 +2406,33 @@ class CompatibilityRenderer:
             )
             surface_stroke_rgbas.append(stroke_color)
             surface_stroke_radii.append(finite(half_width))
-            for edge_start, edge_end in zip(
-                anchors, anchors[1:] + anchors[:1]
-            ):
-                direction = np.asarray(edge_end) - np.asarray(edge_start)
-                perpendicular = np.cross(normal, direction)
-                perpendicular_length = float(np.linalg.norm(perpendicular))
-                if perpendicular_length <= 1e-12:
-                    perpendicular = np.asarray([1.0, 0.0, 0.0])
-                    perpendicular_length = 1.0
-                offset = (
-                    perpendicular / perpendicular_length * half_width
-                )
-                wire_base = len(vertices)
-                wire_vertices = [
-                    np.asarray(edge_start) - offset,
-                    np.asarray(edge_start) + offset,
-                    np.asarray(edge_end) - offset,
-                    np.asarray(edge_end) + offset,
-                ]
-                vertices.extend(
-                    [
-                        [finite(channel) for channel in point]
-                        for point in wire_vertices
-                    ]
-                )
-                normals.extend(
-                    [
-                        [finite(channel) for channel in normal]
-                        for _ in wire_vertices
-                    ]
-                )
-                triangles.extend(
-                    [
-                        [wire_base, wire_base + 1, wire_base + 2],
-                        [wire_base + 2, wire_base + 1, wire_base + 3],
-                    ]
-                )
-                rgbas.extend([stroke_color] * 4)
-                colors.extend([rgba_hex(stroke_color)] * 4)
+            deferred_surface.append(CairoSurfacePatch(
+                anchors, piece_colors, stroke_color, half_width
+            ))
+        if not surface_patches:
+            return None
+        rgba_array = np.asarray(surface_fill_rgbas + surface_stroke_rgbas, dtype=float)
+        snapshot = MeshSnapshot(
+            at=at,
+            vertices=surface_vertices,
+            normals=[],
+            light_position=[[0.0, 0.0, 8.0]],
+            uvs=[],
+            colors=[],
+            rgbas=rgba_array,
+            opacity=finite(float(np.max(rgba_array[:, 3]))),
+            z_index=int(getattr(surface, "z_index", 0)) * 10_000 + order,
+            surface_vertices=surface_vertices,
+            surface_patches=surface_patches,
+            surface_rgbas=rgba_array,
+            surface_stroke_radii=surface_stroke_radii,
+            deferred_surface=deferred_surface,
+        )
+        # Topology-changing legacy lifetimes need expanded geometry immediately.
+        eager = (
+            self.eager_surface_capture or not self.enable_compact_surface_lifetimes
+        )
+        triangles = expand_cairo_surface(snapshot) if eager else []
         key = self.mesh_active.get(surface)
         track = None if key is None else self.mesh_tracks.get(key)
         if (
@@ -2417,7 +2441,7 @@ class CompatibilityRenderer:
             or track.triangles != triangles
             or (
                 track.snapshots
-                and len(track.snapshots[0].vertices) != len(vertices)
+                and len(track.snapshots[0].vertices) != len(snapshot.vertices)
             )
             or (
                 self.enable_compact_surface_lifetimes
@@ -2457,28 +2481,7 @@ class CompatibilityRenderer:
             )
             self.mesh_tracks[key] = track
         track.last_seen = at
-        rgba_array = np.asarray(rgbas, dtype=float)
-        track.snapshots.append(
-            MeshSnapshot(
-                at=at,
-                vertices=vertices,
-                normals=normals,
-                light_position=[[0.0, 0.0, 8.0]],
-                uvs=[],
-                colors=colors,
-                rgbas=rgba_array,
-                opacity=finite(float(np.max(rgba_array[:, 3]))),
-                z_index=int(getattr(surface, "z_index", 0)) * 10_000
-                + order,
-                surface_vertices=surface_vertices,
-                surface_patches=surface_patches,
-                surface_rgbas=np.asarray(
-                    surface_fill_rgbas + surface_stroke_rgbas,
-                    dtype=float,
-                ),
-                surface_stroke_radii=surface_stroke_radii,
-            )
-        )
+        track.snapshots.append(snapshot)
         return key
 
     def _new_custom_shader_key(
@@ -4696,6 +4699,13 @@ float realtime_manim_strip_value = 0.0;
             snapshots = mesh_track.snapshots
             if not snapshots:
                 continue
+            # Compact lifetimes already guarantee identical patch topology.
+            # The only remaining fallback is a lifetime that is fully invisible.
+            if snapshots[0].deferred_surface is not None and not any(
+                np.max(snapshot.rgbas[:, 3]) > 1e-9 for snapshot in snapshots
+            ):
+                for snapshot in snapshots:
+                    mesh_track.triangles = expand_cairo_surface(snapshot)
             vertex_counts = {len(snapshot.vertices) for snapshot in snapshots}
             if len(vertex_counts) != 1:
                 self.diagnostics.add("dynamic-opengl-surface-vertex-count")
@@ -4728,13 +4738,20 @@ float realtime_manim_strip_value = 0.0;
                             snapshot,
                             colors=[
                                 rgba_hex(color)
-                                for color in np.clip(normalized, 0.0, 1.0)
+                                for color in np.clip(
+                                    normalized[:1]
+                                    if snapshot.deferred_surface is not None
+                                    else normalized,
+                                    0.0, 1.0,
+                                )
                             ],
                             rgbas=normalized,
                         )
                     )
             initial_colors = color_snapshots[0].colors
             optional_surface_colors: list[list[str] | None] = []
+            previous_surface_rgba = None
+            previous_surface_colors = None
             if initial.surface_patches:
                 for snapshot, opacity in zip(snapshots, opacities):
                     if snapshot.surface_rgbas is None:
@@ -4748,14 +4765,14 @@ float realtime_manim_strip_value = 0.0;
                         continue
                     normalized_surface = snapshot.surface_rgbas.copy()
                     normalized_surface[:, 3] /= opacity
-                    optional_surface_colors.append(
-                        [
+                    normalized_surface = np.clip(normalized_surface, 0.0, 1.0)
+                    if not np.array_equal(normalized_surface, previous_surface_rgba):
+                        previous_surface_colors = [
                             rgba_hex(color)
-                            for color in np.clip(
-                                normalized_surface, 0.0, 1.0
-                            )
+                            for color in normalized_surface
                         ]
-                    )
+                        previous_surface_rgba = normalized_surface
+                    optional_surface_colors.append(previous_surface_colors)
             visible_surface_colors = next(
                 (
                     colors
@@ -6966,6 +6983,7 @@ def compile_scene(
     *,
     semantic_billboards: bool = True,
     compact_surface_lifetimes: bool = True,
+    eager_surface_capture: bool = False,
     full_affine_tracks: bool = True,
     semantic_matching: bool = True,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -7001,6 +7019,7 @@ def compile_scene(
         renderer_name,
         semantic_billboards=semantic_billboards,
         compact_surface_lifetimes=compact_surface_lifetimes,
+        eager_surface_capture=eager_surface_capture,
         full_affine_tracks=full_affine_tracks,
         semantic_matching=semantic_matching,
     )
@@ -7039,6 +7058,11 @@ def main() -> int:
         help="retain topology-changing Cairo surfaces as expanded meshes for differential testing",
     )
     parser.add_argument(
+        "--eager-surface-capture",
+        action="store_true",
+        help="materialize expanded Cairo geometry for differential benchmarks",
+    )
+    parser.add_argument(
         "--disable-full-affine-tracks",
         action="store_true",
         help="retain non-similarity affine path motion as sampled path data for differential testing",
@@ -7057,6 +7081,7 @@ def main() -> int:
         arguments.renderer,
         semantic_billboards=not arguments.disable_semantic_billboards,
         compact_surface_lifetimes=not arguments.disable_compact_surface_lifetimes,
+        eager_surface_capture=arguments.eager_surface_capture,
         full_affine_tracks=not arguments.disable_full_affine_tracks,
         semantic_matching=not arguments.disable_semantic_matching,
     )
